@@ -1,0 +1,52 @@
+<?php
+
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+declare(strict_types=1);
+
+namespace AgencyDiscount;
+
+/** The module's object graph: one repository, configuration, clock and activity log shared by every service. */
+final class Module
+{
+    public const NAME = 'agencydiscount';
+    public const VERSION = '0.1.0';
+
+    public function __construct(
+        public readonly Repository $repo,
+        public readonly Config $config,
+        public readonly Clock $clock,
+        public readonly ActivityLog $activity,
+    ) {
+    }
+
+    /**
+     * Builds the production container from the module's WHMCS settings.
+     *
+     * @throws ConfigException
+     */
+    public static function boot(): self
+    {
+        return new self(
+            new CapsuleRepository(),
+            Config::fromSettings(CapsuleRepository::settings()),
+            new SystemClock(),
+            new WhmcsActivityLog(),
+        );
+    }
+
+    public function spend(): SpendCalculator
+    {
+        return new SpendCalculator($this->repo, $this->config);
+    }
+
+    public function recalculator(): Recalculator
+    {
+        return new Recalculator($this->repo, $this->config, $this->clock, $this->activity);
+    }
+
+    public function discounter(): InvoiceDiscounter
+    {
+        return new InvoiceDiscounter($this->repo, $this->config, $this->recalculator(), $this->clock, $this->activity);
+    }
+}

@@ -1,0 +1,7 @@
+[
+  {"id": 51, "userid": 131, "hostingid": 1001, "addonid": 12, "recurring": "85.00", "billingcycle": "Monthly", "status": "Active", "nextinvoicedate": "2026-10-25"},
+  {"id": 52, "userid": 0, "hostingid": 1002, "addonid": 15, "recurring": "85.00", "billingcycle": "Monthly", "status": "Active", "nextinvoicedate": "2026-10-25"},
+  {"id": 53, "userid": 131, "hostingid": 1003, "addonid": 12, "recurring": "935.00", "billingcycle": "Annually", "status": "Active", "nextinvoicedate": "2026-11-03"},
+  {"id": 54, "userid": 131, "hostingid": 1001, "addonid": 99, "recurring": "50.00", "billingcycle": "Monthly", "status": "Active", "nextinvoicedate": "2026-10-25"},
+  {"id": 55, "userid": 131, "hostingid": 1004, "addonid": 12, "recurring": "85.00", "billingcycle": "Monthly", "status": "Terminated", "nextinvoicedate": "2026-10-25"}
+]

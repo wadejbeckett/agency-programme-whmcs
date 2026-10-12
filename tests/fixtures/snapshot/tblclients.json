@@ -1,0 +1,6 @@
+[
+  {"id": 131, "firstname": "Contact", "lastname": "One", "companyname": "Agency One", "currency": 1},
+  {"id": 404, "firstname": "Agency", "lastname": "Two", "companyname": "", "currency": 1},
+  {"id": 500, "firstname": "Contact", "lastname": "Euro", "companyname": "Euro Agency", "currency": 3},
+  {"id": 600, "firstname": "Retail", "lastname": "Client", "companyname": "  ", "currency": 1}
+]

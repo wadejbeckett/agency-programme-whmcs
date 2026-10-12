@@ -1,0 +1,6 @@
+[
+  {"id": 9001, "userid": 131, "status": "Unpaid", "duedate": "2026-10-25", "paymentmethod": "banktransfer"},
+  {"id": 9002, "userid": 131, "status": "Unpaid", "duedate": "2026-10-26", "paymentmethod": ""},
+  {"id": 9003, "userid": 500, "status": "Unpaid", "duedate": "2026-10-20", "paymentmethod": ""},
+  {"id": 9004, "userid": 600, "status": "Unpaid", "duedate": "2026-10-25", "paymentmethod": ""}
+]

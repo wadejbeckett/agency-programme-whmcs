@@ -1,0 +1,14 @@
+#!/usr/bin/env php
+<?php
+
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+declare(strict_types=1);
+
+require __DIR__ . '/../modules/addons/agencydiscount/lib/Bootstrap.php';
+
+/** @var list<string> $arguments */
+$arguments = array_values($_SERVER['argv'] ?? []);
+exit(\AgencyDiscount\Cli::run($arguments, static function (string $line): void {
+    fwrite(STDOUT, $line . "\n");
+}));

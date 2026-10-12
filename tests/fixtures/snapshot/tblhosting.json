@@ -1,0 +1,11 @@
+[
+  {"id": 1001, "userid": 131, "packageid": 113, "domain": "a.example", "amount": "170.00", "billingcycle": "Monthly", "domainstatus": "Active", "nextinvoicedate": "2026-10-25", "promoid": 0},
+  {"id": 1002, "userid": 131, "packageid": 113, "domain": "b.example", "amount": "340.00", "billingcycle": "Monthly", "domainstatus": "Active", "nextinvoicedate": "2026-10-25", "promoid": 0},
+  {"id": 1003, "userid": 131, "packageid": 109, "domain": "c.example", "amount": "1020.00", "billingcycle": "Annually", "domainstatus": "Active", "nextinvoicedate": "2026-11-03", "promoid": 0},
+  {"id": 1004, "userid": 131, "packageid": 109, "domain": "d.example", "amount": "85.00", "billingcycle": "Monthly", "domainstatus": "Terminated", "nextinvoicedate": "0000-00-00", "promoid": 0},
+  {"id": 1005, "userid": 131, "packageid": 120, "domain": "e.example", "amount": "68.00", "billingcycle": "Monthly", "domainstatus": "Active", "nextinvoicedate": "2026-10-25", "promoid": 0},
+  {"id": 1006, "userid": 131, "packageid": 113, "domain": "f.example", "amount": "170.00", "billingcycle": "Monthly", "domainstatus": "Active", "nextinvoicedate": "2026-10-25", "promoid": 8},
+  {"id": 2001, "userid": 404, "packageid": 108, "domain": "r.example", "amount": "6000.00", "billingcycle": "Monthly", "domainstatus": "Active", "nextinvoicedate": "2026-10-20", "promoid": 0},
+  {"id": 3001, "userid": 500, "packageid": 113, "domain": "eu.example", "amount": "300.00", "billingcycle": "Monthly", "domainstatus": "Active", "nextinvoicedate": "2026-10-20", "promoid": 0},
+  {"id": 4001, "userid": 600, "packageid": 113, "domain": "x.example", "amount": "170.00", "billingcycle": "Monthly", "domainstatus": "Active", "nextinvoicedate": "2026-10-25", "promoid": 0}
+]

@@ -1,0 +1,13 @@
+<?php
+
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+declare(strict_types=1);
+
+namespace AgencyDiscount;
+
+/** Writes human-readable entries to the WHMCS activity log. */
+interface ActivityLog
+{
+    public function log(string $message, int $clientId = 0): void;
+}

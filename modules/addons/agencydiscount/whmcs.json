@@ -1,0 +1,14 @@
+{
+  "schema": "1.0",
+  "type": "whmcs-addons",
+  "name": "agencydiscount",
+  "license": "AGPL-3.0-or-later",
+  "category": "billing",
+  "description": {
+    "name": "Agency Programme",
+    "tagline": "A programme for approved agency clients: tiered benefits by qualifying monthly spend, today a discount applied automatically as a named invoice line.",
+    "long": "Runs a programme for approved agency clients. Approval is set on the client profile; the module measures each agency's qualifying monthly spend and places it in a tier. Today a tier carries a percentage discount, applied automatically as a named invoice line when each invoice is created. Tiers, qualifying products and add-ons are configuration. Includes dry-run mode, an admin overview and a full change log."
+  },
+  "support": { "docs_url": "https://github.com/wadejbeckett/agency-programme-whmcs" },
+  "authors": [ { "name": "Noiz" } ]
+}

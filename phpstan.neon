@@ -1,0 +1,10 @@
+parameters:
+    level: 6
+    phpVersion: 80100
+    paths:
+        - modules
+        - bin
+    scanFiles:
+        - tools/whmcs-stubs.php
+    excludePaths:
+        - modules/addons/agencydiscount/lang

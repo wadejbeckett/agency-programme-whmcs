@@ -1,0 +1,8 @@
+[
+  {"id": 45, "gid": 6, "name": "Cloud 1"},
+  {"id": 108, "gid": 3, "name": "Reseller 1"},
+  {"id": 109, "gid": 1, "name": "sLegacy-1"},
+  {"id": 113, "gid": 23, "name": "sPremium-1"},
+  {"id": 120, "gid": 15, "name": "DNS Only"},
+  {"id": 161, "gid": 33, "name": "Email Security"}
+]

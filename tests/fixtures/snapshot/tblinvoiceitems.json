@@ -1,0 +1,13 @@
+[
+  {"id": 1, "invoiceid": 9001, "type": "Hosting", "relid": 1001, "description": "sPremium-1 - a.example", "amount": "170.00", "taxed": 0},
+  {"id": 2, "invoiceid": 9001, "type": "Hosting", "relid": 1002, "description": "sPremium-1 - b.example", "amount": "340.00", "taxed": 0},
+  {"id": 3, "invoiceid": 9001, "type": "Hosting", "relid": 1005, "description": "DNS Only - e.example", "amount": "68.00", "taxed": 0},
+  {"id": 4, "invoiceid": 9001, "type": "Addon", "relid": 51, "description": "Addon (a.example) - Advanced Email Security", "amount": "85.00", "taxed": 0},
+  {"id": 5, "invoiceid": 9001, "type": "Addon", "relid": 54, "description": "Addon (a.example) - Other addon", "amount": "50.00", "taxed": 0},
+  {"id": 6, "invoiceid": 9001, "type": "Hosting", "relid": 1006, "description": "sPremium-1 - f.example", "amount": "170.00", "taxed": 0},
+  {"id": 7, "invoiceid": 9001, "type": "PromoHosting", "relid": 1006, "description": "Promo", "amount": "-17.00", "taxed": 0},
+  {"id": 8, "invoiceid": 9001, "type": "Item", "relid": 0, "description": "Manual work", "amount": 1200, "taxed": 0},
+  {"id": 9, "invoiceid": 9002, "type": "Domain", "relid": 77, "description": "Domain renewal", "amount": "199.00", "taxed": 0},
+  {"id": 10, "invoiceid": 9003, "type": "Hosting", "relid": 3001, "description": "sPremium-1 - eu.example", "amount": "300.00", "taxed": 0},
+  {"id": 11, "invoiceid": 9004, "type": "Hosting", "relid": 4001, "description": "sPremium-1 - x.example", "amount": "170.00", "taxed": 0}
+]
