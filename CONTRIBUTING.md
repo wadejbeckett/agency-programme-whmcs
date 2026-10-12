@@ -4,7 +4,7 @@ Agency Programme for WHMCS is developed in the open. Bug reports and pull reques
 
 ## Toolchain
 
-Runtime: PHP 8.1 or newer (WHMCS 9.x; 8.x on PHP 8.1 or newer is untested). Development tooling (PHPUnit 11, PHPStan, illuminate/database 13) needs PHP 8.3.
+Runtime: PHP 8.1 or newer (WHMCS 9.x; 8.x on PHP 8.1 or newer is untested). The development tooling (PHPUnit, PHPStan, illuminate/database for the Capsule tests) is locked against a PHP 8.1 platform (`config.platform.php` in `composer.json`), so `composer install` works on every supported PHP version with one lock file.
 
 PHPStan analyses the module against PHP 8.1 (`phpVersion: 80100` in `phpstan.neon`), so code under `modules/` and `bin/` must not use syntax or functions newer than 8.1.
 
