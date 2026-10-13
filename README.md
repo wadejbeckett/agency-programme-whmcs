@@ -62,7 +62,7 @@ An invalid configuration (bad JSON, a non-numeric id, no statuses) is reported a
 
 ### Tiers format
 
-`tiers` is a JSON object keyed by three-letter uppercase currency code. Each currency lists tiers in ascending order of `above`, the monthly spend (in that currency) the client must exceed, and `percent`, the discount from above 0 up to 100.
+`tiers` is a JSON object keyed by three-letter uppercase currency code. Each currency lists tiers in ascending order of `above`, the monthly spend (in that currency) the client must exceed, and `percent`, the discount from above 0 up to 100. A first tier with `"above": 0` gives every client with any qualifying spend that discount.
 
 ```json
 {"USD":[{"above":500,"percent":5},{"above":1000,"percent":10}]}

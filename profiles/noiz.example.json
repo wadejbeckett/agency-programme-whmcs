@@ -1,5 +1,5 @@
 {
-  "tiers": "{\"ZAR\":[{\"above\":5000,\"percent\":5},{\"above\":10000,\"percent\":10},{\"above\":15000,\"percent\":15},{\"above\":20000,\"percent\":20}]}",
+  "tiers": "{\"ZAR\":[{\"above\":0,\"percent\":5},{\"above\":10000,\"percent\":10},{\"above\":15000,\"percent\":15},{\"above\":20000,\"percent\":20}]}",
   "product_groups": "1,23,3,6",
   "products": "160,161",
   "addons": "12,15",

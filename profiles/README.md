@@ -11,7 +11,7 @@ Every profile in this directory must parse, use only known keys, ship with dry-r
 
 ## noiz.example.json
 
-The settings Noiz starts from. The tiers are in ZAR and apply to the qualifying monthly spend: above 5,000 a month gives 5%, above 10,000 gives 10%, above 15,000 gives 15% and above 20,000 gives 20%.
+The settings Noiz starts from. The tiers are in ZAR and apply to the qualifying monthly spend: any qualifying spend (above 0) gives 5%, above 10,000 gives 10%, above 15,000 gives 15% and above 20,000 gives 20%.
 
 The numeric ids refer to the installation the example was written for:
 
