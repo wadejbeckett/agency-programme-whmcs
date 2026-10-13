@@ -108,6 +108,12 @@ interface Repository
     /** @return int|null the admin's role id (tbladmins.roleid), null when there is no such admin */
     public function adminRoleId(int $adminId): ?int;
 
+    /**
+     * The discount the module added to the client's invoices (applied rows, not dry runs) created on
+     * or after $fromDate ('Y-m-d'), as a positive two-place amount; '0.00' when there are none.
+     */
+    public function appliedDiscountTotal(int $clientId, string $fromDate): string;
+
     /** Runs one DDL statement. ArrayRepository records it in $executed. */
     public function execute(string $sql): void;
 }

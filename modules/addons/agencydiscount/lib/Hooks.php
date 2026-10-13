@@ -123,6 +123,49 @@ final class Hooks
         }
     }
 
+    /**
+     * ClientAreaHomepagePanels: adds "Your agency programme" for a logged-in approved agency, with the
+     * tier, spend, next-invoice discount, saved this year and the amount to the next tier, and a button
+     * to the module page. Any other client, and any failure, leaves the home page untouched.
+     */
+    public static function clientHomePanels(\WHMCS\View\Menu\Item $panels): void
+    {
+        try {
+            $module = self::module();
+            $clientId = self::clientId();
+            if ($module === null || $clientId === null) {
+                return;
+            }
+            $vars = ClientArea\PageData::build($module, $clientId);
+            $body = ClientArea\PageData::panelHtml($vars);
+            if ($body === '') {
+                return;
+            }
+            $panels->addChild('agencydiscount', [
+                'name' => 'Agency Programme',
+                'label' => $vars['text']['panel_title'],
+                'icon' => 'fas fa-handshake',
+                'order' => 10,
+                'extras' => [
+                    'color' => 'green',
+                    'btn-link' => ClientArea\PageData::MODULE_PAGE,
+                    'btn-text' => $vars['text']['panel_button'],
+                    'btn-icon' => 'fas fa-arrow-right',
+                ],
+                'bodyHtml' => $body,
+            ]);
+        } catch (\Throwable $e) {
+            self::report($e);
+        }
+    }
+
+    /** The logged-in client's id from the WHMCS session ('uid'), or null when nobody is logged in. */
+    public static function clientId(): ?int
+    {
+        $uid = class_exists(\WHMCS\Session::class) ? \WHMCS\Session::get('uid') : null;
+        return is_numeric($uid) && (int) $uid > 0 ? (int) $uid : null;
+    }
+
     /** The logged-in admin's id from the WHMCS session, or null when it cannot be read. */
     public static function adminId(): ?int
     {

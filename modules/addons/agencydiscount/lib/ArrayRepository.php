@@ -336,6 +336,17 @@ class ArrayRepository implements Repository
         return $this->admins[$adminId] ?? null;
     }
 
+    public function appliedDiscountTotal(int $clientId, string $fromDate): string
+    {
+        $total = '0.00';
+        foreach ($this->invoiceRecords as $record) {
+            if ($record['clientId'] === $clientId && !$record['dryRun'] && $record['createdAt'] >= $fromDate) {
+                $total = bcadd($total, $record['amount'], 2);
+            }
+        }
+        return $total;
+    }
+
     public function execute(string $sql): void
     {
         $this->executed[] = $sql;

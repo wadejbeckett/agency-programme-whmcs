@@ -45,7 +45,50 @@ final class HooksTest extends TestCase
     {
         require __DIR__ . '/../modules/addons/agencydiscount/hooks.php';
         // AdminHomeWidgets is only registered inside WHMCS, where \WHMCS\Module\AbstractWidget exists
-        self::assertSame(['InvoiceCreation', 'PreInvoicingGenerateInvoiceItems', 'DailyCronJob', 'AdminClientProfileTabFields', 'AdminClientProfileTabFieldsSave', 'AdminAreaClientSummaryPage'], array_column(WhmcsCalls::$hooks, 'hook'));
+        self::assertSame(['InvoiceCreation', 'PreInvoicingGenerateInvoiceItems', 'DailyCronJob', 'AdminClientProfileTabFields', 'AdminClientProfileTabFieldsSave', 'AdminAreaClientSummaryPage', 'ClientAreaHomepagePanels'], array_column(WhmcsCalls::$hooks, 'hook'));
+    }
+
+    public function testClientHomePanelForLoggedInApprovedAgency(): void
+    {
+        $this->useModule(Fixtures::settings());
+        $panels = new \WHMCS\View\Menu\Item();
+        Hooks::clientHomePanels($panels);
+        self::assertSame([], $panels->children, 'nobody logged in');
+
+        \WHMCS\Session::$values['uid'] = '600';
+        Hooks::clientHomePanels($panels);
+        self::assertSame([], $panels->children, 'not an agency');
+
+        \WHMCS\Session::$values['uid'] = 131;
+        Hooks::clientHomePanels($panels);
+        $panel = $panels->children['agencydiscount'] ?? null;
+        self::assertNotNull($panel);
+        self::assertSame('Your agency programme', $panel['label']);
+        self::assertSame('index.php?m=agencydiscount', $panel['extras']['btn-link']);
+        self::assertSame('Agency programme', $panel['extras']['btn-text']);
+        $body = $panel['bodyHtml'];
+        self::assertStringContainsString('<span class="badge badge-success">Tier 1 (5% off)</span>', $body);
+        self::assertStringContainsString('ZAR 1,012.92', $body);
+        self::assertStringContainsString('ZAR 42.50 off the 2026-10-25 invoice of ZAR 850.00', $body);
+        self::assertStringContainsString('Saved in 2026', $body);
+        self::assertStringContainsString('ZAR 987.09 more a month reaches tier 2 (10% off)', $body);
+        self::assertStringNotContainsString(' I ', $body);
+        self::assertSame([], WhmcsCalls::$activity);
+    }
+
+    public function testClientHomePanelNeverThrows(): void
+    {
+        \WHMCS\Session::$values['uid'] = 131;
+        Hooks::$factory = static function (): Module {
+            throw new \RuntimeException('database gone');
+        };
+        $panels = new \WHMCS\View\Menu\Item();
+        Hooks::clientHomePanels($panels);
+        self::assertSame([], $panels->children);
+        self::assertStringContainsString('RuntimeException: database gone', WhmcsCalls::$activity[0]['message']);
+        self::assertSame(131, Hooks::clientId());
+        \WHMCS\Session::$values['uid'] = 'abc';
+        self::assertNull(Hooks::clientId());
     }
 
     public function testClientSummaryCardForApprovedAgenciesOnly(): void

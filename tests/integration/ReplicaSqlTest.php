@@ -60,12 +60,14 @@ final class ReplicaSqlTest extends TestCase
 
         $sql = new \ReflectionClass(Sql::class);
         $checked = [];
+        $skipped = 0;
         foreach (Sql::expectedColumns() as $name => $columns) {
-            if ($name === 'CLAIM_INVOICE') {
-                continue; // an INSERT into a module table; covered by SandboxTest
+            $statement = (string) $sql->getConstant($name);
+            if (Sql::onModuleTables($statement)) {
+                $skipped++;
+                continue; // the module's own tables do not exist on the replica; covered by SandboxTest
             }
             self::assertArrayHasKey($name, $bindings, 'no bindings for Sql::' . $name);
-            $statement = (string) $sql->getConstant($name);
             if (str_contains($statement, '%s')) {
                 $statement = sprintf($statement, '?');
             }
@@ -77,7 +79,8 @@ final class ReplicaSqlTest extends TestCase
             self::assertSame($columns, explode("\t", $header), 'Sql::' . $name . ' columns');
             $checked[] = $name;
         }
-        self::assertCount(count(Sql::expectedColumns()) - 1, $checked);
+        self::assertSame(2, $skipped, 'CLAIM_INVOICE and APPLIED_DISCOUNT_TOTAL are on module tables');
+        self::assertCount(count(Sql::expectedColumns()) - $skipped, $checked);
     }
 
     public function testSchemaInstallsAndDropsCleanly(): void

@@ -378,6 +378,17 @@ final class Page
         return is_string($value) && preg_match('/^\d{1,9}$/', $value) === 1 ? (int) $value : null;
     }
 
+    /**
+     * The language keys starting with $prefix, in file order.
+     *
+     * @return list<string>
+     */
+    public static function langKeys(string $prefix): array
+    {
+        self::lang('title');
+        return array_values(array_filter(array_keys(self::$strings ?? []), static fn (string $key): bool => str_starts_with($key, $prefix)));
+    }
+
     /** Text from the English language file (the addon ships English only for now). */
     public static function lang(string $key): string
     {

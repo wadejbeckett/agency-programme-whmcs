@@ -27,6 +27,7 @@ final class Sql
     public const ADDON_CATALOG = 'SELECT id, name FROM tbladdons ORDER BY name, id';
     public const SETTINGS = 'SELECT setting, value FROM tbladdonmodules WHERE module = ?';
     public const ADMIN_ROLE = 'SELECT roleid FROM tbladmins WHERE id = ?';
+    public const APPLIED_DISCOUNT_TOTAL = 'SELECT COALESCE(SUM(amount), 0) AS total FROM mod_agencydiscount_invoices WHERE client_id = ? AND dry_run = 0 AND created_at >= ?';
     public const CLAIM_INVOICE = 'INSERT IGNORE INTO mod_agencydiscount_invoices (invoice_id, client_id, item_id, tier_index, percent, base, amount, dry_run, created_at) VALUES (?, ?, NULL, 0, 0.00, 0.00, 0.00, 0, ?)';
 
     /**
@@ -36,6 +37,12 @@ final class Sql
     public static function placeholders(array $ids): string
     {
         return $ids === [] ? 'NULL' : implode(',', array_fill(0, count($ids), '?'));
+    }
+
+    /** Statements on the module's own tables, which only exist once the module is activated. */
+    public static function onModuleTables(string $statement): bool
+    {
+        return str_contains($statement, 'mod_agencydiscount_');
     }
 
     /**
@@ -60,6 +67,7 @@ final class Sql
             'ADDON_CATALOG' => ['id', 'name'],
             'SETTINGS' => ['setting', 'value'],
             'ADMIN_ROLE' => ['roleid'],
+            'APPLIED_DISCOUNT_TOTAL' => ['total'],
             'CLAIM_INVOICE' => [],
         ];
     }

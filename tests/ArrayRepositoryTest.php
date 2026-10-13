@@ -189,4 +189,18 @@ final class ArrayRepositoryTest extends TestCase
         self::assertSame(3, $repo->adminRoleId(2));
         self::assertNull($repo->adminRoleId(9));
     }
+
+    public function testAppliedDiscountTotalSumsLiveRowsFromADate(): void
+    {
+        $repo = Fixtures::agencyRepo();
+        $row = ['clientId' => 131, 'itemId' => 1, 'tierIndex' => 1, 'percent' => '5.00', 'base' => '100.00', 'amount' => '5.00', 'dryRun' => false, 'createdAt' => '2026-03-01 10:00:00'];
+        $repo->saveInvoiceRecord(['invoiceId' => 1] + $row);
+        $repo->saveInvoiceRecord(['invoiceId' => 2, 'amount' => '7.25', 'createdAt' => '2026-01-01 00:00:00'] + $row);
+        $repo->saveInvoiceRecord(['invoiceId' => 3, 'amount' => '9.00', 'dryRun' => true] + $row);
+        $repo->saveInvoiceRecord(['invoiceId' => 4, 'amount' => '11.00', 'createdAt' => '2025-12-31 23:59:59'] + $row);
+        $repo->saveInvoiceRecord(['invoiceId' => 5, 'amount' => '13.00', 'clientId' => 404] + $row);
+        self::assertSame('12.25', $repo->appliedDiscountTotal(131, '2026-01-01'));
+        self::assertSame('5.00', $repo->appliedDiscountTotal(131, '2026-02-01'));
+        self::assertSame('0.00', $repo->appliedDiscountTotal(600, '2026-01-01'));
+    }
 }

@@ -21,6 +21,24 @@ namespace AgencyDiscount\Tests\Support {
     }
 }
 
+namespace WHMCS\View\Menu {
+    if (!class_exists('WHMCS\View\Menu\Item', false)) {
+        /** Stands in for a WHMCS client-area panel tree: records what addChild() was given. */
+        final class Item
+        {
+            /** @var array<string, array<string, mixed>> name => attributes */
+            public array $children = [];
+
+            /** @param array<string, mixed> $attributes */
+            public function addChild(string $name, array $attributes = []): self
+            {
+                $this->children[$name] = $attributes;
+                return $this;
+            }
+        }
+    }
+}
+
 namespace WHMCS {
     if (!class_exists('WHMCS\Session', false)) {
         /** Stands in for the WHMCS session: tests set $values ('adminid', 'uid'). */

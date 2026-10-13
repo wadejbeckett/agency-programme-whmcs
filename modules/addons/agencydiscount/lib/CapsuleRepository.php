@@ -372,6 +372,12 @@ final class CapsuleRepository implements Repository
         return $row === null ? null : (int) $row->roleid;
     }
 
+    public function appliedDiscountTotal(int $clientId, string $fromDate): string
+    {
+        $row = self::select(Sql::APPLIED_DISCOUNT_TOTAL, [$clientId, $fromDate])[0] ?? null;
+        return self::money($row?->total);
+    }
+
     public function execute(string $sql): void
     {
         Capsule::connection()->statement($sql);

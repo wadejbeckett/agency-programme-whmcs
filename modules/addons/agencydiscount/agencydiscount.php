@@ -7,8 +7,10 @@ declare(strict_types=1);
 use AgencyDiscount\Admin\Html;
 use AgencyDiscount\Admin\Page;
 use AgencyDiscount\CapsuleRepository;
+use AgencyDiscount\ClientArea\PageData;
 use AgencyDiscount\Config;
 use AgencyDiscount\ConfigException;
+use AgencyDiscount\Hooks;
 use AgencyDiscount\Module;
 use AgencyDiscount\Schema;
 
@@ -104,4 +106,35 @@ function agencydiscount_output(array $vars): void
     } catch (\Throwable $e) {
         echo '<div class="alert alert-danger">Agency Programme could not show this page: ' . Html::e(get_class($e) . ': ' . $e->getMessage()) . '</div>';
     }
+}
+
+/**
+ * The client-area page (index.php?m=agencydiscount): the tier table with the client's tier marked,
+ * what counts and what does not, the client's counted items with monthly equivalents and the
+ * discount saved this year. Read-only, for approved agencies; anyone else sees a one-line notice.
+ * A failure is logged and shown as that notice too, never as an error page.
+ *
+ * @param array<string, mixed> $vars
+ * @return array<string, mixed>
+ */
+function agencydiscount_clientarea(array $vars): array
+{
+    try {
+        $data = PageData::build(Module::boot(), Hooks::clientId());
+    } catch (\Throwable $e) {
+        try {
+            \logActivity('Agency Discount: client area: ' . get_class($e) . ': ' . $e->getMessage());
+        } catch (\Throwable) {
+            error_log('Agency Discount: client area: ' . $e->getMessage());
+        }
+        $data = ['approved' => false, 'text' => PageData::text(), 'link' => PageData::MODULE_PAGE];
+    }
+    $title = $data['text']['title'];
+    return [
+        'pagetitle' => $title,
+        'breadcrumb' => [PageData::MODULE_PAGE => $title],
+        'templatefile' => 'clientarea',
+        'requirelogin' => true,
+        'vars' => $data,
+    ];
 }

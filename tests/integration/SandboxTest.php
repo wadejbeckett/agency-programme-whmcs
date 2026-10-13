@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace AgencyDiscount\Tests\Integration;
 
+use AgencyDiscount\Admin\Html;
 use AgencyDiscount\CapsuleRepository;
 use AgencyDiscount\Hooks;
 use AgencyDiscount\Money;
@@ -242,6 +243,32 @@ final class SandboxTest extends TestCase
         $profile = Hooks::profileFields(['userid' => $clientId]);
         self::assertStringContainsString('Right now', $profile['Agency discount']);
         self::assertStringContainsString('Approved by admin on', $profile['Agency discount']);
+
+        // h1b. the client area: the discount saved this year counts the live line only; the page and the home panel
+        //      show it to the logged-in approved agency and nothing to anyone else
+        self::assertSame($discount, $repo->appliedDiscountTotal($clientId, date('Y') . '-01-01'));
+        self::assertSame('0.00', $repo->appliedDiscountTotal($clientId, date('Y-m-d', strtotime('+1 day'))));
+        self::assertSame('0.00', $repo->appliedDiscountTotal($clientId + 1000000, '2000-01-01'));
+        \WHMCS\Session::$values['uid'] = $clientId;
+        Hooks::reset();
+        $page = \agencydiscount_clientarea([]);
+        $this->assertNoHookError();
+        self::assertSame(['clientarea', true], [$page['templatefile'], $page['requirelogin']]);
+        self::assertTrue($page['vars']['approved']);
+        self::assertSame(Html::money($currency, $agency['spend']), $page['vars']['spend']);
+        self::assertSame('Tier 1 (10% off)', $page['vars']['tier']['label']);
+        self::assertSame(Html::money($currency, $discount), $page['vars']['savedThisYear']);
+        self::assertSame(1, $page['vars']['itemCount']);
+        $panels = new \WHMCS\View\Menu\Item();
+        Hooks::clientHomePanels($panels);
+        self::assertArrayHasKey('agencydiscount', $panels->children);
+        self::assertStringContainsString('Tier 1 (10% off)', $panels->children['agencydiscount']['bodyHtml']);
+        \WHMCS\Session::$values['uid'] = null;
+        Hooks::reset();
+        self::assertFalse(\agencydiscount_clientarea([])['vars']['approved']);
+        $panels = new \WHMCS\View\Menu\Item();
+        Hooks::clientHomePanels($panels);
+        self::assertSame([], $panels->children);
 
         // h2. an over-long actor is cut to the column width; a corrupt detail is shown raw
         $repo->log(['clientId' => $clientId, 'invoiceId' => null, 'event' => 'sandbox_actor', 'detail' => [], 'actor' => str_repeat('x', 100), 'createdAt' => $now]);
