@@ -9,6 +9,7 @@ namespace AgencyDiscount\Admin;
 use AgencyDiscount\AgencyStatus;
 use AgencyDiscount\Module;
 use AgencyDiscount\Money;
+use AgencyDiscount\Repository;
 
 /**
  * The numbers behind the admin home widget and their rendering, kept apart from HomeWidget so they
@@ -20,10 +21,40 @@ use AgencyDiscount\Money;
 final class WidgetData
 {
     public const MODULE_LINK = 'addonmodules.php?module=agencydiscount';
+    /** The tbladdonmodules setting WHMCS keeps the addon's access list in: comma-separated admin role ids. */
+    public const ACCESS_SETTING = 'access';
 
-    /** @return Data */
-    public static function build(Module $module): array
+    /**
+     * Whether the admin may see the programme's figures: WHMCS's own access list for this addon (the
+     * roles ticked under Addon Modules > Configure) must name the admin's role. No admin, no role or
+     * no access list means no.
+     */
+    public static function roleAllowed(Repository $repo, ?int $adminId): bool
     {
+        if ($adminId === null || $adminId <= 0) {
+            return false;
+        }
+        $roleId = $repo->adminRoleId($adminId);
+        if ($roleId === null) {
+            return false;
+        }
+        $allowed = [];
+        foreach (explode(',', $repo->settings()[self::ACCESS_SETTING] ?? '') as $id) {
+            if (ctype_digit(trim($id))) {
+                $allowed[] = (int) trim($id);
+            }
+        }
+        return in_array($roleId, $allowed, true);
+    }
+
+    /**
+     * @return Data|array{denied:true} denied when the admin's role is not on the addon's access list
+     */
+    public static function build(Module $module, ?int $adminId): array
+    {
+        if (!self::roleAllowed($module->repo, $adminId)) {
+            return ['denied' => true];
+        }
         $missing = [];
         $statuses = AgencyStatus::all($module, $missing);
         $data = [
@@ -66,9 +97,12 @@ final class WidgetData
         return $data;
     }
 
-    /** @param Data $data */
+    /** @param Data|array{denied:true} $data */
     public static function render(array $data): string
     {
+        if (isset($data['denied'])) {
+            return '<div class="widget-content-padded text-muted">' . Html::e(Page::lang('widget_denied')) . '</div>';
+        }
         $html = '<div class="widget-content-padded agencydiscount-widget">';
         foreach ($data['missing'] as $clientId) {
             $html .= '<div class="alert alert-warning">' . Html::e(sprintf(Page::lang('client_missing'), $clientId)) . '</div>';

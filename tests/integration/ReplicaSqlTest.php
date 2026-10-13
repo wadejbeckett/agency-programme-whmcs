@@ -55,6 +55,7 @@ final class ReplicaSqlTest extends TestCase
             'PRODUCTS' => [],
             'ADDON_CATALOG' => [],
             'SETTINGS' => [$this->scalar('SELECT module FROM tbladdonmodules ORDER BY id LIMIT 1')],
+            'ADMIN_ROLE' => [$this->scalar('SELECT MIN(id) FROM tbladmins')],
         ];
 
         $sql = new \ReflectionClass(Sql::class);

@@ -39,6 +39,8 @@ class ArrayRepository implements Repository
     public array $itemPaymentMethods = [];
     /** @var array<string, string> setting => value, as written by saveSettings */
     public array $settings = [];
+    /** @var array<int, int> admin id => role id */
+    public array $admins = [];
 
     /** @var array<int, array{gid:int, name:string}> */
     private array $products = [];
@@ -60,7 +62,8 @@ class ArrayRepository implements Repository
      *     groups?: array<int, string|array{name:string, hidden?:bool}>,
      *     addonCatalog?: array<int, string>,
      *     currencies?: array<int, string|array{code:string, rate?:string, isDefault?:bool}>,
-     *     settings?: array<string, string>
+     *     settings?: array<string, string>,
+     *     admins?: array<int, int>
      * } $data a group given as a string is visible; a currency given as a string has rate 1.00000, and
      *         when no currency is marked default the one with the lowest id is
      */
@@ -74,6 +77,7 @@ class ArrayRepository implements Repository
         $this->products = $data['products'] ?? [];
         $this->addonCatalog = $data['addonCatalog'] ?? [];
         $this->settings = $data['settings'] ?? [];
+        $this->admins = $data['admins'] ?? [];
         foreach ($data['groups'] ?? [] as $id => $group) {
             $this->groups[$id] = is_string($group) ? ['name' => $group, 'hidden' => false] : ['name' => $group['name'], 'hidden' => $group['hidden'] ?? false];
         }
@@ -325,6 +329,11 @@ class ArrayRepository implements Repository
             }
         }
         return count($ids);
+    }
+
+    public function adminRoleId(int $adminId): ?int
+    {
+        return $this->admins[$adminId] ?? null;
     }
 
     public function execute(string $sql): void

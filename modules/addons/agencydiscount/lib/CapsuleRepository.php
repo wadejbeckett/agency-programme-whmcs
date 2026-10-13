@@ -366,6 +366,12 @@ final class CapsuleRepository implements Repository
         return (int) Capsule::table(self::LOG)->whereNotNull('invoice_id')->distinct()->count('invoice_id');
     }
 
+    public function adminRoleId(int $adminId): ?int
+    {
+        $row = self::select(Sql::ADMIN_ROLE, [$adminId])[0] ?? null;
+        return $row === null ? null : (int) $row->roleid;
+    }
+
     public function execute(string $sql): void
     {
         Capsule::connection()->statement($sql);

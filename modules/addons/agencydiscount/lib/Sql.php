@@ -26,6 +26,7 @@ final class Sql
     public const PRODUCTS = 'SELECT id, gid AS group_id, name FROM tblproducts ORDER BY gid, `order`, id';
     public const ADDON_CATALOG = 'SELECT id, name FROM tbladdons ORDER BY name, id';
     public const SETTINGS = 'SELECT setting, value FROM tbladdonmodules WHERE module = ?';
+    public const ADMIN_ROLE = 'SELECT roleid FROM tbladmins WHERE id = ?';
     public const CLAIM_INVOICE = 'INSERT IGNORE INTO mod_agencydiscount_invoices (invoice_id, client_id, item_id, tier_index, percent, base, amount, dry_run, created_at) VALUES (?, ?, NULL, 0, 0.00, 0.00, 0.00, 0, ?)';
 
     /**
@@ -58,6 +59,7 @@ final class Sql
             'PRODUCTS' => ['id', 'group_id', 'name'],
             'ADDON_CATALOG' => ['id', 'name'],
             'SETTINGS' => ['setting', 'value'],
+            'ADMIN_ROLE' => ['roleid'],
             'CLAIM_INVOICE' => [],
         ];
     }

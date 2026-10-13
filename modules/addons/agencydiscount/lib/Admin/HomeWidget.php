@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace AgencyDiscount\Admin;
 
+use AgencyDiscount\Hooks;
 use AgencyDiscount\Module;
 use WHMCS\Module\AbstractWidget;
 
@@ -30,18 +31,18 @@ final class HomeWidget extends AbstractWidget
     /** @var int */
     protected $cacheExpiry = 120;
     /**
-     * WHMCS has no named admin permission for an addon module's access list (that is a role setting on
-     * the addon), so no permission is required; the widget is read-only.
+     * The figures are income figures, so the admin needs the permission WHMCS's own income widgets
+     * require; on top of that, getData() only answers for roles on the addon's access list.
      *
      * @var string
      */
-    protected $requiredPermission = '';
+    protected $requiredPermission = 'View Income Totals';
 
-    /** @return array<string, mixed> WidgetData, or ['error' => true] when it could not be built */
+    /** @return array<string, mixed> WidgetData, ['denied' => true] for a role outside the addon's access list, or ['error' => true] when it could not be built */
     public function getData(): array
     {
         try {
-            return WidgetData::build(Module::boot());
+            return WidgetData::build(Module::boot(), Hooks::adminId());
         } catch (\Throwable $e) {
             self::report($e);
             return ['error' => true];
@@ -54,7 +55,7 @@ final class HomeWidget extends AbstractWidget
             if (!is_array($data) || ($data['error'] ?? false) === true) {
                 return self::unavailable();
             }
-            /** @var array{agencies:int, atTier:int, waiting:int, spend:array<string,string>, discount:array<string,string>, dryRun:bool, lastRecalculation:?string, missing:list<int>, rows:list<array{clientId:int, name:string, currency:string, spend:string, tier:?array{index:int, percent:string}, hasTiers:bool, nextInvoice:?array{date:string, base:string, discount:string}, startsOn:?string}>, days:int} $data */
+            /** @var array{agencies:int, atTier:int, waiting:int, spend:array<string,string>, discount:array<string,string>, dryRun:bool, lastRecalculation:?string, missing:list<int>, rows:list<array{clientId:int, name:string, currency:string, spend:string, tier:?array{index:int, percent:string}, hasTiers:bool, nextInvoice:?array{date:string, base:string, discount:string}, startsOn:?string}>, days:int}|array{denied:true} $data */
             return WidgetData::render($data);
         } catch (\Throwable $e) {
             self::report($e);

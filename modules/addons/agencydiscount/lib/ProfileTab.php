@@ -6,11 +6,15 @@ declare(strict_types=1);
 
 namespace AgencyDiscount;
 
+use AgencyDiscount\Admin\ClientSummary;
 use AgencyDiscount\Admin\Html;
+use AgencyDiscount\Admin\Page;
 
 /**
- * The "Agency discount" field on the admin client profile: approval, note,
- * start date and a one-line summary of the stored spend and tier.
+ * The "Agency discount" field on the admin client profile: approval (with who approved and when),
+ * note, start date, a one-line summary of the stored spend and tier, and for an approved agency a
+ * live "Right now" box beside the fields. The field names are part of the saved form and must not
+ * change.
  *
  * @phpstan-import-type AgencyRow from Repository
  */
@@ -33,16 +37,24 @@ final class ProfileTab
         $row = $this->module->repo->agency($clientId);
         $approved = $row !== null && $row['approved'];
 
-        $html = '<input type="hidden" name="' . self::FIELD_PRESENT . '" value="1">'
+        $approvedBy = '';
+        if ($approved && ($row['approvedBy'] !== '' || $row['approvedAt'] !== null)) {
+            $approvedBy = '<div class="text-muted small">' . Html::e(sprintf(Page::lang('profile_approved_by'), $row['approvedBy'] === '' ? 'admin' : $row['approvedBy'], $row['approvedAt'] ?? '?')) . '</div>';
+        }
+        $fields = '<input type="hidden" name="' . self::FIELD_PRESENT . '" value="1">'
             . '<label class="checkbox-inline"><input type="checkbox" name="' . self::FIELD_APPROVED . '" value="1"'
-            . ($approved ? ' checked' : '') . '> Approved agency</label>'
-            . '<div>Note <input type="text" name="' . self::FIELD_NOTE . '" class="form-control input-300" maxlength="' . self::NOTE_MAX . '" value="'
+            . ($approved ? ' checked' : '') . '> ' . Html::e(Page::lang('profile_approved')) . '</label>' . $approvedBy
+            . '<div>' . Html::e(Page::lang('profile_note')) . ' <input type="text" name="' . self::FIELD_NOTE . '" class="form-control input-300" maxlength="' . self::NOTE_MAX . '" value="'
             . Html::e($row['note'] ?? '') . '"></div>'
-            . '<div>Discount starts on <input type="date" name="' . self::FIELD_EFFECTIVE_FROM . '" class="form-control input-150" value="'
-            . Html::e($row['effectiveFrom'] ?? '') . '"> (empty = immediately)</div>'
+            . '<div>' . Html::e(Page::lang('profile_starts')) . ' <input type="date" name="' . self::FIELD_EFFECTIVE_FROM . '" class="form-control input-150" value="'
+            . Html::e($row['effectiveFrom'] ?? '') . '"><div class="text-muted small">' . Html::e(Page::lang('profile_starts_help')) . '</div></div>'
             . '<div class="text-muted">' . Html::e(self::summary($row)) . '</div>';
 
-        return [self::LABEL => $html];
+        $rightNow = $approved ? ClientSummary::rightNow($this->module, $clientId) : '';
+        if ($rightNow === '') {
+            return [self::LABEL => $fields];
+        }
+        return [self::LABEL => '<div class="row"><div class="col-md-6">' . $fields . '</div><div class="col-md-6">' . $rightNow . '</div></div>'];
     }
 
     /** @param array<string,mixed> $request the submitted profile form */

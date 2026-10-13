@@ -16,6 +16,23 @@ namespace AgencyDiscount\Tests\Support {
         {
             self::$hooks = [];
             self::$activity = [];
+            \WHMCS\Session::$values = [];
+        }
+    }
+}
+
+namespace WHMCS {
+    if (!class_exists('WHMCS\Session', false)) {
+        /** Stands in for the WHMCS session: tests set $values ('adminid', 'uid'). */
+        final class Session
+        {
+            /** @var array<string, mixed> */
+            public static array $values = [];
+
+            public static function get(string $key): mixed
+            {
+                return self::$values[$key] ?? null;
+            }
         }
     }
 }

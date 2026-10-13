@@ -15,7 +15,7 @@ if [[ ! "$source_db$sandbox_db" =~ ^[A-Za-z0-9_]+$ ]]; then
   echo "sandbox.sh: refusing: database names may only contain letters, digits and underscores" >&2
   exit 2
 fi
-tables=(tblclients tblcurrencies tblproductgroups tblproducts tbladdons tblhosting tblhostingaddons tblinvoices tblinvoiceitems tbladdonmodules tblpromotions)
+tables=(tblclients tblcurrencies tblproductgroups tblproducts tbladdons tblhosting tblhostingaddons tblinvoices tblinvoiceitems tbladdonmodules tblpromotions tbladmins)
 sql="DROP DATABASE IF EXISTS \`$sandbox_db\`; CREATE DATABASE \`$sandbox_db\`;"
 for t in "${tables[@]}"; do
   sql+=" CREATE TABLE \`$sandbox_db\`.\`$t\` LIKE \`$source_db\`.\`$t\`; INSERT INTO \`$sandbox_db\`.\`$t\` SELECT * FROM \`$source_db\`.\`$t\`;"

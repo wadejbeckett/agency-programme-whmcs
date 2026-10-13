@@ -43,6 +43,7 @@ require_once __DIR__ . '/Admin/SettingsForm.php';
 require_once __DIR__ . '/Admin/SettingsTab.php';
 require_once __DIR__ . '/Admin/OverviewTab.php';
 require_once __DIR__ . '/Admin/WidgetData.php';
+require_once __DIR__ . '/Admin/ClientSummary.php';
 if (class_exists(\WHMCS\Module\AbstractWidget::class)) {
     require_once __DIR__ . '/Admin/HomeWidget.php'; // only inside WHMCS: the base class is not available to the tests or the CLI
 }

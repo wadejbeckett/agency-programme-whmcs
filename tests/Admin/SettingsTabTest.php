@@ -220,6 +220,7 @@ final class SettingsTabTest extends TestCase
             'keep_data' => 'on',
             'activity_log' => '',
             'stack_with_promotions' => '',
+            'access' => '1,2', // WHMCS's own access list is not the tab's to write
             'new_orders' => 'on',
         ], $this->repo->settings);
 

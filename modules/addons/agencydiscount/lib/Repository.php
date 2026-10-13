@@ -105,6 +105,9 @@ interface Repository
     /** @return int how many distinct invoices the module log has an entry for */
     public function invoicesChecked(): int;
 
+    /** @return int|null the admin's role id (tbladmins.roleid), null when there is no such admin */
+    public function adminRoleId(int $adminId): ?int;
+
     /** Runs one DDL statement. ArrayRepository records it in $executed. */
     public function execute(string $sql): void;
 }

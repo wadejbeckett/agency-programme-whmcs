@@ -40,7 +40,39 @@ final class ProfileTabTest extends TestCase
         self::assertSame(1, $row['tierIndex'] ?? null);
         self::assertSame(['tier_changed', 'approved'], array_column($this->repo->logEntries(131, 10), 'event'));
         self::assertStringContainsString('approved as agency', $this->activity->entries[0]['message']);
-        self::assertStringContainsString('tier 1 (5%), 7 items, recalculated 2026-10-12 09:00:00', $this->tab->fields(131)['Agency discount']);
+        $html = $this->tab->fields(131)['Agency discount'];
+        self::assertStringContainsString('tier 1 (5%), 7 items, recalculated 2026-10-12 09:00:00', $html);
+        self::assertStringContainsString('Approved by admin:1 on 2026-10-12 09:00:00', $html);
+        foreach (['agencydiscount_present', 'agencydiscount_approved', 'agencydiscount_note', 'agencydiscount_effective_from'] as $field) {
+            self::assertStringContainsString('name="' . $field . '"', $html);
+        }
+        // the live "Right now" box
+        self::assertStringContainsString('Right now', $html);
+        self::assertStringContainsString('ZAR 1,012.92', $html);
+        self::assertStringContainsString('<span class="label label-success">Tier 1 (5%)</span>', $html);
+        self::assertStringContainsString('2026-10-25: ZAR 42.50 off ZAR 850.00', $html);
+        self::assertStringContainsString('style="width: 1%"', $html);
+        self::assertStringContainsString('ZAR 987.09 to tier 2 (10%)', $html);
+        self::assertStringContainsString('href="addonmodules.php?module=agencydiscount&amp;action=agency&amp;id=131"', $html);
+        self::assertStringContainsString('Leave empty to start immediately', $html);
+    }
+
+    public function testUnapprovedClientHasNoLiveBox(): void
+    {
+        $html = $this->tab->fields(600)['Agency discount'];
+        self::assertStringContainsString('Not an approved agency', $html);
+        self::assertStringNotContainsString('Right now', $html);
+        self::assertStringNotContainsString('Approved by', $html);
+        self::assertStringNotContainsString('progress-bar', $html);
+    }
+
+    public function testMissingClientFallsBackToTheStoredSummary(): void
+    {
+        $this->tab->save(131, ['agencydiscount_present' => '1', 'agencydiscount_approved' => '1', 'agencydiscount_note' => ''], 'admin:1');
+        unset($this->repo->clients[131]);
+        $html = $this->tab->fields(131)['Agency discount'];
+        self::assertStringContainsString('tier 1 (5%), 7 items', $html);
+        self::assertStringNotContainsString('Right now', $html);
     }
 
     public function testRevokeAndNoteChange(): void

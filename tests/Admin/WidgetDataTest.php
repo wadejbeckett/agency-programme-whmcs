@@ -22,6 +22,7 @@ final class WidgetDataTest extends TestCase
     protected function setUp(): void
     {
         $this->repo = Fixtures::agencyRepo();
+        $this->repo->settings = Fixtures::settings();
         foreach ([131 => '2026-10-10 03:00:00', 404 => '2026-10-12 03:00:00', 500 => '2026-10-11 03:00:00'] as $id => $calculatedAt) {
             $this->repo->saveAgency(['clientId' => $id, 'approved' => true, 'approvedBy' => 'admin:1', 'approvedAt' => '2026-10-01 00:00:00', 'calculatedAt' => $calculatedAt, 'updatedAt' => '2026-10-01 00:00:00']);
         }
@@ -36,7 +37,7 @@ final class WidgetDataTest extends TestCase
 
     public function testBuildGathersTheNumbers(): void
     {
-        $data = WidgetData::build($this->module(['dry_run' => 'on']));
+        $data = WidgetData::build($this->module(['dry_run' => 'on']), 1);
         self::assertSame(3, $data['agencies']);
         self::assertSame(2, $data['atTier']);
         self::assertSame(1, $data['waiting']);
@@ -64,18 +65,18 @@ final class WidgetDataTest extends TestCase
     public function testBuildNotesMissingClientsAndLastRecalculation(): void
     {
         $this->repo->saveAgency(['clientId' => 777, 'approved' => true, 'updatedAt' => '2026-10-01 00:00:00']);
-        $data = WidgetData::build($this->module());
+        $data = WidgetData::build($this->module(), 1);
         self::assertSame([777], $data['missing']);
         self::assertCount(3, $data['rows']);
         foreach ([131, 404, 500] as $id) {
             $this->repo->agencies[$id]['calculatedAt'] = null;
         }
-        self::assertNull(WidgetData::build($this->module())['lastRecalculation']);
+        self::assertNull(WidgetData::build($this->module(), 1)['lastRecalculation']);
     }
 
     public function testRenderShowsTilesRowsModeAndLink(): void
     {
-        $html = WidgetData::render(WidgetData::build($this->module(['dry_run' => 'on'])));
+        $html = WidgetData::render(WidgetData::build($this->module(['dry_run' => 'on']), 1));
         self::assertStringContainsString('widget-content-padded', $html);
         self::assertStringContainsString('<div class="agencydiscount-widget-value">3</div><div class="agencydiscount-widget-label">Agencies</div>', $html);
         self::assertStringContainsString('EUR 300.00', $html);
@@ -91,24 +92,47 @@ final class WidgetDataTest extends TestCase
         self::assertStringContainsString('Last cron check: 2026-10-12 03:00:00', $html);
         self::assertStringContainsString('<a href="addonmodules.php?module=agencydiscount">Open Agency Programme</a>', $html);
         self::assertStringNotContainsString('<span class="label label-success">Live</span>', $html);
-        self::assertStringContainsString('<span class="label label-success">Live</span>', WidgetData::render(WidgetData::build($this->module())));
+        self::assertStringContainsString('<span class="label label-success">Live</span>', WidgetData::render(WidgetData::build($this->module(), 1)));
     }
 
     public function testRenderWithoutAgenciesAndWithMissingClients(): void
     {
         $this->repo->agencies = [];
-        $html = WidgetData::render(WidgetData::build($this->module()));
+        $html = WidgetData::render(WidgetData::build($this->module(), 1));
         self::assertStringContainsString('No approved agencies yet.', $html);
         self::assertStringContainsString('Last cron check: never', $html);
 
         $this->repo->saveAgency(['clientId' => 777, 'approved' => true, 'updatedAt' => '2026-10-01 00:00:00']);
-        self::assertStringContainsString('Client 777 no longer exists in WHMCS.', WidgetData::render(WidgetData::build($this->module())));
+        self::assertStringContainsString('Client 777 no longer exists in WHMCS.', WidgetData::render(WidgetData::build($this->module(), 1)));
+    }
+
+    public function testOnlyRolesOnTheAddonAccessListSeeTheFigures(): void
+    {
+        $repo = $this->repo;
+        self::assertTrue(WidgetData::roleAllowed($repo, 1), 'admin 1 is in role 1, listed in access "1,2"');
+        self::assertFalse(WidgetData::roleAllowed($repo, 2), 'admin 2 is in role 3, not listed');
+        self::assertFalse(WidgetData::roleAllowed($repo, 9), 'unknown admin');
+        self::assertFalse(WidgetData::roleAllowed($repo, null));
+        self::assertFalse(WidgetData::roleAllowed($repo, 0));
+        $repo->settings['access'] = ' 3 , 1 ';
+        self::assertTrue(WidgetData::roleAllowed($repo, 2));
+        $repo->settings['access'] = '';
+        self::assertFalse(WidgetData::roleAllowed($repo, 1));
+        unset($repo->settings['access']);
+        self::assertFalse(WidgetData::roleAllowed($repo, 1), 'no access list means no role');
+
+        $repo->settings['access'] = '1';
+        self::assertSame(['denied' => true], WidgetData::build($this->module(), 2));
+        $html = WidgetData::render(['denied' => true]);
+        self::assertStringContainsString('not available to your admin role', $html);
+        self::assertStringNotContainsString('ZAR', $html);
+        self::assertArrayHasKey('rows', WidgetData::build($this->module(), 1));
     }
 
     public function testNamesAreEscaped(): void
     {
         $this->repo->clients[131]['name'] = '<b>Evil</b>';
-        $html = WidgetData::render(WidgetData::build($this->module()));
+        $html = WidgetData::render(WidgetData::build($this->module(), 1));
         self::assertStringNotContainsString('<b>Evil', $html);
         self::assertStringContainsString('&lt;b&gt;Evil', $html);
     }

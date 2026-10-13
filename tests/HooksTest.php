@@ -37,13 +37,83 @@ final class HooksTest extends TestCase
     private function useModule(array $settings): void
     {
         $repo = $this->repo;
+        $repo->settings = $settings;
         Hooks::$factory = static fn (): Module => new Module($repo, Config::fromSettings($settings), new FrozenClock(new \DateTimeImmutable('2026-10-18 02:00:00')), new RecordingActivityLog());
     }
 
-    public function testHooksFileRegistersFiveHooks(): void
+    public function testHooksFileRegistersTheHooks(): void
     {
         require __DIR__ . '/../modules/addons/agencydiscount/hooks.php';
-        self::assertSame(['InvoiceCreation', 'PreInvoicingGenerateInvoiceItems', 'DailyCronJob', 'AdminClientProfileTabFields', 'AdminClientProfileTabFieldsSave'], array_column(WhmcsCalls::$hooks, 'hook'));
+        // AdminHomeWidgets is only registered inside WHMCS, where \WHMCS\Module\AbstractWidget exists
+        self::assertSame(['InvoiceCreation', 'PreInvoicingGenerateInvoiceItems', 'DailyCronJob', 'AdminClientProfileTabFields', 'AdminClientProfileTabFieldsSave', 'AdminAreaClientSummaryPage'], array_column(WhmcsCalls::$hooks, 'hook'));
+    }
+
+    public function testClientSummaryCardForApprovedAgenciesOnly(): void
+    {
+        \WHMCS\Session::$values['adminid'] = 1;
+        $this->useModule(Fixtures::settings());
+        $card = Hooks::clientSummary(['userid' => 131]);
+        self::assertStringContainsString('Agency Programme', $card);
+        self::assertStringContainsString('<span class="label label-success">Tier 1 (5%)</span>', $card);
+        self::assertStringContainsString('ZAR 1,012.92', $card);
+        self::assertStringContainsString('2026-10-25: ZAR 42.50 off ZAR 850.00', $card);
+        self::assertStringContainsString('ZAR 987.09 to tier 2 (10%)', $card);
+        self::assertStringContainsString('style="width: 1%"', $card);
+        self::assertStringContainsString('href="addonmodules.php?module=agencydiscount&amp;action=agency&amp;id=131"', $card);
+        self::assertStringContainsString('href="addonmodules.php?module=agencydiscount&amp;action=log&amp;client=131"', $card);
+        self::assertStringContainsString('href="clientsprofile.php?userid=131"', $card);
+        self::assertStringNotContainsString('Dry-run', $card);
+        self::assertSame('', Hooks::clientSummary(['userid' => 600]));
+        self::assertSame('', Hooks::clientSummary(['userid' => 0]));
+        self::assertSame('', Hooks::clientSummary([]));
+        self::assertSame([], WhmcsCalls::$activity);
+    }
+
+    public function testClientSummaryCardOnlyForRolesOnTheAddonAccessList(): void
+    {
+        $this->useModule(Fixtures::settings());
+        self::assertSame('', Hooks::clientSummary(['userid' => 131]), 'no admin in the session');
+        \WHMCS\Session::$values['adminid'] = 2;
+        self::assertSame('', Hooks::clientSummary(['userid' => 131]), 'admin 2 is in role 3, outside access "1,2"');
+        \WHMCS\Session::$values['adminid'] = 1;
+        self::assertStringContainsString('Agency Programme', Hooks::clientSummary(['userid' => 131]));
+        self::assertSame([], WhmcsCalls::$activity);
+    }
+
+    public function testClientSummaryCardNotesDryRunAndStartDate(): void
+    {
+        \WHMCS\Session::$values['adminid'] = 1;
+        $this->repo->agencies[131]['effectiveFrom'] = '2027-01-01';
+        $this->useModule(['dry_run' => 'on'] + Fixtures::settings());
+        $card = Hooks::clientSummary(['userid' => 131]);
+        self::assertStringContainsString('Dry-run mode is on', $card);
+        self::assertStringContainsString('starts 2027-01-01', $card);
+        self::assertStringContainsString('2026-10-25: no discount on ZAR 850.00', $card);
+    }
+
+    public function testClientSummaryCardNeverThrows(): void
+    {
+        \WHMCS\Session::$values['adminid'] = 1;
+        Hooks::$factory = static function (): Module {
+            throw new \RuntimeException('database gone');
+        };
+        self::assertSame('', Hooks::clientSummary(['userid' => 131]));
+        self::assertStringContainsString('RuntimeException: database gone', WhmcsCalls::$activity[0]['message']);
+        Hooks::reset();
+        $this->useModule(Fixtures::settings());
+        unset($this->repo->clients[131]);
+        self::assertSame('', Hooks::clientSummary(['userid' => 131]));
+    }
+
+    public function testProfileSaveRecordsTheSessionAdmin(): void
+    {
+        \WHMCS\Session::$values['adminid'] = '7';
+        $this->useModule(Fixtures::settings());
+        Hooks::profileSave(['userid' => 600], ['agencydiscount_present' => '1', 'agencydiscount_approved' => '1', 'agencydiscount_note' => '']);
+        self::assertSame('admin:7', $this->repo->agency(600)['approvedBy'] ?? null);
+        self::assertSame(7, Hooks::adminId());
+        \WHMCS\Session::$values['adminid'] = null;
+        self::assertNull(Hooks::adminId());
     }
 
     public function testInvoiceCreationAppliesDiscount(): void

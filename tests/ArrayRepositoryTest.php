@@ -181,4 +181,12 @@ final class ArrayRepositoryTest extends TestCase
         $repo->log($event + ['invoiceId' => null, 'event' => 'tier_changed']);
         self::assertSame(2, $repo->invoicesChecked());
     }
+
+    public function testAdminRoleId(): void
+    {
+        $repo = Fixtures::agencyRepo();
+        self::assertSame(1, $repo->adminRoleId(1));
+        self::assertSame(3, $repo->adminRoleId(2));
+        self::assertNull($repo->adminRoleId(9));
+    }
 }

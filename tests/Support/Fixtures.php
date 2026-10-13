@@ -38,6 +38,8 @@ final class Fixtures
                 161 => ['gid' => 33, 'name' => 'Email Security'],
             ],
             'addonCatalog' => [12 => 'Advanced Email Security', 15 => 'Edge Security (WAF, CDN & DDoS)', 99 => 'Other addon'],
+            // admin 1 is a Full Administrator (role 1), admin 2 a Support Operator (role 3)
+            'admins' => [1 => 1, 2 => 3],
             'clients' => [
                 131 => ['id' => 131, 'name' => 'Agency One', 'currency' => 'ZAR', 'currencyId' => 1],
                 404 => ['id' => 404, 'name' => 'Agency Two', 'currency' => 'ZAR', 'currencyId' => 1],
@@ -111,6 +113,8 @@ final class Fixtures
             'keep_data' => '',
             'activity_log' => 'on',
             'stack_with_promotions' => '',
+            // WHMCS's own addon access list: role ids the addon is open to
+            'access' => '1,2',
         ];
     }
 }

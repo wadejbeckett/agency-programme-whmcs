@@ -218,6 +218,31 @@ final class SandboxTest extends TestCase
         self::assertNotNull($agency['calculatedAt']);
         self::assertSame(1, $agency['tierIndex']);
 
+        // h1. the client summary card renders for an admin whose role is on the addon's access list only
+        $admin = Manager::table('tbladmins')->orderBy('id')->select(['id', 'roleid'])->first();
+        self::assertNotNull($admin, 'the sandbox has no admin');
+        $adminId = (int) $admin->id;
+        $roleId = (int) $admin->roleid;
+        self::assertSame($roleId, $repo->adminRoleId($adminId));
+        self::assertNull($repo->adminRoleId((int) Manager::table('tbladmins')->max('id') + 1000));
+        Manager::table('tbladdonmodules')->insert(['module' => self::MODULE, 'setting' => 'access', 'value' => (string) ($roleId + 1000)]);
+        \WHMCS\Session::$values['adminid'] = $adminId;
+        Hooks::reset();
+        self::assertSame('', Hooks::clientSummary(['userid' => $clientId]), 'role not on the access list');
+        Manager::table('tbladdonmodules')->where('module', self::MODULE)->where('setting', 'access')->update(['value' => (string) $roleId]);
+        Hooks::reset();
+        $card = Hooks::clientSummary(['userid' => $clientId]);
+        $this->assertNoHookError();
+        self::assertStringContainsString('Agency Programme', $card);
+        self::assertStringContainsString('Tier 1 (10%)', $card);
+        self::assertStringContainsString('href="clientsprofile.php?userid=' . $clientId . '"', $card);
+        self::assertStringContainsString('href="addonmodules.php?module=agencydiscount&amp;action=log&amp;client=' . $clientId . '"', $card);
+        self::assertSame('', Hooks::clientSummary(['userid' => $clientId + 1000000]), 'not an agency');
+        \WHMCS\Session::$values['adminid'] = null;
+        $profile = Hooks::profileFields(['userid' => $clientId]);
+        self::assertStringContainsString('Right now', $profile['Agency discount']);
+        self::assertStringContainsString('Approved by admin on', $profile['Agency discount']);
+
         // h2. an over-long actor is cut to the column width; a corrupt detail is shown raw
         $repo->log(['clientId' => $clientId, 'invoiceId' => null, 'event' => 'sandbox_actor', 'detail' => [], 'actor' => str_repeat('x', 100), 'createdAt' => $now]);
         self::assertSame(str_repeat('x', 64), $repo->logEntries($clientId, 1)[0]['actor']);

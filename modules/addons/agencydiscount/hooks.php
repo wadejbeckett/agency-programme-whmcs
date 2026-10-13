@@ -27,6 +27,9 @@ add_hook('AdminClientProfileTabFields', 1, static function (array $vars): array 
 add_hook('AdminClientProfileTabFieldsSave', 1, static function (array $vars): void {
     Hooks::profileSave($vars, $_REQUEST);
 });
+add_hook('AdminAreaClientSummaryPage', 1, static function (array $vars): string {
+    return Hooks::clientSummary($vars);
+});
 if (class_exists(\WHMCS\Module\AbstractWidget::class)) {
     add_hook('AdminHomeWidgets', 1, static function (): \AgencyDiscount\Admin\HomeWidget {
         return new \AgencyDiscount\Admin\HomeWidget();

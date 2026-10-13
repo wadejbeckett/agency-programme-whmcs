@@ -103,6 +103,33 @@ final class Hooks
         }
     }
 
+    /**
+     * @param array<string, mixed> $vars AdminAreaClientSummaryPage parameters: userid
+     * @return string the summary card for an approved agency, '' for any other client, for an admin role
+     *         outside the addon's access list, and on any failure
+     */
+    public static function clientSummary(array $vars): string
+    {
+        try {
+            $clientId = (int) ($vars['userid'] ?? 0);
+            $module = self::module();
+            if ($clientId <= 0 || $module === null || !Admin\WidgetData::roleAllowed($module->repo, self::adminId())) {
+                return '';
+            }
+            return Admin\ClientSummary::render($module, $clientId);
+        } catch (\Throwable $e) {
+            self::report($e);
+            return '';
+        }
+    }
+
+    /** The logged-in admin's id from the WHMCS session, or null when it cannot be read. */
+    public static function adminId(): ?int
+    {
+        $adminId = class_exists(\WHMCS\Session::class) ? \WHMCS\Session::get('adminid') : null;
+        return is_numeric($adminId) && (int) $adminId > 0 ? (int) $adminId : null;
+    }
+
     /** 'system' or nothing → 'system'; an admin id (int or numeric string) → 'admin:<id>'; any other string as given. */
     public static function actorFrom(mixed $user): string
     {
@@ -136,8 +163,8 @@ final class Hooks
     /** The logged-in admin from the WHMCS session, as 'admin:<id>', or 'admin' when it cannot be read. */
     private static function adminActor(): string
     {
-        $adminId = class_exists(\WHMCS\Session::class) ? \WHMCS\Session::get('adminid') : null;
-        return is_numeric($adminId) ? 'admin:' . (int) $adminId : 'admin';
+        $adminId = self::adminId();
+        return $adminId === null ? 'admin' : 'admin:' . $adminId;
     }
 
     private static function report(\Throwable $e): void
