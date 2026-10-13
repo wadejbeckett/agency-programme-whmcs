@@ -35,7 +35,7 @@ All amounts are handled as decimal strings with `bcmath`, never as floats. Month
 1. Copy `modules/addons/agencydiscount` into the WHMCS installation's `modules/addons/` directory.
 2. In the admin area, activate it under System Settings > Addon Modules. Activation creates three tables (`mod_agencydiscount_clients`, `mod_agencydiscount_log`, `mod_agencydiscount_invoices`) and starts in dry-run mode.
 3. Grant the admin role groups that should see the module access to it (Configure on the same page). The same access list decides which roles see the admin home widget and the card on the client summary page.
-4. Open Addons > Agency Programme > Settings and set the tiers, the qualifying groups, products and add-ons, and the statuses (see below). `profiles/noiz.example.json` shows one complete configuration.
+4. Open Addons > Agency Programme > Settings and set the tiers, the qualifying groups, products and add-ons, and the statuses (see below). `profiles/example.json` shows one complete configuration.
 5. Approve agencies: open a client, go to the Profile tab and tick "Approved agency" under "Agency discount". Add a note and a start date if wanted.
 6. Check the Overview and Configuration check pages while dry-run is on. The overview shows each agency's spend, tier, next invoice and discount.
 7. When the numbers are right, press "Switch to live" on the Settings tab.
@@ -163,7 +163,7 @@ The command-line tool replays the module against a copy of the data without writ
 
    A snapshot contains client data. Keep it outside the repository and never commit it.
 
-2. Rehearse with a settings file such as `profiles/noiz.example.json`:
+2. Rehearse with a settings file such as `profiles/example.json`:
 
    ```bash
    bin/agency-discount rehearse --snapshot DIR --settings FILE [--approve ID,ID] [--days N] [--invoice N] [--today YYYY-MM-DD]

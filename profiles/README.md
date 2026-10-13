@@ -4,30 +4,25 @@ A profile is the set of Agency Programme addon settings written as a JSON object
 
 A profile has two uses:
 
-- `bin/agency-discount rehearse --settings profiles/noiz.example.json ...` runs a rehearsal against a database snapshot with those settings, without touching the WHMCS configuration.
+- `bin/agency-discount rehearse --settings profiles/example.json ...` runs a rehearsal against a database snapshot with those settings, without touching the WHMCS configuration.
 - It is a reference when filling in the addon configuration under System Settings > Addon Modules: copy each value into the matching field.
 
 Every profile in this directory must parse, use only known keys, ship with dry-run on and define at least one currency's tiers. `tests/ProfilesTest.php` enforces this.
 
-## noiz.example.json
+## example.json
 
-The settings Noiz starts from. The tiers are in ZAR and apply to the qualifying monthly spend: any qualifying spend (above 0) gives 5%, above 10,000 gives 10%, above 15,000 gives 15% and above 20,000 gives 20%.
+A complete example to start from. The tiers are in USD and apply to the qualifying monthly spend: any qualifying spend (above 0) gives 5%, above 1,000 gives 10%, above 1,500 gives 15% and above 2,000 gives 20%.
 
-The numeric ids refer to the installation the example was written for:
+The numeric ids are placeholders:
 
-| Setting | Id | Meaning |
+| Setting | Ids | Meaning |
 | --- | --- | --- |
-| `product_groups` | 1 | Legacy |
-| `product_groups` | 23 | Premium Shared |
-| `product_groups` | 3 | Reseller Hosting |
-| `product_groups` | 6 | Cloud |
-| `products` | 160 | Edge Security (Security group) |
-| `products` | 161 | Email Security (Security group) |
-| `addons` | 12 | Advanced Email Security |
-| `addons` | 15 | Cloudflare Edge Security |
+| `product_groups` | 1, 2 | Product groups whose services count |
+| `products` | 10, 11 | Individual products outside those groups that count |
+| `addons` | 3, 4 | Product add-ons that count |
 
-Ids differ on every WHMCS installation. Before using a profile elsewhere, replace every id with the ones from that installation (System Settings > Products/Services shows them), then open the addon's Configuration check page to confirm each id resolves to the intended group, product or add-on.
+Ids differ on every WHMCS installation. Before using the profile, replace every id with the ones from that installation (System Settings > Products/Services shows them), add one tiers entry per currency in use, then open the addon's Configuration check page to confirm each id resolves to the intended group, product or add-on.
 
-So the Legacy, Premium Shared, Reseller (3) and Cloud (6) groups count, as do the standalone Security-group products 160 Edge Security and 161 Email Security and add-ons 12 and 15. `statuses` is `Active`: suspended, cancelled and terminated services do not count. `new_orders` is on, so an approved agency's new-order invoice is discounted too, at the tier its counted spend plus the order earns.
+`statuses` is `Active`: suspended, cancelled and terminated services do not count. `new_orders` is on, so an approved agency's new-order invoice is discounted too, at the tier its counted spend plus the order earns.
 
 The example ships with dry-run on. Leave it on until the admin overview shows the numbers you expect.
