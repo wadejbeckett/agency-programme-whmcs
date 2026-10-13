@@ -144,7 +144,7 @@ final class ArrayRepositoryTest extends TestCase
         self::assertSame([109, 108, 45, 120, 113, 161], array_column($products, 'id'));
         self::assertSame(['id' => 113, 'groupId' => 23, 'name' => 'sPremium-1'], $products[4]);
 
-        self::assertSame([['id' => 12, 'name' => 'Advanced Email Security'], ['id' => 15, 'name' => 'Edge Security'], ['id' => 99, 'name' => 'Other addon']], $repo->addonCatalog());
+        self::assertSame([['id' => 12, 'name' => 'Advanced Email Security'], ['id' => 15, 'name' => 'Edge Security (WAF, CDN & DDoS)'], ['id' => 99, 'name' => 'Other addon']], $repo->addonCatalog());
 
         self::assertSame([
             ['id' => 1, 'code' => 'ZAR', 'rate' => '1.00000', 'isDefault' => true],

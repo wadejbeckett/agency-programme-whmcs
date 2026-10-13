@@ -64,16 +64,26 @@ final class CapsuleRepository implements Repository
         return $settings;
     }
 
+    /**
+     * WHMCS HTML-encodes request input before storing it, so names typed into its admin forms (clients,
+     * products, groups, add-ons) sit in the tables as "Edge &amp; DNS". Decoding once here means every
+     * page escapes exactly once on output. Idempotent for a name without entities.
+     */
+    public static function decodeName(mixed $value): string
+    {
+        return html_entity_decode(is_scalar($value) ? (string) $value : '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
     public function client(int $clientId): ?array
     {
         $row = self::select(Sql::CLIENT, [$clientId])[0] ?? null;
         if ($row === null) {
             return null;
         }
-        $company = trim((string) $row->companyname);
+        $company = trim(self::decodeName($row->companyname));
         return [
             'id' => (int) $row->id,
-            'name' => $company !== '' ? $company : trim((string) $row->firstname . ' ' . (string) $row->lastname),
+            'name' => $company !== '' ? $company : trim(self::decodeName($row->firstname) . ' ' . self::decodeName($row->lastname)),
             'currency' => (string) $row->currency,
             'currencyId' => (int) $row->currency_id,
         ];
@@ -87,7 +97,7 @@ final class CapsuleRepository implements Repository
                 'id' => (int) $row->id,
                 'productId' => (int) $row->product_id,
                 'groupId' => (int) $row->group_id,
-                'productName' => (string) $row->product_name,
+                'productName' => self::decodeName($row->product_name),
                 'domain' => (string) $row->domain,
                 'amount' => self::money($row->amount),
                 'billingCycle' => (string) $row->billingcycle,
@@ -107,7 +117,7 @@ final class CapsuleRepository implements Repository
                 'id' => (int) $row->id,
                 'hostingId' => (int) $row->hostingid,
                 'addonId' => (int) $row->addonid,
-                'addonName' => (string) $row->addon_name,
+                'addonName' => self::decodeName($row->addon_name),
                 'domain' => (string) $row->domain,
                 'recurring' => self::money($row->recurring),
                 'billingCycle' => (string) $row->billingcycle,
@@ -295,7 +305,7 @@ final class CapsuleRepository implements Repository
         };
         $names = [];
         foreach (self::select(sprintf($sql, Sql::placeholders($ids)), array_values($ids)) as $row) {
-            $names[(int) $row->id] = (string) $row->name;
+            $names[(int) $row->id] = self::decodeName($row->name);
         }
         return $names;
     }
@@ -311,7 +321,7 @@ final class CapsuleRepository implements Repository
         foreach (self::select(Sql::PRODUCT_GROUPS, []) as $row) {
             $groups[] = [
                 'id' => (int) $row->id,
-                'name' => (string) $row->name,
+                'name' => self::decodeName($row->name),
                 'hidden' => (int) $row->hidden === 1,
                 'activeServices' => (int) $row->active_services,
             ];
@@ -323,7 +333,7 @@ final class CapsuleRepository implements Repository
     {
         $products = [];
         foreach (self::select(Sql::PRODUCTS, []) as $row) {
-            $products[] = ['id' => (int) $row->id, 'groupId' => (int) $row->group_id, 'name' => (string) $row->name];
+            $products[] = ['id' => (int) $row->id, 'groupId' => (int) $row->group_id, 'name' => self::decodeName($row->name)];
         }
         return $products;
     }
@@ -332,7 +342,7 @@ final class CapsuleRepository implements Repository
     {
         $addons = [];
         foreach (self::select(Sql::ADDON_CATALOG, []) as $row) {
-            $addons[] = ['id' => (int) $row->id, 'name' => (string) $row->name];
+            $addons[] = ['id' => (int) $row->id, 'name' => self::decodeName($row->name)];
         }
         return $addons;
     }

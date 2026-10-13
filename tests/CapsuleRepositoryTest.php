@@ -43,4 +43,13 @@ final class CapsuleRepositoryTest extends TestCase
         self::assertSame(1, preg_match('//u', $cut));
         self::assertSame(64, strlen(CapsuleRepository::truncate(str_repeat("\xff", 70))));
     }
+
+    /** Names typed into WHMCS forms are stored entity-encoded; they must come out of the repository decoded, once. */
+    public function testStoredNamesAreDecodedOnce(): void
+    {
+        self::assertSame('Cloudflare — Edge Security (WAF, CDN & DDoS Protection)', CapsuleRepository::decodeName('Cloudflare — Edge Security (WAF, CDN &amp; DDoS Protection)'));
+        self::assertSame('O\'Brien "Web" <Ltd>', CapsuleRepository::decodeName('O&#039;Brien &quot;Web&quot; &lt;Ltd&gt;'));
+        self::assertSame('A & B', CapsuleRepository::decodeName('A & B'));
+        self::assertSame('', CapsuleRepository::decodeName(null));
+    }
 }

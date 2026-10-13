@@ -111,8 +111,16 @@ final class PageTest extends TestCase
         self::assertStringContainsString('sPremium-1', $html);
         self::assertStringContainsString('777', $html);
         self::assertStringContainsString('not found', $html);
-        self::assertStringContainsString('Edge Security', $html);
+        self::assertStringContainsString('Edge Security (WAF, CDN &amp; DDoS)', $html);
+        self::assertStringNotContainsString('&amp;amp;', $html);
         self::assertStringContainsString('EUR', $html);
+    }
+
+    public function testCatalogueNamesAreEscapedExactlyOnce(): void
+    {
+        $detail = $this->page()->render('m', ['action' => 'agency', 'id' => '131'], [], 'admin:1', '');
+        self::assertStringContainsString('Edge Security (WAF, CDN &amp; DDoS)', $detail);
+        self::assertStringNotContainsString('&amp;amp;', $detail);
     }
 
     public function testConfigProblemsPage(): void

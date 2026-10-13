@@ -37,7 +37,7 @@ final class Fixtures
                 120 => ['gid' => 15, 'name' => 'DNS Only'],
                 161 => ['gid' => 33, 'name' => 'Email Security'],
             ],
-            'addonCatalog' => [12 => 'Advanced Email Security', 15 => 'Edge Security', 99 => 'Other addon'],
+            'addonCatalog' => [12 => 'Advanced Email Security', 15 => 'Edge Security (WAF, CDN & DDoS)', 99 => 'Other addon'],
             'clients' => [
                 131 => ['id' => 131, 'name' => 'Agency One', 'currency' => 'ZAR', 'currencyId' => 1],
                 404 => ['id' => 404, 'name' => 'Agency Two', 'currency' => 'ZAR', 'currencyId' => 1],
@@ -62,7 +62,7 @@ final class Fixtures
             'addons' => [
                 // client 131
                 51 => ['clientId' => 131, 'id' => 51, 'hostingId' => 1001, 'addonId' => 12, 'addonName' => 'Advanced Email Security', 'domain' => 'a.example', 'recurring' => '85.00', 'billingCycle' => 'Monthly', 'status' => 'Active', 'nextInvoiceDate' => '2026-10-25'],
-                52 => ['clientId' => 131, 'id' => 52, 'hostingId' => 1002, 'addonId' => 15, 'addonName' => 'Edge Security', 'domain' => 'b.example', 'recurring' => '85.00', 'billingCycle' => 'Monthly', 'status' => 'Active', 'nextInvoiceDate' => '2026-10-25'],
+                52 => ['clientId' => 131, 'id' => 52, 'hostingId' => 1002, 'addonId' => 15, 'addonName' => 'Edge Security (WAF, CDN & DDoS)', 'domain' => 'b.example', 'recurring' => '85.00', 'billingCycle' => 'Monthly', 'status' => 'Active', 'nextInvoiceDate' => '2026-10-25'],
                 53 => ['clientId' => 131, 'id' => 53, 'hostingId' => 1003, 'addonId' => 12, 'addonName' => 'Advanced Email Security', 'domain' => 'c.example', 'recurring' => '935.00', 'billingCycle' => 'Annually', 'status' => 'Active', 'nextInvoiceDate' => '2026-11-03'],
                 54 => ['clientId' => 131, 'id' => 54, 'hostingId' => 1001, 'addonId' => 99, 'addonName' => 'Other addon', 'domain' => 'a.example', 'recurring' => '50.00', 'billingCycle' => 'Monthly', 'status' => 'Active', 'nextInvoiceDate' => '2026-10-25'],
                 55 => ['clientId' => 131, 'id' => 55, 'hostingId' => 1004, 'addonId' => 12, 'addonName' => 'Advanced Email Security', 'domain' => 'd.example', 'recurring' => '85.00', 'billingCycle' => 'Monthly', 'status' => 'Terminated', 'nextInvoiceDate' => '2026-10-25'],
