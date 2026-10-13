@@ -76,6 +76,35 @@ interface Repository
     /** @return list<string> currency codes in id order */
     public function currencyCodes(): array;
 
+    /**
+     * Every product group in WHMCS display order; activeServices counts the services (tblhosting
+     * rows) in the group whose status is Active.
+     *
+     * @return list<array{id:int, name:string, hidden:bool, activeServices:int}>
+     */
+    public function productGroups(): array;
+
+    /** @return list<array{id:int, groupId:int, name:string}> every product, by group then display order */
+    public function products(): array;
+
+    /** @return list<array{id:int, name:string}> every product add-on, by name */
+    public function addonCatalog(): array;
+
+    /**
+     * @return list<array{id:int, code:string, rate:string, isDefault:bool}> in id order; rate is the WHMCS
+     *         exchange rate against the default currency (whose own rate is 1.00000) as a five-place decimal string
+     */
+    public function currencies(): array;
+
+    /** @return array<string,string> the module's stored settings, setting => value; keys never stored are absent */
+    public function settings(): array;
+
+    /** @param array<string,string> $settings setting => value; each key is updated or inserted, other keys are untouched */
+    public function saveSettings(array $settings): void;
+
+    /** @return int how many distinct invoices the module log has an entry for */
+    public function invoicesChecked(): int;
+
     /** Runs one DDL statement. ArrayRepository records it in $executed. */
     public function execute(string $sql): void;
 }

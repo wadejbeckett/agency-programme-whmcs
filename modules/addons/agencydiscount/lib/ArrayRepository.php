@@ -37,14 +37,16 @@ class ArrayRepository implements Repository
     public array $executed = [];
     /** @var array<int, string> item id => payment method, for lines added through addInvoiceItem */
     public array $itemPaymentMethods = [];
+    /** @var array<string, string> setting => value, as written by saveSettings */
+    public array $settings = [];
 
     /** @var array<int, array{gid:int, name:string}> */
     private array $products = [];
-    /** @var array<int, string> */
+    /** @var array<int, array{name:string, hidden:bool}> */
     private array $groups = [];
     /** @var array<int, string> */
     private array $addonCatalog = [];
-    /** @var array<int, string> */
+    /** @var array<int, array{code:string, rate:string, isDefault:bool}> */
     private array $currencies = [];
 
     /**
@@ -55,10 +57,12 @@ class ArrayRepository implements Repository
      *     invoices?: array<int, array{id:int, clientId:int, status:string, dueDate:?string, paymentMethod?:string}>,
      *     invoiceItems?: array<int, list<array{id:int, type:string, relId:int, description:string, amount:string, taxed:int}>>,
      *     products?: array<int, array{gid:int, name:string}>,
-     *     groups?: array<int, string>,
+     *     groups?: array<int, string|array{name:string, hidden?:bool}>,
      *     addonCatalog?: array<int, string>,
-     *     currencies?: array<int, string>
-     * } $data
+     *     currencies?: array<int, string|array{code:string, rate?:string, isDefault?:bool}>,
+     *     settings?: array<string, string>
+     * } $data a group given as a string is visible; a currency given as a string has rate 1.00000, and
+     *         when no currency is marked default the one with the lowest id is
      */
     public function __construct(array $data = [])
     {
@@ -68,9 +72,22 @@ class ArrayRepository implements Repository
         $this->invoices = $data['invoices'] ?? [];
         $this->invoiceItems = $data['invoiceItems'] ?? [];
         $this->products = $data['products'] ?? [];
-        $this->groups = $data['groups'] ?? [];
         $this->addonCatalog = $data['addonCatalog'] ?? [];
-        $this->currencies = $data['currencies'] ?? [];
+        $this->settings = $data['settings'] ?? [];
+        foreach ($data['groups'] ?? [] as $id => $group) {
+            $this->groups[$id] = is_string($group) ? ['name' => $group, 'hidden' => false] : ['name' => $group['name'], 'hidden' => $group['hidden'] ?? false];
+        }
+        $currencies = $data['currencies'] ?? [];
+        ksort($currencies);
+        $hasDefault = false;
+        foreach ($currencies as $currency) {
+            $hasDefault = $hasDefault || (is_array($currency) && ($currency['isDefault'] ?? false));
+        }
+        foreach ($currencies as $id => $currency) {
+            $this->currencies[$id] = is_string($currency)
+                ? ['code' => $currency, 'rate' => '1.00000', 'isDefault' => !$hasDefault && $this->currencies === []]
+                : ['code' => $currency['code'], 'rate' => $currency['rate'] ?? '1.00000', 'isDefault' => $currency['isDefault'] ?? (!$hasDefault && $this->currencies === [])];
+        }
     }
 
     public function client(int $clientId): ?array
@@ -222,7 +239,7 @@ class ArrayRepository implements Repository
     public function lookupNames(string $kind, array $ids): array
     {
         $catalog = match ($kind) {
-            'group' => $this->groups,
+            'group' => array_map(static fn (array $g): string => $g['name'], $this->groups),
             'product' => array_map(static fn (array $p): string => $p['name'], $this->products),
             'addon' => $this->addonCatalog,
         };
@@ -237,8 +254,77 @@ class ArrayRepository implements Repository
 
     public function currencyCodes(): array
     {
-        ksort($this->currencies);
-        return array_values($this->currencies);
+        return array_column($this->currencies(), 'code');
+    }
+
+    /** Groups come back in id order; hidden groups keep their place (callers sort them last if they want). */
+    public function productGroups(): array
+    {
+        $active = [];
+        foreach ($this->services as $service) {
+            if ($service['status'] === 'Active') {
+                $active[$service['groupId']] = ($active[$service['groupId']] ?? 0) + 1;
+            }
+        }
+        $groups = $this->groups;
+        ksort($groups);
+        $rows = [];
+        foreach ($groups as $id => $group) {
+            $rows[] = ['id' => $id, 'name' => $group['name'], 'hidden' => $group['hidden'], 'activeServices' => $active[$id] ?? 0];
+        }
+        return $rows;
+    }
+
+    public function products(): array
+    {
+        $rows = [];
+        foreach ($this->products as $id => $product) {
+            $rows[] = ['id' => $id, 'groupId' => $product['gid'], 'name' => $product['name']];
+        }
+        usort($rows, static fn (array $a, array $b): int => [$a['groupId'], $a['id']] <=> [$b['groupId'], $b['id']]);
+        return $rows;
+    }
+
+    public function addonCatalog(): array
+    {
+        $rows = [];
+        foreach ($this->addonCatalog as $id => $name) {
+            $rows[] = ['id' => $id, 'name' => $name];
+        }
+        usort($rows, static fn (array $a, array $b): int => [$a['name'], $a['id']] <=> [$b['name'], $b['id']]);
+        return $rows;
+    }
+
+    public function currencies(): array
+    {
+        $rows = [];
+        foreach ($this->currencies as $id => $currency) {
+            $rows[] = ['id' => $id] + $currency;
+        }
+        return $rows;
+    }
+
+    public function settings(): array
+    {
+        return $this->settings;
+    }
+
+    public function saveSettings(array $settings): void
+    {
+        foreach ($settings as $setting => $value) {
+            $this->settings[$setting] = $value;
+        }
+    }
+
+    public function invoicesChecked(): int
+    {
+        $ids = [];
+        foreach ($this->logs as $entry) {
+            if ($entry['invoiceId'] !== null) {
+                $ids[$entry['invoiceId']] = true;
+            }
+        }
+        return count($ids);
     }
 
     public function execute(string $sql): void

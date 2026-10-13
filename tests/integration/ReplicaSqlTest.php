@@ -51,6 +51,9 @@ final class ReplicaSqlTest extends TestCase
             'PRODUCT_NAMES' => [$this->scalar('SELECT MIN(id) FROM tblproducts')],
             'ADDON_NAMES' => [$this->scalar('SELECT MIN(id) FROM tbladdons')],
             'CURRENCIES' => [],
+            'PRODUCT_GROUPS' => [],
+            'PRODUCTS' => [],
+            'ADDON_CATALOG' => [],
             'SETTINGS' => [$this->scalar('SELECT module FROM tbladdonmodules ORDER BY id LIMIT 1')],
         ];
 

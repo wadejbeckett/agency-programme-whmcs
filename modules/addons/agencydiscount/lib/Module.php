@@ -27,12 +27,8 @@ final class Module
      */
     public static function boot(): self
     {
-        return new self(
-            new CapsuleRepository(),
-            Config::fromSettings(CapsuleRepository::settings()),
-            new SystemClock(),
-            new WhmcsActivityLog(),
-        );
+        $repo = new CapsuleRepository();
+        return new self($repo, Config::fromSettings($repo->settings()), new SystemClock(), new WhmcsActivityLog());
     }
 
     public function spend(): SpendCalculator

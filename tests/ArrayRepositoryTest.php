@@ -130,4 +130,55 @@ final class ArrayRepositoryTest extends TestCase
         self::assertFalse($record['dryRun'] ?? true);
         self::assertSame('2026-10-12 10:00:00', $record['createdAt'] ?? null);
     }
+
+    public function testCatalogueListsGroupsProductsAddonsAndCurrencies(): void
+    {
+        $repo = Fixtures::agencyRepo();
+        $groups = $repo->productGroups();
+        self::assertSame([1, 3, 6, 12, 15, 23, 33], array_column($groups, 'id'));
+        self::assertSame(['id' => 23, 'name' => 'Premium Shared', 'hidden' => false, 'activeServices' => 5], $groups[5]);
+        self::assertSame(['id' => 12, 'name' => 'Software', 'hidden' => true, 'activeServices' => 0], $groups[3]);
+        self::assertSame(1, $groups[0]['activeServices'], 'the terminated legacy service is not active');
+
+        $products = $repo->products();
+        self::assertSame([109, 108, 45, 120, 113, 161], array_column($products, 'id'));
+        self::assertSame(['id' => 113, 'groupId' => 23, 'name' => 'sPremium-1'], $products[4]);
+
+        self::assertSame([['id' => 12, 'name' => 'Advanced Email Security'], ['id' => 15, 'name' => 'Edge Security'], ['id' => 99, 'name' => 'Other addon']], $repo->addonCatalog());
+
+        self::assertSame([
+            ['id' => 1, 'code' => 'ZAR', 'rate' => '1.00000', 'isDefault' => true],
+            ['id' => 3, 'code' => 'EUR', 'rate' => '0.05389', 'isDefault' => false],
+        ], $repo->currencies());
+        self::assertSame(['ZAR', 'EUR'], $repo->currencyCodes());
+    }
+
+    public function testShortFormCurrenciesAndGroupsTakeDefaults(): void
+    {
+        $repo = new ArrayRepository(['currencies' => [5 => 'USD', 2 => 'GBP'], 'groups' => [4 => 'Hosting']]);
+        self::assertSame([
+            ['id' => 2, 'code' => 'GBP', 'rate' => '1.00000', 'isDefault' => true],
+            ['id' => 5, 'code' => 'USD', 'rate' => '1.00000', 'isDefault' => false],
+        ], $repo->currencies());
+        self::assertSame([['id' => 4, 'name' => 'Hosting', 'hidden' => false, 'activeServices' => 0]], $repo->productGroups());
+    }
+
+    public function testSettingsAreUpsertedPerKey(): void
+    {
+        $repo = new ArrayRepository(['settings' => ['tiers' => '{}', 'dry_run' => 'on']]);
+        $repo->saveSettings(['dry_run' => '', 'products' => '1,2']);
+        self::assertSame(['tiers' => '{}', 'dry_run' => '', 'products' => '1,2'], $repo->settings());
+    }
+
+    public function testInvoicesCheckedCountsDistinctInvoices(): void
+    {
+        $repo = new ArrayRepository();
+        self::assertSame(0, $repo->invoicesChecked());
+        $event = ['clientId' => 1, 'detail' => [], 'actor' => 'system', 'createdAt' => '2026-10-12 10:00:00'];
+        $repo->log($event + ['invoiceId' => 9, 'event' => 'dry_run']);
+        $repo->log($event + ['invoiceId' => 9, 'event' => 'already_processed']);
+        $repo->log($event + ['invoiceId' => 10, 'event' => 'applied']);
+        $repo->log($event + ['invoiceId' => null, 'event' => 'tier_changed']);
+        self::assertSame(2, $repo->invoicesChecked());
+    }
 }

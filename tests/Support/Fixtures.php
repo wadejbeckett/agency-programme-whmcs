@@ -27,8 +27,8 @@ final class Fixtures
     public static function data(): array
     {
         return [
-            'currencies' => [1 => 'ZAR', 3 => 'EUR'],
-            'groups' => [1 => 'Legacy', 3 => 'Reseller Hosting', 6 => 'Cloud', 15 => 'Domains', 23 => 'Premium Shared', 33 => 'Security'],
+            'currencies' => [1 => ['code' => 'ZAR', 'rate' => '1.00000', 'isDefault' => true], 3 => ['code' => 'EUR', 'rate' => '0.05389', 'isDefault' => false]],
+            'groups' => [1 => 'Legacy', 3 => 'Reseller Hosting', 6 => 'Cloud', 12 => ['name' => 'Software', 'hidden' => true], 15 => 'Domains', 23 => 'Premium Shared', 33 => 'Security'],
             'products' => [
                 109 => ['gid' => 1, 'name' => 'sLegacy-1'],
                 113 => ['gid' => 23, 'name' => 'sPremium-1'],

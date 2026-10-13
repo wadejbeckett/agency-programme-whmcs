@@ -123,7 +123,7 @@ final class SandboxTest extends TestCase
             Manager::table('tbladdonmodules')->insert(['module' => self::MODULE, 'setting' => $setting, 'value' => htmlspecialchars($value, ENT_QUOTES, 'UTF-8')]);
         }
         self::assertStringContainsString('&quot;', (string) Manager::table('tbladdonmodules')->where('module', self::MODULE)->where('setting', 'tiers')->value('value'));
-        self::assertSame($settings, array_intersect_key(CapsuleRepository::settings(), $settings));
+        self::assertSame($settings, array_intersect_key((new CapsuleRepository())->settings(), $settings));
 
         // d. approve through the profile save hook (input arrives HTML-encoded, as WHMCS delivers it)
         Hooks::reset();
@@ -225,11 +225,49 @@ final class SandboxTest extends TestCase
         $corrupt = $repo->logEntries($clientId, 1)[0];
         self::assertSame(['sandbox_corrupt', ['_raw' => '{broken']], [$corrupt['event'], $corrupt['detail']]);
 
-        // i. lookups
+        // i. lookups and the catalogue
         $names = $repo->lookupNames('group', array_merge($groupIds, [999999]));
         self::assertSame($groupIds, array_keys($names));
         self::assertNotSame([], $repo->currencyCodes());
         self::assertContains($currency, $repo->currencyCodes());
+        $groups = $repo->productGroups();
+        $byId = array_column($groups, null, 'id');
+        ksort($byId);
+        self::assertSame($groupIds, array_keys($byId));
+        self::assertSame($names, array_combine($groupIds, array_column(array_values($byId), 'name')));
+        $activeByGroup = Manager::table('tblhosting AS h')->join('tblproducts AS p', 'p.id', '=', 'h.packageid')->where('h.domainstatus', 'Active')->groupBy('p.gid')->selectRaw('p.gid, COUNT(*) AS n')->pluck('n', 'gid')->all();
+        foreach ($groups as $group) {
+            self::assertSame((int) ($activeByGroup[$group['id']] ?? 0), $group['activeServices'], 'active services of group ' . $group['id']);
+        }
+        $catalogIds = array_column($repo->addonCatalog(), 'id');
+        sort($catalogIds);
+        self::assertSame($addonIds, $catalogIds);
+        $products = $repo->products();
+        self::assertSame((int) Manager::table('tblproducts')->count(), count($products));
+        self::assertContains((int) Manager::table('tblhosting')->where('id', $serviceId)->value('packageid'), array_column($products, 'id'));
+        $currencies = $repo->currencies();
+        self::assertSame($repo->currencyCodes(), array_column($currencies, 'code'));
+        $defaults = array_values(array_filter($currencies, static fn (array $c): bool => $c['isDefault']));
+        self::assertCount(1, $defaults);
+        self::assertSame('1.00000', $defaults[0]['rate']);
+        foreach (['group' => $names, 'addon' => array_column($repo->addonCatalog(), 'name', 'id')] as $kind => $decoded) {
+            foreach ($decoded as $id => $name) {
+                self::assertStringNotContainsString('&amp;', $name, $kind . ' ' . $id . ' is still HTML-encoded');
+            }
+        }
+
+        // i2. settings written by the module are stored encoded, as WHMCS stores its own form, and read back decoded
+        $text = 'Agency "discount" & more: {percent}% on {count} items';
+        $repo->saveSettings(['description' => $text, 'products' => '1,2']);
+        $repo->saveSettings(['products' => '']);
+        $stored = (string) Manager::table('tbladdonmodules')->where('module', self::MODULE)->where('setting', 'description')->value('value');
+        self::assertStringContainsString('&quot;discount&quot; &amp; more', $stored);
+        self::assertSame(1, Manager::table('tbladdonmodules')->where('module', self::MODULE)->where('setting', 'products')->count());
+        $settings = $repo->settings();
+        self::assertSame($text, $settings['description']);
+        self::assertSame('', $settings['products']);
+        self::assertSame('{"' . $currency . '":[{"above":1,"percent":10}]}', $settings['tiers']);
+        self::assertSame(2, $repo->invoicesChecked());
 
         // j. deactivate drops the tables; clean up and prove nothing is left
         self::assertSame('success', \agencydiscount_deactivate()['status']);

@@ -22,15 +22,30 @@ final class CapsuleRepository implements Repository
     private const CLIENTS = 'mod_agencydiscount_clients';
     private const LOG = 'mod_agencydiscount_log';
     private const INVOICES = 'mod_agencydiscount_invoices';
+    private const SETTINGS = 'tbladdonmodules';
 
-    /** @return array<string,string> setting => value for the module, from tbladdonmodules, HTML entities decoded */
-    public static function settings(string $module = Module::NAME): array
+    /** From tbladdonmodules, HTML entities decoded. */
+    public function settings(): array
     {
         $raw = [];
-        foreach (self::select(Sql::SETTINGS, [$module]) as $row) {
+        foreach (self::select(Sql::SETTINGS, [Module::NAME]) as $row) {
             $raw[(string) $row->setting] = $row->value;
         }
         return self::decodeSettings($raw);
+    }
+
+    /**
+     * Stored HTML-encoded, exactly as WHMCS stores the values of its own Configure form, so the two
+     * routes stay interchangeable and settings() decodes both the same way.
+     */
+    public function saveSettings(array $settings): void
+    {
+        foreach ($settings as $setting => $value) {
+            Capsule::table(self::SETTINGS)->updateOrInsert(
+                ['module' => Module::NAME, 'setting' => $setting],
+                ['value' => htmlspecialchars($value, ENT_QUOTES, 'UTF-8')],
+            );
+        }
     }
 
     /**
@@ -287,11 +302,58 @@ final class CapsuleRepository implements Repository
 
     public function currencyCodes(): array
     {
-        $codes = [];
-        foreach (self::select(Sql::CURRENCIES, []) as $row) {
-            $codes[] = (string) $row->code;
+        return array_column($this->currencies(), 'code');
+    }
+
+    public function productGroups(): array
+    {
+        $groups = [];
+        foreach (self::select(Sql::PRODUCT_GROUPS, []) as $row) {
+            $groups[] = [
+                'id' => (int) $row->id,
+                'name' => (string) $row->name,
+                'hidden' => (int) $row->hidden === 1,
+                'activeServices' => (int) $row->active_services,
+            ];
         }
-        return $codes;
+        return $groups;
+    }
+
+    public function products(): array
+    {
+        $products = [];
+        foreach (self::select(Sql::PRODUCTS, []) as $row) {
+            $products[] = ['id' => (int) $row->id, 'groupId' => (int) $row->group_id, 'name' => (string) $row->name];
+        }
+        return $products;
+    }
+
+    public function addonCatalog(): array
+    {
+        $addons = [];
+        foreach (self::select(Sql::ADDON_CATALOG, []) as $row) {
+            $addons[] = ['id' => (int) $row->id, 'name' => (string) $row->name];
+        }
+        return $addons;
+    }
+
+    public function currencies(): array
+    {
+        $currencies = [];
+        foreach (self::select(Sql::CURRENCIES, []) as $row) {
+            $currencies[] = [
+                'id' => (int) $row->id,
+                'code' => (string) $row->code,
+                'rate' => bcadd(is_numeric($row->rate) ? (string) $row->rate : '1', '0', 5),
+                'isDefault' => (int) $row->is_default === 1,
+            ];
+        }
+        return $currencies;
+    }
+
+    public function invoicesChecked(): int
+    {
+        return (int) Capsule::table(self::LOG)->whereNotNull('invoice_id')->distinct()->count('invoice_id');
     }
 
     public function execute(string $sql): void

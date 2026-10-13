@@ -59,7 +59,7 @@ function agencydiscount_activate(): array
 function agencydiscount_deactivate(): array
 {
     try {
-        $settings = CapsuleRepository::settings();
+        $settings = (new CapsuleRepository())->settings();
         if (Config::yesNo($settings['keep_data'] ?? '', true)) {
             return ['status' => 'success', 'description' => 'Agency Programme deactivated. Module tables kept as configured. Discount lines on issued invoices are unchanged.'];
         }

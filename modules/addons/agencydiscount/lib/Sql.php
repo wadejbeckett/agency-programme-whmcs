@@ -21,7 +21,10 @@ final class Sql
     public const GROUP_NAMES = 'SELECT id, name FROM tblproductgroups WHERE id IN (%s)';
     public const PRODUCT_NAMES = 'SELECT id, name FROM tblproducts WHERE id IN (%s)';
     public const ADDON_NAMES = 'SELECT id, name FROM tbladdons WHERE id IN (%s)';
-    public const CURRENCIES = 'SELECT code FROM tblcurrencies ORDER BY id';
+    public const CURRENCIES = 'SELECT id, code, rate, `default` AS is_default FROM tblcurrencies ORDER BY id';
+    public const PRODUCT_GROUPS = 'SELECT g.id, g.name, g.hidden, (SELECT COUNT(*) FROM tblhosting h JOIN tblproducts p ON p.id = h.packageid WHERE p.gid = g.id AND h.domainstatus = \'Active\') AS active_services FROM tblproductgroups g ORDER BY g.`order`, g.id';
+    public const PRODUCTS = 'SELECT id, gid AS group_id, name FROM tblproducts ORDER BY gid, `order`, id';
+    public const ADDON_CATALOG = 'SELECT id, name FROM tbladdons ORDER BY name, id';
     public const SETTINGS = 'SELECT setting, value FROM tbladdonmodules WHERE module = ?';
     public const CLAIM_INVOICE = 'INSERT IGNORE INTO mod_agencydiscount_invoices (invoice_id, client_id, item_id, tier_index, percent, base, amount, dry_run, created_at) VALUES (?, ?, NULL, 0, 0.00, 0.00, 0.00, 0, ?)';
 
@@ -50,7 +53,10 @@ final class Sql
             'GROUP_NAMES' => ['id', 'name'],
             'PRODUCT_NAMES' => ['id', 'name'],
             'ADDON_NAMES' => ['id', 'name'],
-            'CURRENCIES' => ['code'],
+            'CURRENCIES' => ['id', 'code', 'rate', 'is_default'],
+            'PRODUCT_GROUPS' => ['id', 'name', 'hidden', 'active_services'],
+            'PRODUCTS' => ['id', 'group_id', 'name'],
+            'ADDON_CATALOG' => ['id', 'name'],
             'SETTINGS' => ['setting', 'value'],
             'CLAIM_INVOICE' => [],
         ];
