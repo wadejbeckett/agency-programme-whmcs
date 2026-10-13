@@ -311,7 +311,7 @@ final class Page
         return $html . self::table(['Id', 'Name'], $rows);
     }
 
-    /** "2026-10-25: ZAR 42.50 off ZAR 850.00", "...: no discount on ...", or "none in 35 days". */
+    /** "2026-10-25: ABC 42.50 off ABC 850.00", "...: no discount on ...", or "none in 35 days". */
     public static function nextInvoiceCell(AgencyStatus $status): string
     {
         $first = $status->nextInvoice();

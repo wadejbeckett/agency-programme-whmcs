@@ -37,8 +37,11 @@ final class ProfilesTest extends TestCase
         self::assertNotSame([], $files);
         foreach ($files as $file) {
             $code = (string) file_get_contents($file);
-            // "tr[i]nity" so this guard does not itself contain the host name it guards against
-            self::assertDoesNotMatchRegularExpression('/noiz\.(co\.za|ie)|tr[i]nity|"ZAR"|\'ZAR\'/', $code, basename($file));
+            // Generic patterns, so the guard names no installation itself: host names (the project's
+            // GitHub home aside) and quoted currency codes belong in profiles/, never in the module.
+            $hosts = (string) preg_replace('#github\.com/wadejbeckett/agency-programme-whmcs#', '', $code);
+            self::assertDoesNotMatchRegularExpression('/\b[a-z0-9-]+\.(?:com|net|org|io|ie|za|uk|local|lan|internal)\b/i', $hosts, basename($file));
+            self::assertDoesNotMatchRegularExpression('/["\'](?:USD|EUR|GBP|ZAR|AUD|CAD|NZD|INR|JPY)["\']/', $code, basename($file));
         }
     }
 

@@ -215,7 +215,7 @@ final class OverviewTab
         return $bar . '<small>' . Html::e(self::toNextTier($status)) . '</small>';
     }
 
-    /** "ZAR 987.09 to tier 2 (10%)", "top tier", or '' without tiers. */
+    /** "ABC 987.09 to tier 2 (10%)", "top tier", or '' without tiers. */
     public static function toNextTier(AgencyStatus $status): string
     {
         $next = $status->report->nextTier;
