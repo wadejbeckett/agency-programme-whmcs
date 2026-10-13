@@ -321,6 +321,13 @@ final class SandboxTest extends TestCase
         self::assertSame('{"' . $currency . '":[{"above":1,"percent":10}]}', $settings['tiers']);
         self::assertSame(2, $repo->invoicesChecked());
 
+        // i3. the 0.1.0 → 0.2.0 upgrade changes no table and records itself
+        $ddl = static fn (): string => (string) ((object) Manager::connection()->select('SHOW CREATE TABLE mod_agencydiscount_invoices')[0])->{'Create Table'};
+        $before = $ddl();
+        self::assertSame('success', \agencydiscount_upgrade(['version' => '0.1.0'])['status']);
+        self::assertSame($before, $ddl());
+        self::assertContains('Agency Programme upgraded from 0.1.0 to 0.2.0 (no schema change)', array_column(WhmcsCalls::$activity, 'message'));
+
         // j. deactivate drops the tables; clean up and prove nothing is left
         self::assertSame('success', \agencydiscount_deactivate()['status']);
         foreach (Schema::TABLES as $table) {

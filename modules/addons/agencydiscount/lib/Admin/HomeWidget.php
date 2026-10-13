@@ -38,6 +38,12 @@ final class HomeWidget extends AbstractWidget
      */
     protected $requiredPermission = 'View Income Totals';
 
+    public function __construct()
+    {
+        $this->title = Page::lang('title');
+        $this->description = Page::lang('widget_description');
+    }
+
     /** @return array<string, mixed> WidgetData, ['denied' => true] for a role outside the addon's access list, or ['error' => true] when it could not be built */
     public function getData(): array
     {

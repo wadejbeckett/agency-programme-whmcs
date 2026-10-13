@@ -1,6 +1,6 @@
 # Agency Programme for WHMCS
 
-Agency Programme is a WHMCS addon that runs a programme for approved agency clients. An administrator marks a client as an approved agency on the client profile, the module measures the client's qualifying monthly spend and places the client in a tier, and each tier carries a benefit. Today that benefit is a percentage discount on the client's qualifying hosting services and add-ons, applied automatically as one named negative line on each new invoice. No service price is ever changed. The module has a dry-run mode, an admin overview, a full change log and a command-line rehearsal, so the numbers can be checked before a single invoice is touched.
+Agency Programme is a WHMCS addon that runs a programme for approved agency clients. An administrator marks a client as an approved agency on the client profile, the module measures the client's qualifying monthly spend and places the client in a tier, and each tier carries a benefit. Today that benefit is a percentage discount on the client's qualifying hosting services and add-ons, applied automatically as one named negative line on each new invoice. No service price is ever changed. The module has a dry-run mode, an admin overview with a home widget and a card on each agency's client summary, a read-only client-area page for agencies, a full change log and a command-line rehearsal, so the numbers can be checked before a single invoice is touched.
 
 Licensed under the AGPL-3.0-or-later. Project home: https://github.com/wadejbeckett/agency-programme-whmcs
 
@@ -34,11 +34,13 @@ All amounts are handled as decimal strings with `bcmath`, never as floats. Month
 
 1. Copy `modules/addons/agencydiscount` into the WHMCS installation's `modules/addons/` directory.
 2. In the admin area, activate it under System Settings > Addon Modules. Activation creates three tables (`mod_agencydiscount_clients`, `mod_agencydiscount_log`, `mod_agencydiscount_invoices`) and starts in dry-run mode.
-3. Grant the admin role groups that should see the module access to it (Configure on the same page).
+3. Grant the admin role groups that should see the module access to it (Configure on the same page). The same access list decides which roles see the admin home widget and the card on the client summary page.
 4. Open Addons > Agency Programme > Settings and set the tiers, the qualifying groups, products and add-ons, and the statuses (see below). `profiles/noiz.example.json` shows one complete configuration.
 5. Approve agencies: open a client, go to the Profile tab and tick "Approved agency" under "Agency discount". Add a note and a start date if wanted.
 6. Check the Overview and Configuration check pages while dry-run is on. The overview shows each agency's spend, tier, next invoice and discount.
 7. When the numbers are right, press "Switch to live" on the Settings tab.
+
+Upgrading from 0.1.0 changes no table: WHMCS calls `agencydiscount_upgrade`, which records the upgrade in the activity log.
 
 ## Configuration
 
@@ -85,10 +87,10 @@ With this setting a client in USD with qualifying monthly spend of 500.00 gets n
 
 Addons > Agency Programme has four tabs (Overview, Settings, Change log, Configuration check) plus a Detail link per agency.
 
-- **Overview.** One row per approved agency: client, currency, qualifying monthly spend, tier, number of counted items, the next invoice with its discount, the spend still needed for the next tier, whether the discount is active or starts on a date, when it was last recalculated, and a link to the detail. "Recalculate now" refreshes every agency. Viewing the page changes nothing.
+- **Overview.** Four tiles: approved agencies (how many sit at a tier and how many wait for a start date), qualifying spend per month and the discount expected in the next 35 days, each summed per currency, and the mode. Below them one row per approved agency: client, currency, qualifying monthly spend, a tier badge, a progress bar through the current tier band with the amount still needed for the next tier, the next invoice with its discount, whether the discount is active or starts on a date, when it was last recalculated, and a link to the detail. Rows waiting for a start date are highlighted in yellow and rows in a currency without tiers in red. The table can be filtered (all, at a tier, not yet started, no tiers for currency) and searched by client name; both are plain links and a GET form, so they work without scripts. A side column lists what needs attention (how long dry-run has been on, currencies with approved agencies but no tiers, agencies within 5% of the next threshold, each linking to where it is fixed) and the six most recent change-log entries as sentences. "Recalculate now" refreshes every agency. Viewing the page changes nothing.
 - **Agency detail.** The counted services and add-ons with their cycle, amount, monthly equivalent, next invoice date and promotion flag, the upcoming invoices in the next 35 days with the base and the discount each would receive, and a link to that client's change log. The upcoming invoices are an estimate from the next invoice dates: they include services on a promotion, because whether a promotion still reduces an invoice is only known from that invoice's lines, and dates before the agency's start date show no discount. Pending new-order items are not listed and not estimated; they are only discounted on the order invoice itself.
 - **Settings.** The configuration, described under [Configuration](#configuration).
-- **Change log.** Every event, newest first, filterable by client, with its actor and detail.
+- **Change log.** Every event, newest first, filterable by client, with its actor, a one-sentence summary and the raw detail.
 - **Configuration check.** Shows that each configured group, product and add-on id exists, which currencies WHMCS has and whether tiers are configured for each, and the tier table.
 
 Change log events:
@@ -113,6 +115,41 @@ Change log events:
 | `recalculate_failed` | Recalculating one agency failed with an unexpected error (the message is in the detail); the other agencies were still recalculated. |
 | `settings_changed` | An administrator saved the Settings tab; the detail lists each changed key with its old and new value. |
 | `mode_changed` | An administrator switched between dry-run and live on the Settings tab. |
+
+## Admin home widget
+
+The `AdminHomeWidgets` hook adds an "Agency Programme" widget to the admin dashboard: the number of approved agencies, qualifying spend per month and the discount expected in the next 35 days (per currency), the mode badge, one row per agency with its tier badge and next invoice, the last cron check (the newest recalculation) and a link to the addon. It is read-only and never cached. Two things gate it: the widget requires the WHMCS admin permission "View Income Totals" (the one WHMCS's own billing widget uses), and it only answers for an admin whose role is on the addon's access list, the roles ticked under System Settings > Addon Modules > Agency Programme > Configure; any other admin sees "Agency Programme is not available to your admin role". If the figures cannot be built, the widget shows "Agency Programme: unavailable (see activity log)" and the error is in the WHMCS activity log; the dashboard itself is never affected. The widget is only registered when WHMCS's widget base class exists, so the unit tests and the CLI never load it.
+
+## Client profile
+
+Two places on an agency's client record show the programme:
+
+- **Summary tab card** (`AdminAreaClientSummaryPage` hook). For an approved agency only: a tier badge (or "No tier", or the warning that its currency has no tiers), a start-date note while the discount has not started, the qualifying monthly spend, the next invoice and its saving, a progress bar with the amount to the next tier, a note while dry-run is on, and links to the counted items (the agency detail), the change log for the client and the approval on the profile tab. It is shown only to admin roles on the addon's access list; any other client, role or failure gives nothing.
+- **Profile tab section** (`AdminClientProfileTabFields` and `AdminClientProfileTabFieldsSave` hooks). The "Agency discount" field: the "Approved agency" checkbox with who approved the client and when, the note, the "Discount starts on" date with an explanation, the stored summary line and, beside them for an approved agency, a live "Right now" box with the same figures as the summary card. The form field names (`agencydiscount_present`, `agencydiscount_approved`, `agencydiscount_note`, `agencydiscount_effective_from`) are unchanged from 0.1.0.
+
+## Client area
+
+An approved agency sees its programme in the client area; everything there is read-only, and clients outside the programme see nothing but a one-line notice on the module page. The client is identified from the WHMCS session.
+
+- **Home panel** (`ClientAreaHomepagePanels` hook). "Your agency programme": tier, qualifying monthly spend, the discount on the next invoice, the amount saved this year, the amount to the next tier, and a button to the module page. Not added for other clients, and never on a failure (which goes to the activity log).
+- **Module page** (`index.php?m=agencydiscount`, `agencydiscount_clientarea`, template `templates/clientarea.tpl`, login required). The tier table for the client's currency with its tier marked "You are here", what counts (the configured product groups, products and add-ons by name) and what does not, the client's counted services and add-ons with billing cycle, amount and monthly equivalent, the totals, and "Saved in <year>": the discount lines the module added (applied, not dry-run) to the client's invoices created this calendar year, from `mod_agencydiscount_invoices`. Notes appear while dry-run is on or a start date is ahead.
+
+The template uses the client theme's Bootstrap 4 classes (WHMCS's "twenty-one" theme) and no styling of its own beyond progress-bar widths; the client theme decides how it looks. The page's variables are built by `ClientArea\PageData` and the template escapes every value. The client area still shows undiscounted recurring prices on services; the discount appears on invoices.
+
+## Hooks
+
+| Hook | What the module does |
+| --- | --- |
+| `InvoiceCreation` | Adds the discount line to a new invoice of an approved agency. |
+| `PreInvoicingGenerateInvoiceItems` | Recalculates every agency before the cron invoicing run. |
+| `DailyCronJob` | Recalculates every agency daily. |
+| `AdminClientProfileTabFields` | Renders the "Agency discount" profile field with the "Right now" box. |
+| `AdminClientProfileTabFieldsSave` | Saves the approval, note and start date. |
+| `AdminAreaClientSummaryPage` | Renders the summary card for an approved agency. |
+| `AdminHomeWidgets` | Returns the admin home widget (only when WHMCS's widget base class exists). |
+| `ClientAreaHomepagePanels` | Adds the agency's panel to the client home page. |
+
+None of the hooks throws: a failure is written to the WHMCS activity log and the hook returns, so invoicing, the admin pages and the client area keep working.
 
 ## Rehearsal CLI
 
@@ -166,6 +203,9 @@ The hooks were exercised against a MariaDB copy of a WHMCS 9.0.8 database throug
 - How the yes/no `Default` values render in the addon settings screen.
 - That `agencydiscount_deactivate()` runs before WHMCS deletes the module's settings rows; this decides whether "Keep data on deactivate" is honoured.
 - That the discount line, which copies the invoice's `paymentmethod`, displays correctly in WHMCS invoice views.
+- The admin home widget on a real dashboard: its base class `\WHMCS\Module\AbstractWidget` is only stubbed here, its "View Income Totals" permission check is WHMCS's, and the tests cover the figures and markup (`Admin\WidgetData`) and a failure path against a stand-in base class.
+- The client-area home panel's `addChild` attributes (`label`, `icon`, `extras` with `btn-link` and `btn-text`, `bodyHtml`) against WHMCS's `\WHMCS\View\Menu\Item`, which is stubbed here, and that the module page's template passes WHMCS's Smarty security policy (it uses only `escape`, `if` and `foreach`). The template was rendered with Smarty 3.1 outside WHMCS.
+- That `\WHMCS\Session::get('adminid')` and `get('uid')` give the logged-in admin and client as expected by the role check and the client area.
 - That WHMCS recalculates invoice totals after the `InvoiceCreation` hook returns. This is documented WHMCS behaviour but has not been observed here.
 
 This is why the module ships with dry-run on. Run it in dry-run on the real installation first, then check the first live invoice.
@@ -183,7 +223,7 @@ Deactivating the module under System Settings > Addon Modules drops its three ta
 - Suspended or otherwise non-active services do not count unless their status is added to "Counted statuses".
 - A currency without tiers gets no discount.
 - There is no client-facing application flow: an administrator approves agencies.
-- The client area shows undiscounted recurring prices; the discount appears on the invoice.
+- The client area shows undiscounted recurring prices on services; the discount appears on the invoice and the programme page.
 
 ## Development
 

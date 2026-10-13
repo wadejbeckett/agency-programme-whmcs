@@ -74,16 +74,19 @@ function agencydiscount_deactivate(): array
 }
 
 /**
- * 0.1.0 is the first release: CREATE TABLE IF NOT EXISTS is all an upgrade needs so far.
+ * Called by WHMCS when the installed version ($vars['version']) is older than Module::VERSION.
+ * 0.1.0 → 0.2.0 changes no table, so the upgrade only records itself in the activity log; a later
+ * release that changes the schema branches on the previous version here.
  *
  * @param array<string, mixed> $vars
  * @return array{status: string, description: string}
  */
 function agencydiscount_upgrade(array $vars): array
 {
+    $from = is_scalar($vars['version'] ?? null) ? (string) $vars['version'] : 'unknown';
     try {
-        Schema::install(new CapsuleRepository());
-        return ['status' => 'success', 'description' => 'Agency Programme upgraded to ' . Module::VERSION . '.'];
+        \logActivity('Agency Programme upgraded from ' . $from . ' to ' . Module::VERSION . ' (no schema change)');
+        return ['status' => 'success', 'description' => 'Agency Programme upgraded from ' . $from . ' to ' . Module::VERSION . '. No tables changed.'];
     } catch (\Throwable $e) {
         return ['status' => 'error', 'description' => 'Agency Programme upgrade problem: ' . $e->getMessage()];
     }
