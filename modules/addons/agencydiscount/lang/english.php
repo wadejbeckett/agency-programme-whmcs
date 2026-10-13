@@ -145,3 +145,13 @@ $_ADDONLANG['activity'] = 'Recent activity';
 $_ADDONLANG['activity_none'] = 'No activity yet.';
 $_ADDONLANG['activity_all'] = 'Full change log';
 $_ADDONLANG['log_summary'] = 'Summary';
+
+// Admin home widget
+$_ADDONLANG['widget_description'] = 'Approved agencies, their qualifying spend and the discount expected in the next 35 days.';
+$_ADDONLANG['widget_agencies'] = 'Agencies';
+$_ADDONLANG['widget_spend'] = 'Spend per month';
+$_ADDONLANG['widget_discount'] = 'Next %d days';
+$_ADDONLANG['widget_last_check'] = 'Last cron check';
+$_ADDONLANG['widget_open'] = 'Open Agency Programme';
+$_ADDONLANG['widget_unavailable'] = 'Agency Programme: unavailable (see activity log)';
+$_ADDONLANG['widget_none'] = 'No approved agencies yet.';

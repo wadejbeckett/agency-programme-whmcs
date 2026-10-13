@@ -30,6 +30,40 @@ namespace WHMCS {
     }
 }
 
+namespace WHMCS\Module {
+    /** Base class of admin home widgets ("Admin Dashboard Widgets" in the WHMCS developer docs); properties are untyped there. */
+    abstract class AbstractWidget
+    {
+        /** @var string */
+        protected $title = '';
+        /** @var string */
+        protected $description = '';
+        /** @var int */
+        protected $weight = 100;
+        /** @var int */
+        protected $columns = 1;
+        /** @var bool */
+        protected $cache = false;
+        /** @var int */
+        protected $cacheExpiry = 120;
+        /** @var string */
+        protected $requiredPermission = '';
+
+        abstract public function getData(): mixed;
+        abstract public function generateOutput(mixed $data): mixed;
+    }
+}
+
+namespace WHMCS\View\Menu {
+    /** A client-area menu or panel tree node ("Client Area Navigation Menus / Homepage Panels" in the WHMCS developer docs). */
+    class Item
+    {
+        /** @param array<string, mixed> $attributes */
+        public function addChild(string $name, array $attributes = []): self { return $this; }
+        public function getChild(string $name): ?self { return null; }
+    }
+}
+
 namespace {
     function add_hook(string $hookPoint, int $priority, callable $function): void {}
     function logActivity(string $description, int $userId = 0): void {}
