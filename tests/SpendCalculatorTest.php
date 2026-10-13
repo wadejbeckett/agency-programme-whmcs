@@ -34,6 +34,16 @@ final class SpendCalculatorTest extends TestCase
         self::assertSame('ZAR', $report->currency);
     }
 
+    public function testNegativeRecurringAmountReducesSpendInsteadOfFailing(): void
+    {
+        $repo = Fixtures::agencyRepo();
+        $repo->services[2002] = ['clientId' => 404, 'id' => 2002, 'productId' => 108, 'groupId' => 3, 'productName' => 'Reseller 1', 'domain' => 's.example', 'amount' => '-1200.00', 'billingCycle' => 'Annually', 'status' => 'Active', 'nextInvoiceDate' => '2026-10-20', 'promoId' => 0];
+        $report = (new SpendCalculator($repo, Config::fromSettings(Fixtures::settings())))->forClient(404);
+        self::assertSame('-100.00', $report->services[1]['monthly']);
+        self::assertSame('5900.00', $report->monthlySpend);
+        self::assertSame(3, $report->tier?->index);
+    }
+
     public function testTopTierHasNoNextTier(): void
     {
         $calc = new SpendCalculator(Fixtures::agencyRepo(), Config::fromSettings(Fixtures::settings()));

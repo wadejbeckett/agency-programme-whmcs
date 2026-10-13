@@ -23,7 +23,7 @@ The module replaces hand-set promotion codes and client-group discounts for agen
 
 ### Rounding and money
 
-All amounts are handled as decimal strings with `bcmath`, never as floats. Monthly equivalents and discounts are rounded half-up to two decimal places; each item's monthly equivalent is rounded before the items are summed. Tier thresholds are strictly-above comparisons on the two-decimal monthly total. A billing cycle the module does not recognise (for example one-time or free items) has a monthly equivalent of 0.00.
+All amounts are handled as decimal strings with `bcmath`, never as floats. Monthly equivalents and discounts are rounded half-up to two decimal places; each item's monthly equivalent is rounded before the items are summed. Tier thresholds are strictly-above comparisons on the two-decimal monthly total. A billing cycle the module does not recognise (for example one-time or free items) has a monthly equivalent of 0.00. A negative recurring amount keeps its sign (rounded like its positive counterpart) and lowers the spend; its invoice line is never discounted.
 
 ## Requirements
 
