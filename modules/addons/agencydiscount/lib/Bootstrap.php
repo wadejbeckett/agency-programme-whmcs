@@ -37,6 +37,8 @@ require_once __DIR__ . '/Hooks.php';
 require_once __DIR__ . '/ProfileTab.php';
 require_once __DIR__ . '/Admin/Html.php';
 require_once __DIR__ . '/Admin/Preview.php';
+require_once __DIR__ . '/Admin/SettingsForm.php';
+require_once __DIR__ . '/Admin/SettingsTab.php';
 require_once __DIR__ . '/Admin/Page.php';
 require_once __DIR__ . '/SnapshotLoader.php';
 require_once __DIR__ . '/Cli.php';

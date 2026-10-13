@@ -52,6 +52,23 @@ final class Tiers
         return new self($byCurrency);
     }
 
+    /**
+     * The canonical form of the `tiers` setting: currencies in their order, each tier as
+     * {"above": n, "percent": n} with trailing zeros dropped; "{}" when there are no tiers.
+     */
+    public function toJson(): string
+    {
+        $parts = [];
+        foreach ($this->byCurrency as $code => $tiers) {
+            $items = [];
+            foreach ($tiers as $tier) {
+                $items[] = '{"above":' . Money::formatPercent($tier->above) . ',"percent":' . Money::formatPercent($tier->percent) . '}';
+            }
+            $parts[] = json_encode($code, JSON_THROW_ON_ERROR) . ':[' . implode(',', $items) . ']';
+        }
+        return '{' . implode(',', $parts) . '}';
+    }
+
     public function hasCurrency(string $code): bool
     {
         return isset($this->byCurrency[$code]);

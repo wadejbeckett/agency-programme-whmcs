@@ -69,4 +69,12 @@ final class TiersTest extends TestCase
             self::assertContains($problem, $e->problems());
         }
     }
+
+    public function testToJsonIsCanonicalAndRoundTrips(): void
+    {
+        $json = Tiers::fromJson('{"ZAR":[{"above":"0.00","percent":5},{"above":10000.5,"percent":"10.50"}],"EUR":[{"above":1,"percent":7.25}]}')->toJson();
+        self::assertSame('{"ZAR":[{"above":0,"percent":5},{"above":10000.5,"percent":10.5}],"EUR":[{"above":1,"percent":7.25}]}', $json);
+        self::assertSame($json, Tiers::fromJson($json)->toJson());
+        self::assertSame('{}', Tiers::fromJson('{}')->toJson());
+    }
 }

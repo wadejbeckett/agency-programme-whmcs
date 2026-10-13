@@ -22,6 +22,7 @@ require_once __DIR__ . '/lib/Bootstrap.php';
 function agencydiscount_config(): array
 {
     $d = Config::defaults();
+    $tab = 'Edit on the Agency Programme › Settings tab (Addons > Agency Programme > Settings). This raw field stores the same value and is the advanced route.';
     return [
         'name' => 'Agency Programme',
         'description' => 'A programme for approved agency clients: approval on the client profile, tiered benefits by qualifying monthly spend, today a percentage discount applied automatically as a named invoice line. Start in dry-run mode, check the overview, then switch dry-run off.',
@@ -29,12 +30,12 @@ function agencydiscount_config(): array
         'author' => 'Noiz',
         'language' => 'english',
         'fields' => [
-            'tiers' => ['FriendlyName' => 'Tiers (JSON)', 'Type' => 'textarea', 'Rows' => '6', 'Cols' => '60', 'Default' => $d['tiers'], 'Description' => 'Per currency code: a list of {"above": monthly spend, "percent": discount}, ascending. A client qualifies for the highest tier whose "above" is below the qualifying monthly spend.'],
-            'product_groups' => ['FriendlyName' => 'Qualifying product group IDs', 'Type' => 'text', 'Size' => '40', 'Default' => $d['product_groups'], 'Description' => 'Comma-separated. Services in these groups count toward spend and receive the discount.'],
-            'products' => ['FriendlyName' => 'Qualifying product IDs', 'Type' => 'text', 'Size' => '40', 'Default' => $d['products'], 'Description' => 'Comma-separated. Adds individual products outside the groups above.'],
-            'addons' => ['FriendlyName' => 'Qualifying add-on IDs', 'Type' => 'text', 'Size' => '40', 'Default' => $d['addons'], 'Description' => 'Comma-separated product add-on IDs.'],
-            'statuses' => ['FriendlyName' => 'Counted statuses', 'Type' => 'text', 'Size' => '40', 'Default' => $d['statuses'], 'Description' => 'Service and add-on statuses that count, comma-separated. Usually Active.'],
-            'dry_run' => ['FriendlyName' => 'Dry-run mode', 'Type' => 'yesno', 'Default' => $d['dry_run'] === 'on' ? 'yes' : 'no', 'Description' => 'Calculate and log, but do not change any invoice.'],
+            'tiers' => ['FriendlyName' => 'Tiers (JSON)', 'Type' => 'textarea', 'Rows' => '6', 'Cols' => '60', 'Default' => $d['tiers'], 'Description' => $tab . ' Per currency code: a list of {"above": monthly spend, "percent": discount}, ascending.'],
+            'product_groups' => ['FriendlyName' => 'Qualifying product group IDs', 'Type' => 'text', 'Size' => '40', 'Default' => $d['product_groups'], 'Description' => $tab . ' Comma-separated group ids.'],
+            'products' => ['FriendlyName' => 'Qualifying product IDs', 'Type' => 'text', 'Size' => '40', 'Default' => $d['products'], 'Description' => $tab . ' Comma-separated product ids outside the groups above.'],
+            'addons' => ['FriendlyName' => 'Qualifying add-on IDs', 'Type' => 'text', 'Size' => '40', 'Default' => $d['addons'], 'Description' => $tab . ' Comma-separated product add-on ids.'],
+            'statuses' => ['FriendlyName' => 'Counted statuses', 'Type' => 'text', 'Size' => '40', 'Default' => $d['statuses'], 'Description' => $tab . ' Comma-separated service and add-on statuses that count.'],
+            'dry_run' => ['FriendlyName' => 'Dry-run mode', 'Type' => 'yesno', 'Default' => $d['dry_run'] === 'on' ? 'yes' : 'no', 'Description' => 'Calculate and log, but do not change any invoice. The Settings tab has a switch for this too.'],
             'stack_with_promotions' => ['FriendlyName' => 'Stack with promotions', 'Type' => 'yesno', 'Description' => 'Also discount a service\'s invoice line when the same invoice carries that service\'s promotion discount.'],
             'new_orders' => ['FriendlyName' => 'Discount new orders', 'Type' => 'yesno', 'Default' => $d['new_orders'] === 'on' ? 'yes' : 'no', 'Description' => 'Also discount an approved agency\'s new-order invoice, where the ordered items are still Pending. The tier is chosen on the current qualifying spend plus the ordered items.'],
             'description' => ['FriendlyName' => 'Invoice line text', 'Type' => 'text', 'Size' => '60', 'Default' => $d['description'], 'Description' => 'Placeholders: {percent}, {count}.'],
@@ -97,7 +98,7 @@ function agencydiscount_output(array $vars): void
         $module = Module::boot();
         $adminId = \WHMCS\Session::get('adminid');
         $actor = is_numeric($adminId) ? 'admin:' . (int) $adminId : 'admin';
-        echo (new Page($module))->render($moduleLink, $_GET, $_POST, $actor, generate_token());
+        echo (new Page($module))->render($moduleLink, $_GET, Page::decodeInput($_POST), $actor, generate_token());
     } catch (ConfigException $e) {
         echo Page::configProblems($moduleLink, $e->problems());
     } catch (\Throwable $e) {

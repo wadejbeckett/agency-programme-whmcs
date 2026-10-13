@@ -12,8 +12,9 @@ use AgencyDiscount\Money;
 use AgencyDiscount\SpendReport;
 
 /**
- * The addon's admin page (Addons > Agency Programme). Views: overview (default), agency, log, check.
- * Every dynamic string passes through Html::e(); table cells are built as already-escaped HTML.
+ * The addon's admin page (Addons > Agency Programme). Views: overview (default), agency, settings,
+ * log, check. Every dynamic string passes through Html::e(); table cells are built as
+ * already-escaped HTML.
  */
 final class Page
 {
@@ -23,9 +24,31 @@ final class Page
     /** @var array<string,string>|null */
     private static ?array $strings = null;
 
-    public function __construct(
-        private readonly Module $module,
-    ) {
+    /** Replaced when the Settings tab saves, so the rest of the page reflects the new configuration. */
+    private Module $module;
+
+    public function __construct(Module $module)
+    {
+        $this->module = $module;
+    }
+
+    /**
+     * WHMCS HTML-encodes request input at init ("&" arrives as "&amp;"); the admin page decodes
+     * every string in the POST once, recursively, before reading it. Idempotent for plain values.
+     *
+     * @param array<array-key, mixed> $input
+     * @return array<array-key, mixed>
+     */
+    public static function decodeInput(array $input): array
+    {
+        foreach ($input as $key => $value) {
+            if (is_array($value)) {
+                $input[$key] = self::decodeInput($value);
+            } elseif (is_string($value)) {
+                $input[$key] = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+        }
+        return $input;
     }
 
     /** @param list<string> $problems */
@@ -47,7 +70,15 @@ final class Page
     public function render(string $moduleLink, array $get, array $post, string $actor, string $tokenField): string
     {
         $view = self::text($get['action'] ?? null);
-        $view = in_array($view, ['agency', 'log', 'check'], true) ? $view : 'overview';
+        $view = in_array($view, ['agency', 'settings', 'log', 'check'], true) ? $view : 'overview';
+
+        // The Settings tab handles its POST first: a save or a mode switch changes what the banner says.
+        $settings = '';
+        if ($view === 'settings') {
+            $tab = new SettingsTab($this->module, $tokenField);
+            $settings = $tab->handle($post, $actor);
+            $this->module = $tab->module;
+        }
 
         $html = $this->nav($moduleLink, $view);
         if ($this->module->config->dryRun) {
@@ -56,6 +87,7 @@ final class Page
 
         return $html . match ($view) {
             'agency' => $this->agencyView($moduleLink, $get),
+            'settings' => $settings,
             'log' => $this->logView($moduleLink, $get),
             'check' => $this->checkView(),
             default => $this->overviewView($moduleLink, $post, $actor, $tokenField),
@@ -66,6 +98,7 @@ final class Page
     {
         $tabs = [
             'overview' => [Html::e($moduleLink), self::lang('overview')],
+            'settings' => [Html::link($moduleLink, ['action' => 'settings']), self::lang('settings')],
             'log' => [Html::link($moduleLink, ['action' => 'log']), self::lang('log')],
             'check' => [Html::link($moduleLink, ['action' => 'check']), self::lang('check')],
         ];
@@ -126,7 +159,7 @@ final class Page
                 '<a href="clientssummary.php?userid=' . $report->clientId . '">' . Html::e($report->clientName) . '</a>',
                 Html::e($report->currency),
                 Html::e(Html::money($report->currency, $report->monthlySpend)),
-                $this->tierCell($report),
+                self::tierCell($report),
                 (string) $report->countedItems(),
                 $this->nextInvoiceCell($report, $agency['effectiveFrom'] ?? null),
                 $toNext,
@@ -162,7 +195,7 @@ final class Page
         $currency = $report->currency;
         $html = '<h3>' . Html::e($report->clientName) . '</h3>'
             . '<p>' . Html::e($currency) . ' &middot; qualifying monthly spend ' . Html::e(Html::money($currency, $report->monthlySpend))
-            . ' &middot; tier ' . $this->tierCell($report)
+            . ' &middot; tier ' . self::tierCell($report)
             . ' &middot; ' . $report->countedItems() . ' counted items'
             . ' &middot; ' . self::startsCell($agency['effectiveFrom']) . '</p>';
 
@@ -354,7 +387,8 @@ final class Page
         return Html::e($first['date'] . ': ' . Html::money($report->currency, $first['discount']) . ' off ' . $base);
     }
 
-    private function tierCell(SpendReport $report): string
+    /** "2 (10%)", "none", or a warning that the report's currency has no tiers. */
+    public static function tierCell(SpendReport $report): string
     {
         if (!$report->currencyHasTiers) {
             return '<span class="text-danger">no tiers for ' . Html::e($report->currency) . '</span>';
@@ -403,7 +437,7 @@ final class Page
     }
 
     /** Text from the English language file (the addon ships English only for now). */
-    private static function lang(string $key): string
+    public static function lang(string $key): string
     {
         if (self::$strings === null) {
             /** @var array<string, mixed> $_ADDONLANG filled by the language file */
