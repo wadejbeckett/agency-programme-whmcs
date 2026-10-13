@@ -136,7 +136,7 @@ final class PageTest extends TestCase
         $html = $this->page()->render('m', [], [], 'admin:1', '');
         self::assertStringContainsString('starts 2027-01-01', $html);
         self::assertStringContainsString('<span class="text-warning">starts 2027-01-01</span>', $html);
-        self::assertSame(1, preg_match('#<tr>(?:(?!</tr>).)*userid=500(?:(?!</tr>).)*</tr>#s', $html, $row));
+        self::assertSame(1, preg_match('#<tr[^>]*>(?:(?!</tr>).)*userid=500(?:(?!</tr>).)*</tr>#s', $html, $row));
         self::assertStringContainsString('active', $row[0]);
         self::assertStringNotContainsString('starts', $row[0]);
     }

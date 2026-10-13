@@ -6,7 +6,9 @@ declare(strict_types=1);
 
 namespace AgencyDiscount\Admin;
 
+use AgencyDiscount\AgencyStatus;
 use AgencyDiscount\ClientNotFound;
+use AgencyDiscount\LogEntry;
 use AgencyDiscount\Module;
 use AgencyDiscount\Money;
 use AgencyDiscount\SpendReport;
@@ -19,7 +21,6 @@ use AgencyDiscount\SpendReport;
 final class Page
 {
     private const LOG_PAGE_SIZE = 50;
-    private const PREVIEW_DAYS = 35;
 
     /** @var array<string,string>|null */
     private static ?array $strings = null;
@@ -90,7 +91,7 @@ final class Page
             'settings' => $settings,
             'log' => $this->logView($moduleLink, $get),
             'check' => $this->checkView(),
-            default => $this->overviewView($moduleLink, $post, $actor, $tokenField),
+            default => $this->overviewView($moduleLink, $get, $post, $actor, $tokenField),
         };
     }
 
@@ -110,94 +111,35 @@ final class Page
         return '<ul class="nav nav-tabs">' . $items . '</ul>';
     }
 
-    /** @param array<string,mixed> $post */
-    private function overviewView(string $moduleLink, array $post, string $actor, string $tokenField): string
+    /**
+     * @param array<string,mixed> $get
+     * @param array<string,mixed> $post
+     */
+    private function overviewView(string $moduleLink, array $get, array $post, string $actor, string $tokenField): string
     {
-        $html = '';
-        $reports = null;
-        // Only the explicit POST writes; viewing the page never changes stored data.
-        if (self::text($post['action'] ?? null) === 'recalculate') {
-            $reports = $this->module->recalculator()->recalculateAll($actor);
-            $html .= '<div class="alert alert-success">Recalculated ' . count($reports) . ' agencies.</div>';
-        }
-
-        $html .= '<form method="post">' . $tokenField
-            . '<input type="hidden" name="action" value="recalculate">'
-            . '<button type="submit" class="btn btn-default">Recalculate now</button></form>';
-
-        $missing = [];
-        if ($reports === null) {
-            $reports = [];
-            foreach ($this->module->repo->approvedAgencies() as $agency) {
-                try {
-                    $reports[] = $this->module->spend()->forClient($agency['clientId']);
-                } catch (ClientNotFound) {
-                    $missing[] = $agency['clientId'];
-                }
-            }
-        }
-        foreach ($missing as $clientId) {
-            $html .= '<div class="alert alert-warning">Client ' . $clientId . ' no longer exists in WHMCS.</div>';
-        }
-
-        if ($reports === []) {
-            return $html . '<p>No approved agencies yet. Approve a client on its profile tab.</p>';
-        }
-
-        $rows = '';
-        foreach ($reports as $report) {
-            $agency = $this->module->repo->agency($report->clientId);
-            $shortfall = $report->shortfallToNextTier();
-            if (!$report->currencyHasTiers) {
-                $toNext = '&mdash;';
-            } elseif ($shortfall === null) {
-                $toNext = 'top tier';
-            } else {
-                $toNext = Html::e(Html::money($report->currency, $shortfall));
-            }
-            $rows .= self::row([
-                '<a href="clientssummary.php?userid=' . $report->clientId . '">' . Html::e($report->clientName) . '</a>',
-                Html::e($report->currency),
-                Html::e(Html::money($report->currency, $report->monthlySpend)),
-                self::tierCell($report),
-                (string) $report->countedItems(),
-                $this->nextInvoiceCell($report, $agency['effectiveFrom'] ?? null),
-                $toNext,
-                self::startsCell($agency['effectiveFrom'] ?? null),
-                Html::e($agency['calculatedAt'] ?? 'never'),
-                '<a href="' . Html::link($moduleLink, ['action' => 'agency', 'id' => $report->clientId]) . '">Detail</a>',
-            ]);
-        }
-
-        return $html . self::table(
-            ['Client', 'Currency', 'Qualifying monthly spend', 'Tier', 'Items', 'Next invoice', 'To next tier', 'Starts', 'Recalculated', 'Detail'],
-            $rows,
-            ' id="agencydiscount-overview"',
-        );
+        return (new OverviewTab($this->module, $tokenField))->render($moduleLink, $get, $post, $actor);
     }
 
     /** @param array<string,mixed> $get */
     private function agencyView(string $moduleLink, array $get): string
     {
         $clientId = self::intParam($get['id'] ?? null) ?? 0;
-        $agency = $this->module->repo->agency($clientId);
-        $report = null;
-        if ($agency !== null && $agency['approved']) {
-            try {
-                $report = $this->module->spend()->forClient($clientId);
-            } catch (ClientNotFound) {
-            }
+        try {
+            $status = AgencyStatus::of($this->module, $clientId);
+        } catch (ClientNotFound) {
+            $status = null;
         }
-        if ($agency === null || $report === null) {
+        if ($status === null) {
             return '<div class="alert alert-danger">Client ' . $clientId . ' is not an approved agency.</div>';
         }
+        $report = $status->report;
 
         $currency = $report->currency;
         $html = '<h3>' . Html::e($report->clientName) . '</h3>'
             . '<p>' . Html::e($currency) . ' &middot; qualifying monthly spend ' . Html::e(Html::money($currency, $report->monthlySpend))
             . ' &middot; tier ' . self::tierCell($report)
             . ' &middot; ' . $report->countedItems() . ' counted items'
-            . ' &middot; ' . self::startsCell($agency['effectiveFrom']) . '</p>';
+            . ' &middot; ' . self::startsCell($status) . '</p>';
 
         $html .= '<h4>Counted services</h4>';
         if ($report->services === []) {
@@ -239,13 +181,12 @@ final class Page
             $html .= self::table(['Domain', 'Add-on', 'Cycle', 'Amount', 'Monthly', 'Next invoice'], $rows);
         }
 
-        $html .= '<h4>Upcoming invoices (next ' . self::PREVIEW_DAYS . ' days)</h4>';
-        $upcoming = $this->upcoming($report, $agency['effectiveFrom']);
-        if ($upcoming === []) {
-            $html .= '<p>None in ' . self::PREVIEW_DAYS . ' days.</p>';
+        $html .= '<h4>Upcoming invoices (next ' . AgencyStatus::PREVIEW_DAYS . ' days)</h4>';
+        if ($status->upcoming === []) {
+            $html .= '<p>None in ' . AgencyStatus::PREVIEW_DAYS . ' days.</p>';
         } else {
             $rows = '';
-            foreach ($upcoming as $row) {
+            foreach ($status->upcoming as $row) {
                 $rows .= self::row([
                     Html::e($row['date']),
                     (string) $row['items'],
@@ -278,6 +219,7 @@ final class Page
             return $html . '<p>No log entries.</p>';
         }
 
+        $clients = (new OverviewTab($this->module, ''))->clientsFor($entries);
         $rows = '';
         foreach ($entries as $entry) {
             $detail = json_encode($entry['detail'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
@@ -287,10 +229,11 @@ final class Page
                 $entry['invoiceId'] === null ? '' : '<a href="invoices.php?action=edit&amp;id=' . $entry['invoiceId'] . '">' . $entry['invoiceId'] . '</a>',
                 Html::e($entry['event']),
                 Html::e($entry['actor']),
+                Html::e(LogEntry::sentence($entry, $clients)),
                 '<code>' . Html::e($detail === false ? '{}' : $detail) . '</code>',
             ]);
         }
-        $html .= self::table(['Time', 'Client', 'Invoice', 'Event', 'Actor', 'Detail'], $rows);
+        $html .= self::table(['Time', 'Client', 'Invoice', 'Event', 'Actor', self::lang('log_summary'), 'Detail'], $rows);
 
         $pager = '';
         if ($hasOlder) {
@@ -368,23 +311,30 @@ final class Page
         return $html . self::table(['Id', 'Name'], $rows);
     }
 
-    /** @return list<array{date:string, base:string, percent:?string, discount:string, items:int}> */
-    private function upcoming(SpendReport $report, ?string $effectiveFrom): array
+    /** "2026-10-25: ZAR 42.50 off ZAR 850.00", "...: no discount on ...", or "none in 35 days". */
+    public static function nextInvoiceCell(AgencyStatus $status): string
     {
-        return Preview::upcoming($report, $this->module->clock->now(), self::PREVIEW_DAYS, $effectiveFrom);
+        $first = $status->nextInvoice();
+        if ($first === null) {
+            return Html::e(sprintf(self::lang('next_invoice_none'), AgencyStatus::PREVIEW_DAYS));
+        }
+        $currency = $status->report->currency;
+        $base = Html::money($currency, $first['base']);
+        if ($first['percent'] === null) {
+            return Html::e(sprintf(self::lang('next_invoice_no_discount'), $first['date'], $base));
+        }
+        return Html::e(sprintf(self::lang('next_invoice'), $first['date'], Html::money($currency, $first['discount']), $base));
     }
 
-    private function nextInvoiceCell(SpendReport $report, ?string $effectiveFrom): string
+    /** "active", "active since <date>" (a start date already reached) or a flagged "starts <date>". */
+    public static function startsCell(AgencyStatus $status): string
     {
-        $first = $this->upcoming($report, $effectiveFrom)[0] ?? null;
-        if ($first === null) {
-            return 'none in ' . self::PREVIEW_DAYS . ' days';
+        $starts = $status->startsOn();
+        if ($starts !== null) {
+            return '<span class="text-warning">' . Html::e(sprintf(self::lang('starts'), $starts)) . '</span>';
         }
-        $base = Html::money($report->currency, $first['base']);
-        if ($first['percent'] === null) {
-            return Html::e($first['date'] . ': no discount on ' . $base);
-        }
-        return Html::e($first['date'] . ': ' . Html::money($report->currency, $first['discount']) . ' off ' . $base);
+        $from = $status->agency['effectiveFrom'];
+        return Html::e($from === null ? self::lang('active') : sprintf(self::lang('active_since'), substr($from, 0, 10)));
     }
 
     /** "2 (10%)", "none", or a warning that the report's currency has no tiers. */
@@ -397,14 +347,6 @@ final class Page
             return 'none';
         }
         return $report->tier->index . ' (' . Html::e(Money::formatPercent($report->tier->percent)) . '%)';
-    }
-
-    private static function startsCell(?string $effectiveFrom): string
-    {
-        if ($effectiveFrom === null) {
-            return 'active';
-        }
-        return '<span class="text-warning">starts ' . Html::e(substr($effectiveFrom, 0, 10)) . '</span>';
     }
 
     /** @param list<string> $cells already-escaped HTML */
