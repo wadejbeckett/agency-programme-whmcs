@@ -38,6 +38,16 @@ final class InvoiceDiscounterTest extends TestCase
         return new InvoiceDiscounter($this->repo, $config, new Recalculator($this->repo, $config, $clock, $this->activity), $clock, $this->activity);
     }
 
+    public function testCountedServiceWithNegativeAmountDoesNotStopTheDiscount(): void
+    {
+        $this->repo->services[1007] = ['clientId' => 131, 'id' => 1007, 'productId' => 113, 'groupId' => 23, 'productName' => 'sPremium-1', 'domain' => 'g.example', 'amount' => '-10.00', 'billingCycle' => 'Monthly', 'status' => 'Active', 'nextInvoiceDate' => '2026-10-25', 'promoId' => 0];
+        $outcome = $this->discounter()->apply(9001, 'autogen', 'system');
+        self::assertSame(DiscountOutcome::APPLIED, $outcome->status);
+        self::assertSame('595.00', $outcome->base);
+        self::assertSame('29.75', $outcome->amount);
+        self::assertSame('1002.92', $this->repo->agency(131)['spend'] ?? null);
+    }
+
     public function testAppliesNamedNegativeLineOnQualifyingItemsOnly(): void
     {
         $outcome = $this->discounter()->apply(9001, 'autogen', 'system');

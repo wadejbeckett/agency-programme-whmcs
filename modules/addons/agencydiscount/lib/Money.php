@@ -20,6 +20,11 @@ final class Money
         if ($months === null) {
             return '0.00';
         }
+        // WHMCS accepts a negative recurring amount (a credit arrangement): it rounds like its positive
+        // counterpart and keeps its sign, so it lowers the spend instead of making the whole client fail.
+        if (bccomp($amount, '0', 10) < 0) {
+            return self::negate(self::roundHalfUp(bcdiv(bcmul($amount, '-1', 10), (string) $months, 4)));
+        }
         return self::roundHalfUp(bcdiv($amount, (string) $months, 4));
     }
 

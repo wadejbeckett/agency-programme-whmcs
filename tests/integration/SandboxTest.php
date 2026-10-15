@@ -258,7 +258,7 @@ final class SandboxTest extends TestCase
         self::assertSame(Html::money($currency, $agency['spend']), $page['vars']['spend']);
         self::assertSame('Tier 1 (10% off)', $page['vars']['tier']['label']);
         self::assertSame(Html::money($currency, $discount), $page['vars']['savedThisYear']);
-        self::assertSame(1, $page['vars']['itemCount']);
+        self::assertSame($agency['countedServices'] + $agency['countedAddons'], $page['vars']['itemCount']);
         $panels = new \WHMCS\View\Menu\Item();
         Hooks::clientHomePanels($panels);
         self::assertArrayHasKey('agencydiscount', $panels->children);

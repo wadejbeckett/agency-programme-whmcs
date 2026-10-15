@@ -25,6 +25,8 @@ final class MoneyTest extends TestCase
         yield 'free' => ['0.00', 'Free Account', '0.00'];
         yield 'one time' => ['500.00', 'One Time', '0.00'];
         yield 'unknown' => ['500.00', 'Weekly', '0.00'];
+        yield 'negative' => ['-100.00', 'Quarterly', '-33.33'];
+        yield 'negative rounds half away from zero' => ['-100.01', 'Quarterly', '-33.34'];
     }
 
     #[DataProvider('cycles')]

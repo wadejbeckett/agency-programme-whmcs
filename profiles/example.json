@@ -1,0 +1,13 @@
+{
+  "tiers": "{\"USD\":[{\"above\":0,\"percent\":5},{\"above\":1000,\"percent\":10},{\"above\":1500,\"percent\":15},{\"above\":2000,\"percent\":20}]}",
+  "product_groups": "1,2",
+  "products": "10,11",
+  "addons": "3,4",
+  "statuses": "Active",
+  "dry_run": "on",
+  "stack_with_promotions": "",
+  "new_orders": "on",
+  "description": "Agency discount {percent}% on {count} qualifying items",
+  "activity_log": "on",
+  "keep_data": ""
+}

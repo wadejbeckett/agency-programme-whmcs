@@ -27,16 +27,31 @@ final class ProfilesTest extends TestCase
 
     public function testNoEnvironmentValuesInModuleCode(): void
     {
-        $files = array_merge(
-            glob(__DIR__ . '/../modules/addons/agencydiscount/lib/*.php') ?: [],
-            glob(__DIR__ . '/../modules/addons/agencydiscount/lib/Admin/*.php') ?: [],
-            glob(__DIR__ . '/../modules/addons/agencydiscount/*.php') ?: [],
-        );
+        $files = [];
+        $tree = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(__DIR__ . '/../modules/addons/agencydiscount', \FilesystemIterator::SKIP_DOTS));
+        foreach ($tree as $file) {
+            if ($file instanceof \SplFileInfo && in_array($file->getExtension(), ['php', 'tpl', 'json'], true)) {
+                $files[] = $file->getPathname();
+            }
+        }
         self::assertNotSame([], $files);
         foreach ($files as $file) {
             $code = (string) file_get_contents($file);
-            // "tr[i]nity" so this guard does not itself contain the host name it guards against
-            self::assertDoesNotMatchRegularExpression('/noiz\.(co\.za|ie)|tr[i]nity|"ZAR"|\'ZAR\'/', $code, basename($file));
+            // Generic patterns, so the guard names no installation itself: host names (the project's
+            // GitHub home aside) and quoted currency codes belong in profiles/, never in the module.
+            $hosts = (string) preg_replace('#github\.com/wadejbeckett/agency-programme-whmcs#', '', $code);
+            self::assertDoesNotMatchRegularExpression('/\b[a-z0-9-]+\.(?:com|net|org|io|ie|za|uk|local|lan|internal)\b/i', $hosts, basename($file));
+            self::assertDoesNotMatchRegularExpression('/["\'](?:USD|EUR|GBP|ZAR|AUD|CAD|NZD|INR|JPY)["\']/', $code, basename($file));
+        }
+    }
+
+    /** Profiles are generic examples: no file named after, or describing, one installation. */
+    public function testProfilesAreNotTiedToOneInstallation(): void
+    {
+        $files = glob(__DIR__ . '/../profiles/*') ?: [];
+        self::assertNotSame([], $files);
+        foreach ($files as $file) {
+            self::assertDoesNotMatchRegularExpression('/no[i]z/i', basename($file) . "\n" . (string) file_get_contents($file), basename($file));
         }
     }
 }

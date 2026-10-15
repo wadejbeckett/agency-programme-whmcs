@@ -26,6 +26,18 @@ final class PreviewTest extends TestCase
         self::assertSame([['date' => '2026-10-25', 'base' => '850.00', 'percent' => '5.00', 'discount' => '42.50', 'items' => 5]], Preview::upcoming($report, new \DateTimeImmutable('2026-10-12'), 20));
     }
 
+    public function testNegativeAmountIsLeftOutLikeOnTheInvoice(): void
+    {
+        $repo = Fixtures::agencyRepo();
+        $repo->services[1007] = ['clientId' => 131, 'id' => 1007, 'productId' => 113, 'groupId' => 23, 'productName' => 'sPremium-1', 'domain' => 'g.example', 'amount' => '-10.00', 'billingCycle' => 'Monthly', 'status' => 'Active', 'nextInvoiceDate' => '2026-10-25', 'promoId' => 0];
+        $report = (new SpendCalculator($repo, Config::fromSettings(Fixtures::settings())))->forClient(131);
+        // InvoiceDiscounter never discounts a negative line, so the estimate leaves it out too
+        self::assertSame(
+            ['date' => '2026-10-25', 'base' => '850.00', 'percent' => '5.00', 'discount' => '42.50', 'items' => 5],
+            Preview::upcoming($report, new \DateTimeImmutable('2026-10-12'), 35)[0],
+        );
+    }
+
     public function testRowsBeforeStartDateGetNoDiscount(): void
     {
         $report = (new SpendCalculator(Fixtures::agencyRepo(), Config::fromSettings(Fixtures::settings())))->forClient(131);

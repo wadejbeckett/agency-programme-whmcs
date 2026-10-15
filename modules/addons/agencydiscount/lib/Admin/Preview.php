@@ -16,7 +16,7 @@ final class Preview
      * Groups an agency's counted services and add-ons by nextInvoiceDate within [$from, $from + $days]
      * (inclusive) and returns one row per date: the recurring amounts billed on that date (full cycle
      * amount, not monthly), the discount at the report's tier, and the item count. Items without a next
-     * invoice date are ignored. Rows dated before $effectiveFrom (the agency's start date) get no percent
+     * invoice date, and items with a negative amount, are ignored. Rows dated before $effectiveFrom (the agency's start date) get no percent
      * and a 0.00 discount.
      *
      * This is an estimate: services on a promotion are included, because whether the promotion still
@@ -59,7 +59,8 @@ final class Preview
     /** @param array<string, list<string>> $amountsByDate */
     private static function collect(array &$amountsByDate, ?string $date, string $amount, string $first, string $last): void
     {
-        if ($date === null || $date < $first || $date > $last) {
+        // A negative amount never gets a discount on the invoice (InvoiceDiscounter skips it), so it is left out here too.
+        if ($date === null || $date < $first || $date > $last || bccomp($amount, '0', 2) < 0) {
             return;
         }
         $amountsByDate[$date][] = $amount;
