@@ -235,6 +235,16 @@ composer stan    # PHPStan, analysing at the PHP 8.1 floor
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the toolchain requirements and conventions. The integration environment variables are listed above.
 
+## Support this project
+
+Agency Programme for WHMCS is free software from Noiz. If it is useful to you, the main way to support its development is a donation in Monero (XMR):
+
+```text
+44BtMn9izxH8mK2yFbSdY6Di7TNobkLbnHdZ6gZQjukCME5vsNhtPRtH4TcVkDHKHLhSpAJbsjv8gCdYuSZVMpXgMkUC1hV
+```
+
+You can also help by reporting bugs, sending fixes or starring the repository.
+
 ## Licence
 
 AGPL-3.0-or-later. Copyright (C) 2026 Noiz. See `LICENSE`.
