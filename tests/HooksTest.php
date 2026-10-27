@@ -102,6 +102,7 @@ final class HooksTest extends TestCase
         self::assertStringContainsString('2026-10-25: ZAR 42.50 off ZAR 850.00', $card);
         self::assertStringContainsString('ZAR 987.09 to tier 2 (10%)', $card);
         self::assertStringContainsString('style="width: 1%"', $card);
+        self::assertStringContainsString('.agencydiscount-summary .agencydiscount-progress', $card, 'the slim bar style comes with the card');
         self::assertStringContainsString('href="addonmodules.php?module=agencydiscount&amp;action=agency&amp;id=131"', $card);
         self::assertStringContainsString('href="addonmodules.php?module=agencydiscount&amp;action=log&amp;client=131"', $card);
         self::assertStringContainsString('href="clientsprofile.php?userid=131"', $card);

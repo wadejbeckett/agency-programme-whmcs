@@ -77,22 +77,51 @@ final class WidgetDataTest extends TestCase
     public function testRenderShowsTilesRowsModeAndLink(): void
     {
         $html = WidgetData::render(WidgetData::build($this->module(['dry_run' => 'on']), 1));
-        self::assertStringContainsString('widget-content-padded', $html);
-        self::assertStringContainsString('<div class="agencydiscount-widget-value">3</div><div class="agencydiscount-widget-label">Agencies</div>', $html);
-        self::assertStringContainsString('EUR 300.00', $html);
-        self::assertStringContainsString('ZAR 7,012.92', $html);
-        self::assertStringContainsString('ZAR 900.00', $html);
-        self::assertStringContainsString('Next 35 days', $html);
-        self::assertStringContainsString('<span class="label label-warning">Dry-run</span>', $html);
-        self::assertStringContainsString('<a href="clientssummary.php?userid=131">Agency One</a>', $html);
+        self::assertStringContainsString('<div class="note">Agencies</div><div class="number">3 <span class="unit">2 at a tier</span></div>', $html);
+        self::assertStringContainsString('<div class="number">300.00 <span class="unit">EUR</span></div><div class="number">7,012.92 <span class="unit">ZAR</span></div>', $html);
+        self::assertStringContainsString('<div class="number">900.00 <span class="unit">ZAR</span></div>', $html);
+        self::assertStringContainsString('<div class="note">Discount in 35 days</div>', $html, 'two currencies: the codes are on the number lines');
+        self::assertStringContainsString('<div class="note">Spend per month</div>', $html);
+        self::assertStringContainsString('<div class="icon-holder text-center color-orange"><a href="addonmodules.php?module=agencydiscount"><i class="pe-7s-clock" aria-hidden="true"></i></a></div><div class="data"><div class="note">Mode</div><div class="number"><span class="label label-warning">Dry-run</span></div>', $html);
+        self::assertStringContainsString('<a href="clientssummary.php?userid=131" title="Agency One">Agency One</a>', $html);
         self::assertStringContainsString('<span class="label label-success">Tier 1 (5%)</span>', $html);
         self::assertStringContainsString('<span class="label label-danger">no tiers for EUR</span>', $html);
-        self::assertStringContainsString('starts 2027-01-01', $html);
-        self::assertStringContainsString('2026-10-20: ZAR 900.00', $html);
-        self::assertStringContainsString('Last cron check: 2026-10-12 03:00:00', $html);
-        self::assertStringContainsString('<a href="addonmodules.php?module=agencydiscount">Open Agency Programme</a>', $html);
+        self::assertStringContainsString('<td class="text-right agencydiscount-widget-figures">ZAR 6,000.00<div class="agencydiscount-widget-sub">900.00 on 2026-10-20</div></td>', $html);
+        self::assertStringContainsString('<span class="text-warning">starts 2027-01-01</span>', $html, 'agency one has not started and its next invoice gets nothing');
+        self::assertStringContainsString('no discount on 2026-10-20', $html, 'the EUR agency has no tiers');
+        self::assertStringContainsString('<div class="footer agencydiscount-widget-footer"><span>Last cron check: 2026-10-12 03:00:00</span><a href="addonmodules.php?module=agencydiscount">Open Agency Programme</a></div>', $html);
         self::assertStringNotContainsString('<span class="label label-success">Live</span>', $html);
-        self::assertStringContainsString('<span class="label label-success">Live</span>', WidgetData::render(WidgetData::build($this->module(), 1)));
+        $live = WidgetData::render(WidgetData::build($this->module(), 1));
+        $this->repo->agencies = array_diff_key($this->repo->agencies, [500 => true]);
+        $oneCurrency = WidgetData::render(WidgetData::build($this->module(), 1));
+        self::assertStringContainsString('<div class="note">Spend per month, ZAR</div><div class="number">7,012.92</div>', $oneCurrency, 'one currency: its code is on the note');
+        self::assertStringContainsString('<div class="note">Discount in 35 days, ZAR</div><div class="number">900.00</div>', $oneCurrency);
+        self::assertStringContainsString('<i class="pe-7s-check" aria-hidden="true"></i>', $live);
+        self::assertStringContainsString('<div class="number"><span class="label label-success">Live</span></div>', $live);
+    }
+
+    public function testRenderUsesWhmcsOwnWidgetMarkup(): void
+    {
+        $html = WidgetData::render(WidgetData::build($this->module(), 1));
+        // The figures are an icon-stats block (the Support widget's pattern, styled by both admin
+        // themes for any widget), four items in two Bootstrap columns.
+        self::assertStringStartsWith('<div class="icon-stats agencydiscount-widget"><div class="row"><div class="col-sm-6"><div class="item"><div class="icon-holder text-center color-green">', $html);
+        self::assertSame(4, substr_count($html, '<div class="col-sm-6"><div class="item">'));
+        // The agency list sits in the theme's own scrolling list box; nothing overrides a theme rule.
+        self::assertStringContainsString('<div class="widget-content-padded agencydiscount-widget-list"><table class="table table-condensed agencydiscount-widget-table"><thead><tr><th scope="col">Agency</th><th scope="col" class="text-right">Spend, next discount</th></tr></thead>', $html);
+        self::assertSame(3, substr_count($html, '<td class="agencydiscount-widget-name">'));
+        self::assertStringNotContainsString('max-height', $html);
+        self::assertStringNotContainsString('.dashboard-panel-item', $html);
+        self::assertStringNotContainsString('.widget-content-padded', $html);
+        self::assertStringNotContainsString('table-responsive', $html);
+        self::assertStringNotContainsString('col-sm-3', $html);
+        self::assertSame(1, substr_count($html, '<style>'));
+        self::assertStringContainsString('var(--border-subtle,#eee)', $html, 'Iris token with a Blend fallback');
+    }
+
+    public function testUnavailableIsOneLine(): void
+    {
+        self::assertSame('<div class="widget-content-padded">Agency Programme: unavailable (see activity log)</div>', WidgetData::unavailable());
     }
 
     public function testRenderWithoutAgenciesAndWithMissingClients(): void

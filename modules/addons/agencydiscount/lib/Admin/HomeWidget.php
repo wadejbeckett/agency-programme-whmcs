@@ -44,6 +44,19 @@ final class HomeWidget extends AbstractWidget
         $this->description = Page::lang('widget_description');
     }
 
+    /**
+     * The widget id names the panel (`widget-agencyprogramme`) and the dashboard's refresh, minimise
+     * and hide buttons find the panel by it in jQuery selectors. AbstractWidget derives it from the
+     * class name and strips only the WHMCS\Module\Widget\ prefix, which would leave this class's
+     * namespace and backslashes in the id and the buttons doing nothing, so the id is set here.
+     *
+     * @return string
+     */
+    public function getId()
+    {
+        return 'AgencyProgramme';
+    }
+
     /** @return array<string, mixed> WidgetData, ['denied' => true] for a role outside the addon's access list, or ['error' => true] when it could not be built */
     public function getData(): array
     {
@@ -59,19 +72,14 @@ final class HomeWidget extends AbstractWidget
     {
         try {
             if (!is_array($data) || ($data['error'] ?? false) === true) {
-                return self::unavailable();
+                return WidgetData::unavailable();
             }
             /** @var array{agencies:int, atTier:int, waiting:int, spend:array<string,string>, discount:array<string,string>, dryRun:bool, lastRecalculation:?string, missing:list<int>, rows:list<array{clientId:int, name:string, currency:string, spend:string, tier:?array{index:int, percent:string}, hasTiers:bool, nextInvoice:?array{date:string, base:string, discount:string}, startsOn:?string}>, days:int}|array{denied:true} $data */
             return WidgetData::render($data);
         } catch (\Throwable $e) {
             self::report($e);
-            return self::unavailable();
+            return WidgetData::unavailable();
         }
-    }
-
-    private static function unavailable(): string
-    {
-        return '<div class="widget-content-padded">' . Html::e(Page::lang('widget_unavailable')) . '</div>';
     }
 
     private static function report(\Throwable $e): void

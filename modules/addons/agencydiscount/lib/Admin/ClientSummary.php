@@ -34,7 +34,7 @@ final class ClientSummary
             . '<table class="table table-condensed agencydiscount-summary-table"><tbody>' . $rows . '</tbody></table>'
             . '<p><a href="' . Html::link($link, ['action' => 'agency', 'id' => $report->clientId]) . '">' . Html::e(Page::lang('summary_counted_items')) . '</a>'
             . ' &middot; <a href="' . Html::link($link, ['action' => 'log', 'client' => $report->clientId]) . '">' . Html::e(Page::lang('summary_change_log')) . '</a></p>'
-            . '</div></div>';
+            . '</div></div>' . self::assets();
     }
 
     /** The "Right now" box for the profile tab, or '' when there are no live figures. */
@@ -48,7 +48,7 @@ final class ClientSummary
             . '<div class="panel-body">' . self::notes($module, $status)
             . '<table class="table table-condensed"><tbody>' . self::rows($status) . '</tbody></table>'
             . '<a href="' . Html::link(WidgetData::MODULE_LINK, ['action' => 'agency', 'id' => $clientId]) . '">' . Html::e(Page::lang('summary_counted_items')) . '</a>'
-            . '</div></div>';
+            . '</div></div>' . self::assets();
     }
 
     private static function status(Module $module, int $clientId): ?AgencyStatus
@@ -82,6 +82,16 @@ final class ClientSummary
             $html .= '<p class="text-warning">' . Html::e(sprintf(Page::lang('summary_waiting'), $starts)) . '</p>';
         }
         return $html;
+    }
+
+    /**
+     * The progress bar's slim style lives in the overview's style block, which is not on the client
+     * pages; without it the bar is Bootstrap's 20px bar with a 20px gap under it.
+     */
+    private static function assets(): string
+    {
+        return '<style>.agencydiscount-summary .agencydiscount-progress,.agencydiscount-right-now .agencydiscount-progress{height:8px;margin:4px 0 3px;min-width:120px;max-width:360px}'
+            . '.agencydiscount-summary-table>tbody>tr>th{width:240px}</style>';
     }
 
     /** @param string $value already-escaped HTML */
