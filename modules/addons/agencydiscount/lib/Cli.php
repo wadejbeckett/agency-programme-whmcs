@@ -118,16 +118,31 @@ final class Cli
                 $write(sprintf('Invoice %d: skipped (%s)', $invoiceId, $outcome->reason));
             } else {
                 $percent = Money::formatPercent((string) $outcome->percent);
-                $write(sprintf(
-                    'Invoice %d: %s - %s%% of %s = %s on %d lines, line text "%s"',
+                $summary = sprintf(
+                    'Invoice %d: %s - %s%% of %s = %s on %d lines',
                     $invoiceId,
                     $outcome->status,
                     $percent,
                     self::amount((string) $outcome->base),
                     self::amount((string) $outcome->amount),
                     $outcome->countedLines,
-                    $config->description($percent, $outcome->countedLines),
-                ));
+                );
+                if (count($outcome->lines) > 1) {
+                    // A mix of taxed and untaxed qualifying lines gets one discount line per tax treatment.
+                    $write($summary . ', as ' . count($outcome->lines) . ' discount lines, one per tax treatment');
+                    foreach ($outcome->lines as $line) {
+                        $write(sprintf(
+                            '  %s: %s of %s on %d lines, line text "%s"',
+                            $line['taxed'] === 1 ? 'taxed' : 'untaxed',
+                            self::amount($line['amount']),
+                            self::amount($line['base']),
+                            $line['countedLines'],
+                            $line['description'],
+                        ));
+                    }
+                } else {
+                    $write($summary . ', line text "' . ($outcome->lines[0]['description'] ?? $config->description($percent, $outcome->countedLines)) . '"');
+                }
             }
         }
         return 0;

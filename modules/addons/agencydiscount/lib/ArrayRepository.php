@@ -31,7 +31,7 @@ class ArrayRepository implements Repository
     public array $agencies = [];
     /** @var list<array{id:int, clientId:?int, invoiceId:?int, event:string, detail:array<string,mixed>, actor:string, createdAt:string}> */
     public array $logs = [];
-    /** @var array<int, InvoiceRecordRow> */
+    /** @var array<int, array<int, InvoiceRecordRow>> invoice id => line => record */
     public array $invoiceRecords = [];
     /** @var list<string> */
     public array $executed = [];
@@ -213,18 +213,27 @@ class ArrayRepository implements Repository
 
     public function invoiceRecord(int $invoiceId): ?array
     {
-        return $this->invoiceRecords[$invoiceId] ?? null;
+        return $this->invoiceRecordLines($invoiceId)[0] ?? null;
+    }
+
+    public function invoiceRecordLines(int $invoiceId): array
+    {
+        $lines = $this->invoiceRecords[$invoiceId] ?? [];
+        ksort($lines);
+        return array_values($lines);
     }
 
     public function claimInvoice(int $invoiceId, int $clientId, string $createdAt): bool
     {
-        if (isset($this->invoiceRecords[$invoiceId])) {
+        if (isset($this->invoiceRecords[$invoiceId][0])) {
             return false;
         }
-        $this->invoiceRecords[$invoiceId] = [
+        $this->invoiceRecords[$invoiceId][0] = [
             'invoiceId' => $invoiceId,
+            'line' => 0,
             'clientId' => $clientId,
             'itemId' => null,
+            'taxed' => false,
             'tierIndex' => 0,
             'percent' => '0.00',
             'base' => '0.00',
@@ -237,7 +246,7 @@ class ArrayRepository implements Repository
 
     public function saveInvoiceRecord(array $row): void
     {
-        $this->invoiceRecords[$row['invoiceId']] = $row;
+        $this->invoiceRecords[$row['invoiceId']][$row['line']] = $row;
     }
 
     public function lookupNames(string $kind, array $ids): array
@@ -339,9 +348,11 @@ class ArrayRepository implements Repository
     public function appliedDiscountTotal(int $clientId, string $fromDate): string
     {
         $total = '0.00';
-        foreach ($this->invoiceRecords as $record) {
-            if ($record['clientId'] === $clientId && !$record['dryRun'] && $record['createdAt'] >= $fromDate) {
-                $total = bcadd($total, $record['amount'], 2);
+        foreach ($this->invoiceRecords as $lines) {
+            foreach ($lines as $record) {
+                if ($record['clientId'] === $clientId && !$record['dryRun'] && $record['createdAt'] >= $fromDate) {
+                    $total = bcadd($total, $record['amount'], 2);
+                }
             }
         }
         return $total;

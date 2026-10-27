@@ -1,6 +1,6 @@
 # Profiles
 
-A profile is the set of Agency Programme addon settings written as a JSON object. The keys are the setting names from the module configuration (`tiers`, `product_groups`, `products`, `addons`, `statuses`, `dry_run`, `stack_with_promotions`, `new_orders`, `description`, `activity_log`, `keep_data`). Checkbox settings use `"on"` for yes and `""` for no, as WHMCS stores them.
+A profile is the set of Agency Programme addon settings written as a JSON object. The keys are the setting names from the module configuration (`tiers`, `product_groups`, `products`, `addons`, `statuses`, `dry_run`, `stack_with_promotions`, `new_orders`, `description`, `activity_log`, `delete_data`). Checkbox settings use `"on"` for yes and `""` for no, as WHMCS stores them.
 
 A profile has two uses:
 

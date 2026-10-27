@@ -390,7 +390,7 @@ final class SettingsTab
             $switches .= '<div class="checkbox"><label><input type="checkbox" name="' . $key . '" value="on"' . (($form->switches[$key] ?? false) ? ' checked' : '') . '> '
                 . Html::e(Page::lang('switch_' . $key)) . '</label> <span class="text-muted">' . Html::e(Page::lang('switch_' . $key . '_help')) . '</span></div>';
         }
-        $example = str_replace(['{percent}', '{count}'], [self::EXAMPLE_PERCENT, (string) self::EXAMPLE_COUNT], $form->description);
+        $example = Config::renderDescription($form->description, self::EXAMPLE_PERCENT, self::EXAMPLE_COUNT);
         return '<h4>' . Html::e(Page::lang('behaviour')) . '</h4>' . $switches
             . '<div class="form-group"><label for="agencydiscount-description">' . Html::e(Page::lang('description')) . '</label>'
             . self::problemList($problems, 'description:')

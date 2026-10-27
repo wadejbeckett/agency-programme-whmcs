@@ -112,11 +112,26 @@ final class ArrayRepositoryTest extends TestCase
     {
         $repo = new ArrayRepository();
         self::assertNull($repo->invoiceRecord(9));
-        $row = ['invoiceId' => 9, 'clientId' => 1, 'itemId' => null, 'tierIndex' => 1, 'percent' => '5.00', 'base' => '100.00', 'amount' => '5.00', 'dryRun' => true, 'createdAt' => '2026-10-12 10:00:00'];
+        $row = ['invoiceId' => 9, 'line' => 0, 'clientId' => 1, 'itemId' => null, 'taxed' => false, 'tierIndex' => 1, 'percent' => '5.00', 'base' => '100.00', 'amount' => '5.00', 'dryRun' => true, 'createdAt' => '2026-10-12 10:00:00'];
         $repo->saveInvoiceRecord($row);
         $repo->saveInvoiceRecord(['dryRun' => false, 'itemId' => 44] + $row);
         self::assertSame(44, $repo->invoiceRecord(9)['itemId'] ?? null);
         self::assertCount(1, $repo->invoiceRecords);
+        self::assertCount(1, $repo->invoiceRecordLines(9));
+    }
+
+    public function testAnInvoiceCanHoldOneRecordPerLine(): void
+    {
+        $repo = new ArrayRepository();
+        $row = ['invoiceId' => 9, 'line' => 0, 'clientId' => 1, 'itemId' => 44, 'taxed' => false, 'tierIndex' => 1, 'percent' => '5.00', 'base' => '100.00', 'amount' => '5.00', 'dryRun' => false, 'createdAt' => '2026-10-12 10:00:00'];
+        $repo->saveInvoiceRecord(['line' => 1, 'itemId' => 45, 'taxed' => true, 'amount' => '2.50'] + $row);
+        $repo->saveInvoiceRecord($row);
+        self::assertSame([0, 1], array_column($repo->invoiceRecordLines(9), 'line'));
+        self::assertSame([false, true], array_column($repo->invoiceRecordLines(9), 'taxed'));
+        self::assertSame(44, $repo->invoiceRecord(9)['itemId'] ?? null, 'invoiceRecord gives line 0');
+        self::assertSame([], $repo->invoiceRecordLines(10));
+        self::assertFalse($repo->claimInvoice(9, 1, '2026-10-12 10:00:01'));
+        self::assertSame('7.50', $repo->appliedDiscountTotal(1, '2026-01-01'), 'both lines are summed');
     }
 
     public function testClaimInvoiceIsFirstWriterWins(): void
@@ -127,6 +142,8 @@ final class ArrayRepositoryTest extends TestCase
         $record = $repo->invoiceRecord(9);
         self::assertNotNull($record);
         self::assertNull($record['itemId']);
+        self::assertSame(0, $record['line']);
+        self::assertFalse($record['taxed']);
         self::assertFalse($record['dryRun'] ?? true);
         self::assertSame('2026-10-12 10:00:00', $record['createdAt'] ?? null);
     }
@@ -193,7 +210,7 @@ final class ArrayRepositoryTest extends TestCase
     public function testAppliedDiscountTotalSumsLiveRowsFromADate(): void
     {
         $repo = Fixtures::agencyRepo();
-        $row = ['clientId' => 131, 'itemId' => 1, 'tierIndex' => 1, 'percent' => '5.00', 'base' => '100.00', 'amount' => '5.00', 'dryRun' => false, 'createdAt' => '2026-03-01 10:00:00'];
+        $row = ['line' => 0, 'taxed' => false, 'clientId' => 131, 'itemId' => 1, 'tierIndex' => 1, 'percent' => '5.00', 'base' => '100.00', 'amount' => '5.00', 'dryRun' => false, 'createdAt' => '2026-03-01 10:00:00'];
         $repo->saveInvoiceRecord(['invoiceId' => 1] + $row);
         $repo->saveInvoiceRecord(['invoiceId' => 2, 'amount' => '7.25', 'createdAt' => '2026-01-01 00:00:00'] + $row);
         $repo->saveInvoiceRecord(['invoiceId' => 3, 'amount' => '9.00', 'dryRun' => true] + $row);

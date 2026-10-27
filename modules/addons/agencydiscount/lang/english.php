@@ -70,10 +70,10 @@ $_ADDONLANG['switch_stack_with_promotions'] = 'Stack with promotions';
 $_ADDONLANG['switch_stack_with_promotions_help'] = 'Also discount a service\'s line when the same invoice carries that service\'s promotion discount.';
 $_ADDONLANG['switch_activity_log'] = 'Write to activity log';
 $_ADDONLANG['switch_activity_log_help'] = 'Also record applied discounts and tier changes in the WHMCS activity log. Settings and mode changes are always recorded.';
-$_ADDONLANG['switch_keep_data'] = 'Keep data on deactivate';
-$_ADDONLANG['switch_keep_data_help'] = 'Keep the module tables (approvals, change log, invoice records) when the module is deactivated.';
+$_ADDONLANG['switch_delete_data'] = 'Delete module data on deactivate';
+$_ADDONLANG['switch_delete_data_help'] = 'The tables with the agency approvals, the change log and the invoice records are removed when the module is deactivated only when this is on. Off keeps them.';
 $_ADDONLANG['description'] = 'Invoice line text';
-$_ADDONLANG['description_help'] = 'Placeholders: {percent} and {count}.';
+$_ADDONLANG['description_help'] = 'Placeholders: {percent}, {count} and {items} ("item" for a count of 1, "items" otherwise).';
 $_ADDONLANG['description_example'] = 'Example';
 
 // Settings tab: impact and actions

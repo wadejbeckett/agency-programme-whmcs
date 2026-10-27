@@ -13,6 +13,7 @@ use AgencyDiscount\ConfigException;
 use AgencyDiscount\Hooks;
 use AgencyDiscount\Module;
 use AgencyDiscount\Schema;
+use AgencyDiscount\Upgrade;
 
 if (!defined('WHMCS')) {
     die('This file cannot be accessed directly');
@@ -40,9 +41,9 @@ function agencydiscount_config(): array
             'dry_run' => ['FriendlyName' => 'Dry-run mode', 'Type' => 'yesno', 'Default' => $d['dry_run'] === 'on' ? 'yes' : 'no', 'Description' => 'Calculate and log, but do not change any invoice. The Settings tab has a switch for this too.'],
             'stack_with_promotions' => ['FriendlyName' => 'Stack with promotions', 'Type' => 'yesno', 'Description' => 'Also discount a service\'s invoice line when the same invoice carries that service\'s promotion discount.'],
             'new_orders' => ['FriendlyName' => 'Discount new orders', 'Type' => 'yesno', 'Default' => $d['new_orders'] === 'on' ? 'yes' : 'no', 'Description' => 'Also discount an approved agency\'s new-order invoice, where the ordered items are still Pending. The tier is chosen on the current qualifying spend plus the ordered items.'],
-            'description' => ['FriendlyName' => 'Invoice line text', 'Type' => 'text', 'Size' => '60', 'Default' => $d['description'], 'Description' => 'Placeholders: {percent}, {count}.'],
+            'description' => ['FriendlyName' => 'Invoice line text', 'Type' => 'text', 'Size' => '60', 'Default' => $d['description'], 'Description' => 'Placeholders: {percent}, {count}, {items} ("item" for a count of 1, "items" otherwise).'],
             'activity_log' => ['FriendlyName' => 'Write to activity log', 'Type' => 'yesno', 'Default' => 'yes', 'Description' => 'Also record applied discounts and tier changes in the WHMCS activity log.'],
-            'keep_data' => ['FriendlyName' => 'Keep data on deactivate', 'Type' => 'yesno', 'Description' => 'Keep the module tables (approvals, log) when the module is deactivated.'],
+            'delete_data' => ['FriendlyName' => 'Delete module data on deactivate', 'Type' => 'yesno', 'Description' => 'The tables with the agency approvals, the change log and the invoice records are removed on deactivate only when this is ticked.'],
         ],
     ];
 }
@@ -62,9 +63,10 @@ function agencydiscount_activate(): array
 function agencydiscount_deactivate(): array
 {
     try {
+        // Only an explicit yes deletes: a missing row (WHMCS may remove the settings first) or an unexpected value keeps the data.
         $settings = (new CapsuleRepository())->settings();
-        if (Config::yesNo($settings['keep_data'] ?? '', true)) {
-            return ['status' => 'success', 'description' => 'Agency Programme deactivated. Module tables kept as configured. Discount lines on issued invoices are unchanged.'];
+        if (!Config::yesNo($settings['delete_data'] ?? '', false)) {
+            return ['status' => 'success', 'description' => 'Agency Programme deactivated. Its tables (approvals, change log, invoice records) were kept; tick "Delete module data on deactivate" first to remove them. Discount lines on issued invoices are unchanged.'];
         }
         Schema::uninstall(new CapsuleRepository());
         return ['status' => 'success', 'description' => 'Agency Programme deactivated and its tables removed. Discount lines on issued invoices are unchanged; no service price was ever altered.'];
@@ -75,8 +77,8 @@ function agencydiscount_deactivate(): array
 
 /**
  * Called by WHMCS when the installed version ($vars['version']) is older than Module::VERSION.
- * 0.1.0 → 0.2.0 changes no table, so the upgrade only records itself in the activity log; a later
- * release that changes the schema branches on the previous version here.
+ * Upgrade::run branches on that version: from below 0.2.1 it reshapes the invoice records table and
+ * replaces the old default invoice line text. Each change goes to the activity log.
  *
  * @param array<string, mixed> $vars
  * @return array{status: string, description: string}
@@ -85,8 +87,13 @@ function agencydiscount_upgrade(array $vars): array
 {
     $from = is_scalar($vars['version'] ?? null) ? (string) $vars['version'] : 'unknown';
     try {
-        \logActivity('Agency Programme upgraded from ' . $from . ' to ' . Module::VERSION . ' (no schema change)');
-        return ['status' => 'success', 'description' => 'Agency Programme upgraded from ' . $from . ' to ' . Module::VERSION . '. No tables changed.'];
+        $changes = Upgrade::run(new CapsuleRepository(), $from);
+        foreach ($changes as $change) {
+            \logActivity('Agency Programme upgrade to ' . Module::VERSION . ': ' . $change);
+        }
+        $summary = $changes === [] ? 'no schema change' : count($changes) . ' change' . (count($changes) === 1 ? '' : 's');
+        \logActivity('Agency Programme upgraded from ' . $from . ' to ' . Module::VERSION . ' (' . $summary . ')');
+        return ['status' => 'success', 'description' => 'Agency Programme upgraded from ' . $from . ' to ' . Module::VERSION . '. ' . ($changes === [] ? 'No tables changed.' : implode('; ', $changes) . '.')];
     } catch (\Throwable $e) {
         return ['status' => 'error', 'description' => 'Agency Programme upgrade problem: ' . $e->getMessage()];
     }

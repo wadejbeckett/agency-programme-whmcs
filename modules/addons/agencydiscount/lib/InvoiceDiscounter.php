@@ -7,8 +7,10 @@ declare(strict_types=1);
 namespace AgencyDiscount;
 
 /**
- * Adds one negative "Agency Discount" line to an invoice. At most one line per
- * invoice ever: the invoice record is the idempotence guard.
+ * Adds one negative "Agency Discount" line to an invoice, or two when the
+ * qualifying lines mix taxed and untaxed items (WHMCS taxes per line, so one
+ * taxed line would lower the tax by the discount on untaxed items too). Each
+ * invoice is discounted once ever: the invoice record is the idempotence guard.
  */
 final class InvoiceDiscounter
 {
@@ -130,15 +132,37 @@ final class InvoiceDiscounter
             return DiscountOutcome::skipped('no_qualifying_lines');
         }
 
-        $base = Money::sum(...array_column($qualifying, 'amount'));
-        $amount = Money::percentOf($base, $tier->percent);
-        if (!Money::isPositive($amount)) {
-            $this->log($clientId, $invoiceId, 'zero_amount', ['base' => $base, 'percent' => $tier->percent], $actor);
+        // One discount line per tax treatment, untaxed first; an invoice whose qualifying lines share
+        // one treatment gets exactly one line, as before 0.2.1.
+        $groups = [];
+        foreach ($qualifying as $item) {
+            $groups[$item['taxed'] === 1 ? 1 : 0][] = $item;
+        }
+        ksort($groups);
+        $lines = [];
+        foreach ($groups as $taxed => $groupItems) {
+            $lineBase = Money::sum(...array_column($groupItems, 'amount'));
+            $lineAmount = Money::percentOf($lineBase, $tier->percent);
+            if (!Money::isPositive($lineAmount)) {
+                continue;
+            }
+            $lines[] = [
+                'taxed' => $taxed,
+                'base' => $lineBase,
+                'amount' => $lineAmount,
+                'countedLines' => count($groupItems),
+                'description' => $this->config->description(Money::formatPercent($tier->percent), count($groupItems)),
+                'itemId' => null,
+            ];
+        }
+        if ($lines === []) {
+            $this->log($clientId, $invoiceId, 'zero_amount', ['base' => Money::sum(...array_column($qualifying, 'amount')), 'percent' => $tier->percent], $actor);
             return DiscountOutcome::skipped('zero_amount');
         }
-        $counted = count($qualifying);
-        $taxed = in_array(1, array_column($qualifying, 'taxed'), true) ? 1 : 0;
-        $description = $this->config->description(Money::formatPercent($tier->percent), $counted);
+        // A group whose discount rounds to nothing gets no line, so its amounts are not in the base either.
+        $base = Money::sum(...array_column($lines, 'base'));
+        $amount = Money::sum(...array_column($lines, 'amount'));
+        $counted = array_sum(array_column($lines, 'countedLines'));
         $detail = [
             'base' => $base,
             'amount' => $amount,
@@ -147,17 +171,21 @@ final class InvoiceDiscounter
             'countedLines' => $counted,
             'pendingLines' => $pendingLines,
             'pendingSpend' => $pendingSpend,
-            'description' => $description,
-            'source' => $source,
         ];
+        if (count($lines) === 1) {
+            $detail['description'] = $lines[0]['description'];
+        }
+        $detail['source'] = $source;
         $now = $this->clock->now()->format('Y-m-d H:i:s');
 
         if ($this->config->dryRun || $forceDryRun) {
             if (!$forceDryRun) {
-                $this->saveRecord($invoiceId, $clientId, null, $tier, $base, $amount, true, $now);
+                foreach ($lines as $n => $line) {
+                    $this->saveRecord($invoiceId, $n, $clientId, $line, $tier, true, $now);
+                }
             }
-            $this->log($clientId, $invoiceId, 'dry_run', $detail + ['forced' => $forceDryRun], $actor);
-            return new DiscountOutcome(DiscountOutcome::DRY_RUN, 'dry_run', $base, $amount, $tier->percent, $counted, null);
+            $this->log($clientId, $invoiceId, 'dry_run', $detail + self::linesDetail($lines) + ['forced' => $forceDryRun], $actor);
+            return new DiscountOutcome(DiscountOutcome::DRY_RUN, 'dry_run', $base, $amount, $tier->percent, $counted, null, $lines);
         }
 
         foreach ($this->repo->invoiceItems($invoiceId) as $item) {
@@ -171,42 +199,65 @@ final class InvoiceDiscounter
             return DiscountOutcome::skipped('already_processed');
         }
 
-        $itemId = $this->repo->addInvoiceItem(
-            $invoiceId,
-            $clientId,
-            self::ITEM_TYPE,
-            $clientId,
-            $description,
-            Money::negate($amount),
-            $taxed,
-            $invoice['dueDate'],
-            $invoice['paymentMethod'],
-        );
-        $this->saveRecord($invoiceId, $clientId, $itemId, $tier, $base, $amount, false, $now);
-        $this->log($clientId, $invoiceId, 'applied', $detail + ['itemId' => $itemId], $actor);
+        foreach ($lines as $n => $line) {
+            $lines[$n]['itemId'] = $this->repo->addInvoiceItem(
+                $invoiceId,
+                $clientId,
+                self::ITEM_TYPE,
+                $clientId,
+                $line['description'],
+                Money::negate($line['amount']),
+                $line['taxed'],
+                $invoice['dueDate'],
+                $invoice['paymentMethod'],
+            );
+            $this->saveRecord($invoiceId, $n, $clientId, $lines[$n], $tier, false, $now);
+        }
+        $itemIds = array_map(static fn (array $line): int => (int) $line['itemId'], $lines);
+        $applied = $detail + self::linesDetail($lines);
+        if (count($lines) === 1) {
+            $applied['itemId'] = $itemIds[0];
+        }
+        $this->log($clientId, $invoiceId, 'applied', $applied, $actor);
         if ($this->config->activityLog) {
             $this->activity->log(sprintf(
-                'Agency Discount: %s%% (%s %s) added to invoice #%d as line %d',
+                'Agency Discount: %s%% (%s %s) added to invoice #%d as %s %s',
                 Money::formatPercent($tier->percent),
                 $report->currency,
                 $amount,
                 $invoiceId,
-                $itemId,
+                count($itemIds) === 1 ? 'line' : 'lines',
+                implode(' and ', $itemIds),
             ), $clientId);
         }
-        return new DiscountOutcome(DiscountOutcome::APPLIED, 'applied', $base, $amount, $tier->percent, $counted, $itemId);
+        return new DiscountOutcome(DiscountOutcome::APPLIED, 'applied', $base, $amount, $tier->percent, $counted, $itemIds[0], $lines);
     }
 
-    private function saveRecord(int $invoiceId, int $clientId, ?int $itemId, Tier $tier, string $base, string $amount, bool $dryRun, string $now): void
+    /**
+     * The per-line detail of a change-log entry; empty for a single line, so its entry keeps the
+     * shape every earlier release wrote.
+     *
+     * @param list<array{taxed:int, base:string, amount:string, countedLines:int, description:string, itemId:?int}> $lines
+     * @return array{lines?: list<array{taxed:int, base:string, amount:string, countedLines:int, description:string, itemId:?int}>}
+     */
+    private static function linesDetail(array $lines): array
+    {
+        return count($lines) > 1 ? ['lines' => $lines] : [];
+    }
+
+    /** @param array{taxed:int, base:string, amount:string, countedLines:int, description:string, itemId:?int} $line */
+    private function saveRecord(int $invoiceId, int $n, int $clientId, array $line, Tier $tier, bool $dryRun, string $now): void
     {
         $this->repo->saveInvoiceRecord([
             'invoiceId' => $invoiceId,
+            'line' => $n,
             'clientId' => $clientId,
-            'itemId' => $itemId,
+            'itemId' => $line['itemId'],
+            'taxed' => $line['taxed'] === 1,
             'tierIndex' => $tier->index,
             'percent' => $tier->percent,
-            'base' => $base,
-            'amount' => $amount,
+            'base' => $line['base'],
+            'amount' => $line['amount'],
             'dryRun' => $dryRun,
             'createdAt' => $now,
         ]);

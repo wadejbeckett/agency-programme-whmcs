@@ -57,15 +57,18 @@ final class Hooks
     }
 
     /**
+     * Approval grants a recurring discount, so the field is shown only to admin roles on the addon's
+     * access list, the same check as the client summary card.
+     *
      * @param array<string, mixed> $vars AdminClientProfileTabFields parameters: userid
-     * @return array<string, string> label => field HTML
+     * @return array<string, string> label => field HTML; empty for a role outside the access list
      */
     public static function profileFields(array $vars): array
     {
         try {
             $clientId = (int) ($vars['userid'] ?? 0);
             $module = self::module();
-            if ($clientId <= 0 || $module === null) {
+            if ($clientId <= 0 || $module === null || !Admin\WidgetData::roleAllowed($module->repo, self::adminId())) {
                 return [];
             }
             return (new ProfileTab($module))->fields($clientId);
@@ -76,6 +79,9 @@ final class Hooks
     }
 
     /**
+     * A save from an admin role outside the addon's access list is ignored and noted in the activity
+     * log, so a forged form field cannot approve an agency.
+     *
      * @param array<string, mixed> $vars AdminClientProfileTabFieldsSave parameters: userid
      * @param array<string, mixed> $request the submitted form ($_REQUEST). WHMCS HTML-encodes request
      *        input at init, so the free-text fields are decoded here before they are stored; ProfileTab
@@ -90,6 +96,10 @@ final class Hooks
             }
             $module = self::module();
             if ($module === null) {
+                return;
+            }
+            if (!Admin\WidgetData::roleAllowed($module->repo, self::adminId())) {
+                self::activity('Agency Discount: profile save for client ' . $clientId . ' by ' . self::adminActor() . ' ignored: the admin role is not on the addon\'s access list');
                 return;
             }
             foreach ([ProfileTab::FIELD_NOTE, ProfileTab::FIELD_EFFECTIVE_FROM] as $field) {

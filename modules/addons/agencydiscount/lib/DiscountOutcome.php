@@ -19,7 +19,10 @@ final class DiscountOutcome
      * @param ?string $base    sum of qualifying lines, or null when skipped before computing
      * @param ?string $amount  positive discount amount, or null
      * @param ?string $percent '5.00' or null
-     * @param ?int    $itemId  inserted tblinvoiceitems id, or null
+     * @param ?int    $itemId  inserted tblinvoiceitems id (the first, when there are two lines), or null
+     * @param list<array{taxed:int, base:string, amount:string, countedLines:int, description:string, itemId:?int}> $lines
+     *        one entry per discount line: one, or two (untaxed first) when the qualifying lines mix tax treatments;
+     *        base, amount and countedLines above are their totals
      */
     public function __construct(
         public readonly string $status,
@@ -29,6 +32,7 @@ final class DiscountOutcome
         public readonly ?string $percent,
         public readonly int $countedLines,
         public readonly ?int $itemId,
+        public readonly array $lines = [],
     ) {
     }
 

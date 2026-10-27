@@ -18,6 +18,7 @@ require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Repository.php';
 require_once __DIR__ . '/ArrayRepository.php';
 require_once __DIR__ . '/Schema.php';
+require_once __DIR__ . '/Upgrade.php';
 require_once __DIR__ . '/SpendReport.php';
 require_once __DIR__ . '/SpendCalculator.php';
 require_once __DIR__ . '/Clock.php';

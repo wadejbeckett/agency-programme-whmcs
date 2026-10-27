@@ -42,6 +42,9 @@ final class LogEntryTest extends TestCase
         $detail = ['base' => '850.00', 'amount' => '42.50', 'percent' => '5.00', 'tierIndex' => 1, 'countedLines' => 5, 'description' => 'x', 'source' => 'autogen'];
         self::assertSame('Discount of ZAR 42.50 (5%) added to invoice #9001 for Agency One.', self::entry('applied', $detail + ['itemId' => 12], 131, 9001, 'system'));
         self::assertSame('Dry run: ZAR 42.50 (5%) would have come off invoice #9001 for Agency One.', self::entry('dry_run', $detail + ['forced' => false], 131, 9001, 'system'));
+        $lines = ['lines' => [['taxed' => 0, 'base' => '425.00', 'amount' => '21.25', 'countedLines' => 2, 'description' => 'x', 'itemId' => 12], ['taxed' => 1, 'base' => '170.00', 'amount' => '8.50', 'countedLines' => 1, 'description' => 'y', 'itemId' => 13]]];
+        self::assertSame('Discount of ZAR 29.75 (5%) added to invoice #9001 for Agency One, as 2 lines (untaxed ZAR 21.25, taxed ZAR 8.50).', self::entry('applied', ['amount' => '29.75', 'percent' => '5.00'] + $lines, 131, 9001, 'system'));
+        self::assertSame('Dry run: ZAR 29.75 (5%) would have come off invoice #9001 for Agency One, as 2 lines (untaxed ZAR 21.25, taxed ZAR 8.50).', self::entry('dry_run', ['amount' => '29.75', 'percent' => '5.00'] + $lines, 131, 9001, 'system'));
         self::assertSame('Invoice #9001 for Agency One was already handled; nothing changed.', self::entry('already_processed', ['dryRun' => true], 131, 9001));
         self::assertSame('Invoice #9001 for Agency One is due before the discount start date 2027-01-01; no discount.', self::entry('not_yet_effective', ['effectiveFrom' => '2027-01-01', 'dueDate' => '2026-10-25', 'today' => '2026-10-12', 'source' => 'autogen'], 131, 9001));
         self::assertSame('Invoice #9001 for Agency One had no discountable lines.', self::entry('no_qualifying_lines', ['itemTypes' => ['Domain']], 131, 9001));

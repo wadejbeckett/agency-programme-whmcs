@@ -27,9 +27,9 @@ final class SettingsForm
     /** The WHMCS service and add-on statuses offered as checkboxes, in the order shown. */
     public const STATUSES = ['Active', 'Suspended', 'Pending', 'Cancelled', 'Terminated', 'Fraud', 'Completed'];
     /** The yes/no settings on the form; dry_run is the mode card's, not the form's. */
-    public const SWITCHES = ['new_orders', 'stack_with_promotions', 'activity_log', 'keep_data'];
+    public const SWITCHES = ['new_orders', 'stack_with_promotions', 'activity_log', 'delete_data'];
     /** The stored keys this form writes. */
-    public const KEYS = ['tiers', 'product_groups', 'products', 'addons', 'statuses', 'new_orders', 'stack_with_promotions', 'activity_log', 'keep_data', 'description'];
+    public const KEYS = ['tiers', 'product_groups', 'products', 'addons', 'statuses', 'new_orders', 'stack_with_promotions', 'activity_log', 'delete_data', 'description'];
 
     /**
      * @param array<string, list<TierRow>> $tiers currency code => rows as typed, ascending as entered
@@ -68,7 +68,7 @@ final class SettingsForm
                 'new_orders' => $config->newOrders,
                 'stack_with_promotions' => $config->stackWithPromotions,
                 'activity_log' => $config->activityLog,
-                'keep_data' => $config->keepData,
+                'delete_data' => $config->deleteData,
             ],
             $config->descriptionTemplate,
         );

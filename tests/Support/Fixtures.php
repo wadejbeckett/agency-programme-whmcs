@@ -109,8 +109,8 @@ final class Fixtures
             'addons' => '12,15',
             'statuses' => 'Active',
             'dry_run' => '',
-            'description' => 'Agency discount {percent}% on {count} qualifying items',
-            'keep_data' => '',
+            'description' => 'Agency discount {percent}% on {count} qualifying {items}',
+            'delete_data' => '',
             'activity_log' => 'on',
             'stack_with_promotions' => '',
             // WHMCS's own addon access list: role ids the addon is open to

@@ -7,7 +7,7 @@
   "dry_run": "on",
   "stack_with_promotions": "",
   "new_orders": "on",
-  "description": "Agency discount {percent}% on {count} qualifying items",
+  "description": "Agency discount {percent}% on {count} qualifying {items}",
   "activity_log": "on",
-  "keep_data": ""
+  "delete_data": ""
 }

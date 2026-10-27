@@ -19,11 +19,13 @@ final class ConfigTest extends TestCase
         self::assertFalse($c->stackWithPromotions);
         self::assertTrue($c->newOrders);
         self::assertTrue($c->activityLog);
-        self::assertFalse($c->keepData);
+        self::assertFalse($c->deleteData, 'deactivating keeps the data unless deletion is asked for');
         self::assertSame(['Active'], $c->statuses);
         self::assertSame([], $c->productGroupIds);
         self::assertSame([], $c->tiers->currencies());
         self::assertSame('Agency discount 10% on 3 qualifying items', $c->description('10', 3));
+        self::assertSame('Agency discount 5% on 1 qualifying item', $c->description('5', 1));
+        self::assertSame('Agency discount {percent}% on {count} qualifying {items}', Config::defaults()['description']);
     }
 
     public function testDryRunFailsSafe(): void
@@ -39,16 +41,18 @@ final class ConfigTest extends TestCase
 
     public function testUnknownYesNoValuesTakeTheSafeSide(): void
     {
-        $c = Config::fromSettings(['stack_with_promotions' => 'weird', 'new_orders' => 'weird', 'keep_data' => 'weird', 'activity_log' => 'weird']);
+        $c = Config::fromSettings(['stack_with_promotions' => 'weird', 'new_orders' => 'weird', 'delete_data' => 'weird', 'activity_log' => 'weird']);
         self::assertFalse($c->stackWithPromotions);
         self::assertFalse($c->newOrders, 'an unrecognised value never widens the discount');
-        self::assertTrue($c->keepData);
+        self::assertFalse($c->deleteData, 'an unrecognised value never deletes data');
         self::assertTrue($c->activityLog);
-        $c = Config::fromSettings(['stack_with_promotions' => 'true', 'new_orders' => 'off', 'keep_data' => 'off', 'activity_log' => '0']);
+        $c = Config::fromSettings(['stack_with_promotions' => 'true', 'new_orders' => 'off', 'delete_data' => 'off', 'activity_log' => '0']);
         self::assertTrue($c->stackWithPromotions);
         self::assertFalse($c->newOrders);
-        self::assertFalse($c->keepData);
+        self::assertFalse($c->deleteData);
         self::assertFalse($c->activityLog);
+        self::assertTrue(Config::fromSettings(['delete_data' => 'on'])->deleteData);
+        self::assertFalse(Config::fromSettings(['delete_data' => ''])->deleteData, 'an unticked WHMCS yes/no box keeps the data');
         self::assertTrue(Config::fromSettings(['new_orders' => 'on'])->newOrders);
         self::assertFalse(Config::fromSettings(['new_orders' => ''])->newOrders);
     }
@@ -77,6 +81,16 @@ final class ConfigTest extends TestCase
         self::assertTrue($c->countsStatus('Suspended'));
         self::assertFalse($c->countsStatus('Terminated'));
         self::assertSame('Partner rebate 5% (2 items)', $c->description('5', 2));
+    }
+
+    public function testItemsPlaceholderFollowsTheCount(): void
+    {
+        self::assertSame('2% off 1 item', Config::renderDescription('{percent}% off {count} {items}', '2', 1));
+        self::assertSame('2% off 0 items', Config::renderDescription('{percent}% off {count} {items}', '2', 0));
+        self::assertSame('2% off 2 items', Config::renderDescription('{percent}% off {count} {items}', '2', 2));
+        self::assertSame('Old text 5% on 1 qualifying items', Config::renderDescription('Old text {percent}% on {count} qualifying items', '5', 1), 'a stored template without {items} renders as before');
+        $c = Config::fromSettings(['description' => 'Rebate ({count} {items})']);
+        self::assertSame('Rebate (1 item)', $c->description('5', 1));
     }
 
     public function testProductIdCountsEvenWhenGroupDoesNot(): void

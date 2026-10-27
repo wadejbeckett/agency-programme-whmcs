@@ -8,6 +8,7 @@ namespace AgencyDiscount\Tests\Integration;
 
 use AgencyDiscount\Admin\Html;
 use AgencyDiscount\CapsuleRepository;
+use AgencyDiscount\Config;
 use AgencyDiscount\Hooks;
 use AgencyDiscount\Money;
 use AgencyDiscount\Schema;
@@ -29,6 +30,9 @@ use PHPUnit\Framework\TestCase;
  */
 final class SandboxTest extends TestCase
 {
+    /** The invoices table as 0.2.0 created it, so the upgrade can be run against the real shape. */
+    private const INVOICES_0_2_0 = 'CREATE TABLE mod_agencydiscount_invoices (invoice_id INT NOT NULL PRIMARY KEY, client_id INT NOT NULL, item_id INT NULL, tier_index INT NOT NULL, percent DECIMAL(5,2) NOT NULL, base DECIMAL(16,2) NOT NULL, amount DECIMAL(16,2) NOT NULL, dry_run TINYINT(1) NOT NULL, created_at DATETIME NOT NULL) DEFAULT CHARSET=utf8mb4';
+
     private const MODULE = 'agencydiscount';
     /** tblinvoices.notes of every invoice this test inserts, so leftovers of an interrupted run can be found */
     private const TAG = 'agencydiscount-sandbox-test';
@@ -101,6 +105,10 @@ final class SandboxTest extends TestCase
         $domain = (string) $service->domain;
         $currency = (string) $service->code;
         $discount = Money::percentOf($amount, '10.00');
+        $admin = Manager::table('tbladmins')->orderBy('id')->select(['id', 'roleid'])->first();
+        self::assertNotNull($admin, 'the sandbox has no admin');
+        $adminId = (int) $admin->id;
+        $roleId = (int) $admin->roleid;
 
         // b. settings: one 10% tier above 1, every group and add-on counts, dry-run on; stored
         //    HTML-encoded, as WHMCS saves request input
@@ -116,9 +124,10 @@ final class SandboxTest extends TestCase
             'dry_run' => 'on',
             'stack_with_promotions' => '',
             'new_orders' => 'on',
-            'description' => 'Agency discount {percent}% on {count} qualifying items',
-            'keep_data' => '',
+            'description' => 'Agency discount {percent}% on {count} qualifying {items}',
+            'delete_data' => '',
             'activity_log' => 'on',
+            'access' => (string) $roleId,
         ];
         foreach ($settings as $setting => $value) {
             Manager::table('tbladdonmodules')->insert(['module' => self::MODULE, 'setting' => $setting, 'value' => htmlspecialchars($value, ENT_QUOTES, 'UTF-8')]);
@@ -126,8 +135,14 @@ final class SandboxTest extends TestCase
         self::assertStringContainsString('&quot;', (string) Manager::table('tbladdonmodules')->where('module', self::MODULE)->where('setting', 'tiers')->value('value'));
         self::assertSame($settings, array_intersect_key((new CapsuleRepository())->settings(), $settings));
 
-        // d. approve through the profile save hook (input arrives HTML-encoded, as WHMCS delivers it)
+        // d. approve through the profile save hook (input arrives HTML-encoded, as WHMCS delivers it), as an
+        //    admin whose role is on the addon's access list; a save without an admin is ignored
         Hooks::reset();
+        Hooks::profileSave(['userid' => $clientId], ['agencydiscount_present' => '1', 'agencydiscount_approved' => '1', 'agencydiscount_note' => 'ignored']);
+        self::assertNull((new CapsuleRepository())->agency($clientId));
+        self::assertStringContainsString('ignored: the admin role is not on the addon', (string) end(WhmcsCalls::$activity)['message']);
+        WhmcsCalls::$activity = [];
+        \WHMCS\Session::$values['adminid'] = $adminId;
         Hooks::profileSave(['userid' => $clientId], ['agencydiscount_present' => '1', 'agencydiscount_approved' => '1', 'agencydiscount_note' => 'sandbox &amp; test']);
         $this->assertNoHookError();
         $repo = new CapsuleRepository();
@@ -139,7 +154,7 @@ final class SandboxTest extends TestCase
         self::assertSame('10.00', $agency['tierPercent']);
         self::assertNull($agency['effectiveFrom']);
         self::assertSame($currency, $agency['currency']);
-        self::assertSame('admin', $agency['approvedBy']);
+        self::assertSame('admin:' . $adminId, $agency['approvedBy']);
         self::assertContains($clientId, array_column($repo->approvedAgencies(), 'clientId'));
         $log = $repo->logEntries($clientId, 10);
         self::assertSame(['tier_changed', 'approved'], array_column($log, 'event'));
@@ -180,13 +195,16 @@ final class SandboxTest extends TestCase
         self::assertSame(Money::negate($discount), bcadd((string) $line->amount, '0', 2));
         self::assertSame(0, (int) $line->taxed);
         self::assertSame(self::PAYMENT_METHOD, (string) $line->paymentmethod);
-        self::assertSame('Agency discount 10% on 1 qualifying items', (string) $line->description);
+        self::assertSame('Agency discount 10% on 1 qualifying item', (string) $line->description);
         self::assertSame(date('Y-m-d'), (string) $line->duedate);
         $record = $repo->invoiceRecord($second);
         self::assertNotNull($record);
         self::assertFalse($record['dryRun']);
         self::assertSame((int) $line->id, $record['itemId']);
         self::assertSame($discount, $record['amount']);
+        self::assertFalse($record['taxed']);
+        self::assertSame(0, $record['line']);
+        self::assertCount(1, $repo->invoiceRecordLines($second));
         self::assertSame('applied', $repo->logEntries($clientId, 1)[0]['event']);
         self::assertContains(
             sprintf('Agency Discount: 10%% (%s %s) added to invoice #%d as line %d', $currency, $discount, $second, (int) $line->id),
@@ -199,7 +217,7 @@ final class SandboxTest extends TestCase
         $newest = $repo->logEntries($clientId, 1)[0];
         self::assertSame(['already_processed', $second], [$newest['event'], $newest['invoiceId']]);
 
-        // g. claimInvoice is first-writer-wins on the real primary key
+        // g. claimInvoice is first-writer-wins on the real unique (invoice_id, line) key
         $now = date('Y-m-d H:i:s');
         self::assertFalse($repo->claimInvoice($second, $clientId, $now));
         $unused = (int) Manager::table('tblinvoices')->max('id') + 1000;
@@ -219,17 +237,14 @@ final class SandboxTest extends TestCase
         self::assertNotNull($agency['calculatedAt']);
         self::assertSame(1, $agency['tierIndex']);
 
-        // h1. the client summary card renders for an admin whose role is on the addon's access list only
-        $admin = Manager::table('tbladmins')->orderBy('id')->select(['id', 'roleid'])->first();
-        self::assertNotNull($admin, 'the sandbox has no admin');
-        $adminId = (int) $admin->id;
-        $roleId = (int) $admin->roleid;
+        // h1. the client summary card and the profile field render for an admin whose role is on the addon's access list only
         self::assertSame($roleId, $repo->adminRoleId($adminId));
         self::assertNull($repo->adminRoleId((int) Manager::table('tbladmins')->max('id') + 1000));
-        Manager::table('tbladdonmodules')->insert(['module' => self::MODULE, 'setting' => 'access', 'value' => (string) ($roleId + 1000)]);
+        Manager::table('tbladdonmodules')->where('module', self::MODULE)->where('setting', 'access')->update(['value' => (string) ($roleId + 1000)]);
         \WHMCS\Session::$values['adminid'] = $adminId;
         Hooks::reset();
         self::assertSame('', Hooks::clientSummary(['userid' => $clientId]), 'role not on the access list');
+        self::assertSame([], Hooks::profileFields(['userid' => $clientId]), 'role not on the access list');
         Manager::table('tbladdonmodules')->where('module', self::MODULE)->where('setting', 'access')->update(['value' => (string) $roleId]);
         Hooks::reset();
         $card = Hooks::clientSummary(['userid' => $clientId]);
@@ -239,10 +254,10 @@ final class SandboxTest extends TestCase
         self::assertStringContainsString('href="clientsprofile.php?userid=' . $clientId . '"', $card);
         self::assertStringContainsString('href="addonmodules.php?module=agencydiscount&amp;action=log&amp;client=' . $clientId . '"', $card);
         self::assertSame('', Hooks::clientSummary(['userid' => $clientId + 1000000]), 'not an agency');
-        \WHMCS\Session::$values['adminid'] = null;
         $profile = Hooks::profileFields(['userid' => $clientId]);
         self::assertStringContainsString('Right now', $profile['Agency discount']);
-        self::assertStringContainsString('Approved by admin on', $profile['Agency discount']);
+        self::assertStringContainsString('Approved by admin:' . $adminId . ' on', $profile['Agency discount']);
+        \WHMCS\Session::$values['adminid'] = null;
 
         // h1b. the client area: the discount saved this year counts the live line only; the page and the home panel
         //      show it to the logged-in approved agency and nothing to anyone else
@@ -321,17 +336,39 @@ final class SandboxTest extends TestCase
         self::assertSame('{"' . $currency . '":[{"above":1,"percent":10}]}', $settings['tiers']);
         self::assertSame(2, $repo->invoicesChecked());
 
-        // i3. the 0.1.0 → 0.2.0 upgrade changes no table and records itself
-        $ddl = static fn (): string => (string) ((object) Manager::connection()->select('SHOW CREATE TABLE mod_agencydiscount_invoices')[0])->{'Create Table'};
-        $before = $ddl();
-        self::assertSame('success', \agencydiscount_upgrade(['version' => '0.1.0'])['status']);
-        self::assertSame($before, $ddl());
-        self::assertContains('Agency Programme upgraded from 0.1.0 to 0.2.0 (no schema change)', array_column(WhmcsCalls::$activity, 'message'));
+        // i3. the 0.2.0 → 0.2.1 upgrade turns a 0.2.0 invoices table into the 0.2.1 shape, keeps its rows, and
+        //     replaces the old default invoice line text; from 0.2.1 nothing changes
+        $ddl = static fn (): string => (string) preg_replace('/ AUTO_INCREMENT=\d+/', '', (string) ((object) Manager::connection()->select('SHOW CREATE TABLE mod_agencydiscount_invoices')[0])->{'Create Table'});
+        $fresh = $ddl();
+        $columns = ['invoice_id', 'client_id', 'item_id', 'tier_index', 'percent', 'base', 'amount', 'dry_run', 'created_at'];
+        $rows = array_map(static fn (object $row): array => (array) $row, Manager::table('mod_agencydiscount_invoices')->orderBy('invoice_id')->get($columns)->all());
+        Manager::connection()->statement('DROP TABLE mod_agencydiscount_invoices');
+        Manager::connection()->statement(self::INVOICES_0_2_0);
+        Manager::table('mod_agencydiscount_invoices')->insert($rows);
+        Manager::table('tbladdonmodules')->where('module', self::MODULE)->where('setting', 'description')->update(['value' => htmlspecialchars(Config::OLD_DEFAULT_DESCRIPTION, ENT_QUOTES, 'UTF-8')]);
+        $result = \agencydiscount_upgrade(['version' => '0.2.0']);
+        self::assertSame('success', $result['status'], $result['description']);
+        self::assertSame($fresh, $ddl());
+        self::assertSame($rows, array_map(static fn (object $row): array => (array) $row, Manager::table('mod_agencydiscount_invoices')->orderBy('invoice_id')->get($columns)->all()));
+        $record = $repo->invoiceRecord($second);
+        self::assertNotNull($record);
+        self::assertSame([0, false, (int) $line->id], [$record['line'], $record['taxed'], $record['itemId']]);
+        self::assertSame(Config::DEFAULT_DESCRIPTION, $repo->settings()['description']);
+        self::assertContains('Agency Programme upgraded from 0.2.0 to 0.2.1 (2 changes)', array_column(WhmcsCalls::$activity, 'message'));
+        self::assertSame('success', \agencydiscount_upgrade(['version' => '0.2.1'])['status']);
+        self::assertSame($fresh, $ddl());
+        self::assertContains('Agency Programme upgraded from 0.2.1 to 0.2.1 (no schema change)', array_column(WhmcsCalls::$activity, 'message'));
 
-        // j. deactivate drops the tables; clean up and prove nothing is left
+        // j. deactivate keeps the tables unless "Delete module data on deactivate" is ticked; then it drops them.
+        //    Clean up and prove nothing is left
         self::assertSame('success', \agencydiscount_deactivate()['status']);
         foreach (Schema::TABLES as $table) {
-            self::assertFalse($this->tableExists($table), $table . ' still exists after deactivate');
+            self::assertTrue($this->tableExists($table), $table . ' was dropped although delete_data is off');
+        }
+        $repo->saveSettings(['delete_data' => 'on']);
+        self::assertSame('success', \agencydiscount_deactivate()['status']);
+        foreach (Schema::TABLES as $table) {
+            self::assertFalse($this->tableExists($table), $table . ' still exists after deactivate with delete_data on');
         }
         $this->cleanUp();
         self::assertSame(0, Manager::table('tblinvoices')->whereIn('id', [$first, $second])->count());

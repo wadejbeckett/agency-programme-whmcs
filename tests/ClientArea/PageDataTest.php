@@ -25,7 +25,7 @@ final class PageDataTest extends TestCase
         foreach ([131, 404, 500] as $id) {
             $this->repo->saveAgency(['clientId' => $id, 'approved' => true, 'approvedBy' => 'admin:1', 'approvedAt' => '2026-10-01 00:00:00', 'updatedAt' => '2026-10-01 00:00:00']);
         }
-        $record = ['clientId' => 131, 'itemId' => 1, 'tierIndex' => 1, 'percent' => '5.00', 'base' => '850.00', 'amount' => '42.50', 'dryRun' => false, 'createdAt' => '2026-03-25 10:00:00'];
+        $record = ['line' => 0, 'taxed' => false, 'clientId' => 131, 'itemId' => 1, 'tierIndex' => 1, 'percent' => '5.00', 'base' => '850.00', 'amount' => '42.50', 'dryRun' => false, 'createdAt' => '2026-03-25 10:00:00'];
         $this->repo->saveInvoiceRecord(['invoiceId' => 1] + $record);
         $this->repo->saveInvoiceRecord(['invoiceId' => 2, 'amount' => '10.00', 'dryRun' => true] + $record);
         $this->repo->saveInvoiceRecord(['invoiceId' => 3, 'amount' => '99.00', 'createdAt' => '2025-12-25 10:00:00'] + $record);

@@ -39,8 +39,8 @@ final class LogEntry
                 . ' on monthly spend ' . self::money(self::str($d['currency'] ?? $currency), self::str($d['spend'] ?? '0')) . '.',
             'no_tier' => ucfirst($client) . ' has no tier: no tiers are configured for ' . self::str($d['currency'] ?? $currency)
                 . ' (monthly spend ' . self::money(self::str($d['currency'] ?? $currency), self::str($d['spend'] ?? '0')) . ').',
-            'applied' => 'Discount of ' . self::money($currency, self::str($d['amount'] ?? '0')) . ' (' . self::percent($d['percent'] ?? null) . ') added to ' . $invoice . ' for ' . $client . '.',
-            'dry_run' => 'Dry run: ' . self::money($currency, self::str($d['amount'] ?? '0')) . ' (' . self::percent($d['percent'] ?? null) . ') would have come off ' . $invoice . ' for ' . $client . '.',
+            'applied' => 'Discount of ' . self::money($currency, self::str($d['amount'] ?? '0')) . ' (' . self::percent($d['percent'] ?? null) . ') added to ' . $invoice . ' for ' . $client . self::split($d, $currency) . '.',
+            'dry_run' => 'Dry run: ' . self::money($currency, self::str($d['amount'] ?? '0')) . ' (' . self::percent($d['percent'] ?? null) . ') would have come off ' . $invoice . ' for ' . $client . self::split($d, $currency) . '.',
             'already_processed' => ucfirst($invoice) . ' for ' . $client . ' was already handled; nothing changed.',
             'not_yet_effective' => ucfirst($invoice) . ' for ' . $client . ' is due before the discount start date ' . self::str($d['effectiveFrom'] ?? '') . '; no discount.',
             'no_qualifying_lines' => ucfirst($invoice) . ' for ' . $client . ' had no discountable lines.',
@@ -52,6 +52,27 @@ final class LogEntry
             'mode_changed' => 'Switched to ' . self::str($d['to'] ?? '') . ' mode by ' . $actor . '.',
             default => $entry['event'] . ' for ' . $client . ' by ' . $actor . ': ' . self::json($d),
         };
+    }
+
+    /**
+     * ", as 2 lines (untaxed X, taxed Y)" when an invoice mixing tax treatments got one line per
+     * treatment; '' for single-line entries, whose detail has no lines array.
+     *
+     * @param array<string,mixed> $d
+     */
+    private static function split(array $d, string $currency): string
+    {
+        $lines = $d['lines'] ?? null;
+        if (!is_array($lines) || count($lines) < 2) {
+            return '';
+        }
+        $parts = [];
+        foreach ($lines as $line) {
+            if (is_array($line)) {
+                $parts[] = (($line['taxed'] ?? 0) === 1 ? 'taxed ' : 'untaxed ') . self::money($currency, self::str($line['amount'] ?? '0'));
+            }
+        }
+        return ', as ' . count($lines) . ' lines (' . implode(', ', $parts) . ')';
     }
 
     private static function tier(mixed $index, mixed $percent): string

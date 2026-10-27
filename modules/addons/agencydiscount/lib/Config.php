@@ -9,6 +9,10 @@ namespace AgencyDiscount;
 /** The addon's settings, parsed and validated. */
 final class Config
 {
+    /** The invoice line text shipped before 0.2.1, which said "1 qualifying items"; the upgrade replaces it when it is still stored unchanged. */
+    public const OLD_DEFAULT_DESCRIPTION = 'Agency discount {percent}% on {count} qualifying items';
+    public const DEFAULT_DESCRIPTION = 'Agency discount {percent}% on {count} qualifying {items}';
+
     private const DEFAULTS = [
         'tiers' => '{}',
         'product_groups' => '',
@@ -18,8 +22,8 @@ final class Config
         'dry_run' => 'on',
         'stack_with_promotions' => '',
         'new_orders' => 'on',
-        'description' => 'Agency discount {percent}% on {count} qualifying items',
-        'keep_data' => '',
+        'description' => self::DEFAULT_DESCRIPTION,
+        'delete_data' => '',
         'activity_log' => 'on',
     ];
 
@@ -39,7 +43,7 @@ final class Config
         public readonly bool $stackWithPromotions,
         public readonly bool $newOrders,
         public readonly string $descriptionTemplate,
-        public readonly bool $keepData,
+        public readonly bool $deleteData,
         public readonly bool $activityLog,
     ) {
     }
@@ -99,14 +103,15 @@ final class Config
             self::yesNo($s['stack_with_promotions'], false),
             self::yesNo($s['new_orders'], false),
             $description,
-            self::yesNo($s['keep_data'], true),
+            self::yesNo($s['delete_data'], false),
             self::yesNo($s['activity_log'], true),
         );
     }
 
     /**
      * A yes/no setting: "on", "yes", "1", "true" (any case, trimmed) are yes; "", "off", "0", "no" are
-     * no; anything else gives $safe, so an unexpected value never turns a safeguard off.
+     * no; anything else gives $safe, so an unexpected value never turns a safeguard off (or, for
+     * delete_data, never turns a destructive action on).
      */
     public static function yesNo(mixed $value, bool $safe): bool
     {
@@ -139,7 +144,13 @@ final class Config
 
     public function description(string $percent, int $count): string
     {
-        return str_replace(['{percent}', '{count}'], [$percent, (string) $count], $this->descriptionTemplate);
+        return self::renderDescription($this->descriptionTemplate, $percent, $count);
+    }
+
+    /** One substitution shared by the invoice line and the Settings tab example, so the example shows exactly what an invoice gets. */
+    public static function renderDescription(string $template, string $percent, int $count): string
+    {
+        return str_replace(['{percent}', '{count}', '{items}'], [$percent, (string) $count, $count === 1 ? 'item' : 'items'], $template);
     }
 
     /** @return list<string> */

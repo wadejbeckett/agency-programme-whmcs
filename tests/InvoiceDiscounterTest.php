@@ -99,12 +99,106 @@ final class InvoiceDiscounterTest extends TestCase
         self::assertSame(4, $outcome->countedLines);
     }
 
-    public function testTaxedFlagFollowsQualifyingLines(): void
+    public function testAllTaxedQualifyingLinesGetOneTaxedLine(): void
+    {
+        foreach (array_keys($this->repo->invoiceItems[9001]) as $i) {
+            $this->repo->invoiceItems[9001][$i]['taxed'] = 1;
+        }
+        $outcome = $this->discounter()->apply(9001, 'autogen', 'system');
+        self::assertSame('29.75', $outcome->amount);
+        self::assertCount(1, $outcome->lines);
+        $items = $this->repo->invoiceItems(9001);
+        self::assertCount(9, $items);
+        self::assertSame(1, end($items)['taxed']);
+        self::assertSame('-29.75', end($items)['amount']);
+        $records = $this->repo->invoiceRecordLines(9001);
+        self::assertCount(1, $records);
+        self::assertTrue($records[0]['taxed']);
+        self::assertSame(0, $records[0]['line']);
+        $detail = $this->repo->logEntries(131, 1)[0]['detail'];
+        self::assertArrayNotHasKey('lines', $detail, 'a single line keeps the log detail shape of earlier releases');
+        self::assertSame(12, $detail['itemId']);
+        self::assertSame('Agency discount 5% on 3 qualifying items', $detail['description']);
+    }
+
+    public function testMixedTaxedAndUntaxedLinesGetOneDiscountLinePerTreatment(): void
+    {
+        // the 170.00 line of service 1001 is taxed; the 340.00 service line and the 85.00 add-on line are not
+        $this->repo->invoiceItems[9001][0]['taxed'] = 1;
+        $outcome = $this->discounter()->apply(9001, 'autogen', 'system');
+        self::assertSame(DiscountOutcome::APPLIED, $outcome->status);
+        self::assertSame('595.00', $outcome->base);
+        self::assertSame('29.75', $outcome->amount);
+        self::assertSame(3, $outcome->countedLines);
+        self::assertSame(12, $outcome->itemId);
+        self::assertCount(2, $outcome->lines);
+
+        $items = $this->repo->invoiceItems(9001);
+        self::assertCount(10, $items);
+        [$untaxed, $taxed] = array_slice($items, 8);
+        self::assertSame(['id' => 12, 'type' => 'AgencyDiscount', 'relId' => 131, 'description' => 'Agency discount 5% on 2 qualifying items', 'amount' => '-21.25', 'taxed' => 0], $untaxed);
+        self::assertSame(['id' => 13, 'type' => 'AgencyDiscount', 'relId' => 131, 'description' => 'Agency discount 5% on 1 qualifying item', 'amount' => '-8.50', 'taxed' => 1], $taxed);
+        self::assertSame('banktransfer', $this->repo->itemPaymentMethods[13]);
+
+        $records = $this->repo->invoiceRecordLines(9001);
+        self::assertCount(2, $records);
+        self::assertSame([0, 1], array_column($records, 'line'));
+        self::assertSame([12, 13], array_column($records, 'itemId'));
+        self::assertSame([false, true], array_column($records, 'taxed'));
+        self::assertSame(['425.00', '170.00'], array_column($records, 'base'));
+        self::assertSame(['21.25', '8.50'], array_column($records, 'amount'));
+        self::assertSame([false, false], array_column($records, 'dryRun'));
+        self::assertSame('29.75', $this->repo->appliedDiscountTotal(131, '2026-01-01'));
+
+        $entries = $this->repo->logEntries(131, 10);
+        self::assertCount(1, array_filter($entries, static fn (array $e): bool => $e['event'] === 'applied'), 'one applied entry for both lines');
+        $detail = $entries[0]['detail'];
+        self::assertSame('29.75', $detail['amount']);
+        self::assertArrayNotHasKey('itemId', $detail);
+        self::assertArrayNotHasKey('description', $detail);
+        self::assertSame([
+            ['taxed' => 0, 'base' => '425.00', 'amount' => '21.25', 'countedLines' => 2, 'description' => 'Agency discount 5% on 2 qualifying items', 'itemId' => 12],
+            ['taxed' => 1, 'base' => '170.00', 'amount' => '8.50', 'countedLines' => 1, 'description' => 'Agency discount 5% on 1 qualifying item', 'itemId' => 13],
+        ], $detail['lines']);
+        $messages = array_column($this->activity->entries, 'message');
+        self::assertStringContainsString('5% (ZAR 29.75) added to invoice #9001 as lines 12 and 13', end($messages));
+    }
+
+    public function testMixedInvoiceIsDiscountedOnlyOnce(): void
     {
         $this->repo->invoiceItems[9001][0]['taxed'] = 1;
         $this->discounter()->apply(9001, 'autogen', 'system');
-        $items = $this->repo->invoiceItems(9001);
-        self::assertSame(1, end($items)['taxed']);
+        $again = $this->discounter()->apply(9001, 'autogen', 'system');
+        self::assertSame(DiscountOutcome::SKIPPED, $again->status);
+        self::assertSame('already_processed', $again->reason);
+        self::assertCount(10, $this->repo->invoiceItems(9001));
+        self::assertCount(2, $this->repo->invoiceRecordLines(9001));
+    }
+
+    public function testMixedInvoiceInDryRunRecordsBothLines(): void
+    {
+        $this->repo->invoiceItems[9001][0]['taxed'] = 1;
+        $outcome = $this->discounter(['dry_run' => 'on'])->apply(9001, 'autogen', 'system');
+        self::assertSame(DiscountOutcome::DRY_RUN, $outcome->status);
+        self::assertCount(8, $this->repo->invoiceItems(9001));
+        $records = $this->repo->invoiceRecordLines(9001);
+        self::assertSame([true, true], array_column($records, 'dryRun'));
+        self::assertSame([null, null], array_column($records, 'itemId'));
+        self::assertCount(2, $this->repo->logEntries(131, 1)[0]['detail']['lines']);
+        self::assertSame('already_processed', $this->discounter()->apply(9001, 'autogen', 'system')->reason);
+    }
+
+    public function testMixedInvoiceDropsALineThatRoundsToNothing(): void
+    {
+        $this->repo->invoiceItems[9001][] = ['id' => 60, 'type' => 'Addon', 'relId' => 51, 'description' => 'tiny taxed', 'amount' => '0.09', 'taxed' => 1];
+        $this->repo->invoiceItems[9001] = array_values(array_filter($this->repo->invoiceItems[9001], static fn (array $i): bool => $i['id'] !== 4));
+        $outcome = $this->discounter()->apply(9001, 'autogen', 'system');
+        self::assertSame(DiscountOutcome::APPLIED, $outcome->status);
+        self::assertCount(1, $outcome->lines, 'the taxed 0.09 line gives 0.00 and gets no discount line');
+        self::assertSame('510.00', $outcome->base);
+        self::assertSame(2, $outcome->countedLines);
+        self::assertSame(0, $outcome->lines[0]['taxed']);
+        self::assertCount(1, $this->repo->invoiceRecordLines(9001));
     }
 
     public function testDryRunRecordsButDoesNotInsert(): void

@@ -152,6 +152,7 @@ final class HooksTest extends TestCase
     public function testProfileSaveRecordsTheSessionAdmin(): void
     {
         \WHMCS\Session::$values['adminid'] = '7';
+        $this->repo->admins[7] = 2;
         $this->useModule(Fixtures::settings());
         Hooks::profileSave(['userid' => 600], ['agencydiscount_present' => '1', 'agencydiscount_approved' => '1', 'agencydiscount_note' => '']);
         self::assertSame('admin:7', $this->repo->agency(600)['approvedBy'] ?? null);
@@ -206,6 +207,7 @@ final class HooksTest extends TestCase
 
     public function testProfileFieldsAndSaveRoundTrip(): void
     {
+        \WHMCS\Session::$values['adminid'] = 1;
         $this->useModule(Fixtures::settings());
         $fields = Hooks::profileFields(['userid' => 600]);
         self::assertArrayHasKey('Agency discount', $fields);
@@ -219,12 +221,49 @@ final class HooksTest extends TestCase
 
     public function testProfileSaveDecodesWhmcsSanitisedInput(): void
     {
+        \WHMCS\Session::$values['adminid'] = 1;
         $this->useModule(Fixtures::settings());
         $request = ['agencydiscount_present' => '1', 'agencydiscount_approved' => '1', 'agencydiscount_note' => 'A &amp; B&#039;s'];
         Hooks::profileSave(['userid' => 600], $request);
         self::assertSame('A & B\'s', $this->repo->agency(600)['note'] ?? null);
         Hooks::profileSave(['userid' => 600], $request);
         self::assertSame(['approved'], array_column($this->repo->logEntries(600, 10), 'event'));
+    }
+
+    public function testProfileFieldsOnlyForRolesOnTheAddonAccessList(): void
+    {
+        $this->useModule(Fixtures::settings());
+        self::assertSame([], Hooks::profileFields(['userid' => 131]), 'no admin in the session');
+        \WHMCS\Session::$values['adminid'] = 2;
+        self::assertSame([], Hooks::profileFields(['userid' => 131]), 'admin 2 is in role 3, outside access "1,2"');
+        \WHMCS\Session::$values['adminid'] = 9;
+        self::assertSame([], Hooks::profileFields(['userid' => 131]), 'admin 9 does not exist');
+        \WHMCS\Session::$values['adminid'] = 1;
+        self::assertArrayHasKey('Agency discount', Hooks::profileFields(['userid' => 131]));
+        self::assertSame([], WhmcsCalls::$activity);
+    }
+
+    public function testProfileSaveFromARoleOutsideTheAccessListIsIgnored(): void
+    {
+        $this->useModule(Fixtures::settings());
+        $approve = ['agencydiscount_present' => '1', 'agencydiscount_approved' => '1', 'agencydiscount_note' => 'forged'];
+        \WHMCS\Session::$values['adminid'] = 2;
+        Hooks::profileSave(['userid' => 600], $approve);
+        self::assertNull($this->repo->agency(600), 'nothing is stored for the client');
+        Hooks::profileSave(['userid' => 131], ['agencydiscount_present' => '1', 'agencydiscount_note' => '']);
+        self::assertTrue($this->repo->agency(131)['approved'] ?? false, 'an approval cannot be revoked either');
+        self::assertSame([], $this->repo->logEntries(null, 10));
+        self::assertCount(2, WhmcsCalls::$activity);
+        self::assertSame('Agency Discount: profile save for client 600 by admin:2 ignored: the admin role is not on the addon\'s access list', WhmcsCalls::$activity[0]['message']);
+
+        unset(\WHMCS\Session::$values['adminid']);
+        Hooks::profileSave(['userid' => 600], $approve);
+        self::assertNull($this->repo->agency(600), 'no admin in the session');
+        self::assertStringContainsString('by admin ignored', WhmcsCalls::$activity[2]['message']);
+
+        \WHMCS\Session::$values['adminid'] = 1;
+        Hooks::profileSave(['userid' => 600], $approve);
+        self::assertTrue($this->repo->agency(600)['approved'] ?? false);
     }
 
     public function testProfileSaveIgnoresRequestsWithoutMarker(): void

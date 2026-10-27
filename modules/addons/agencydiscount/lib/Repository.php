@@ -9,10 +9,11 @@ namespace AgencyDiscount;
 /**
  * The data seam. Amounts are two-place decimal strings, dates are 'Y-m-d'
  * strings or null, datetimes are 'Y-m-d H:i:s'. Production binds this to the
- * WHMCS database; tests use ArrayRepository.
+ * WHMCS database; tests use ArrayRepository. An invoice has one record per
+ * discount line: line 0, and line 1 when it mixes taxed and untaxed qualifying lines.
  *
  * @phpstan-type AgencyRow array{clientId:int, approved:bool, note:string, approvedBy:string, approvedAt:?string, effectiveFrom:?string, currency:string, spend:string, tierIndex:?int, tierPercent:?string, countedServices:int, countedAddons:int, calculatedAt:?string, updatedAt:string}
- * @phpstan-type InvoiceRecordRow array{invoiceId:int, clientId:int, itemId:?int, tierIndex:int, percent:string, base:string, amount:string, dryRun:bool, createdAt:string}
+ * @phpstan-type InvoiceRecordRow array{invoiceId:int, line:int, clientId:int, itemId:?int, taxed:bool, tierIndex:int, percent:string, base:string, amount:string, dryRun:bool, createdAt:string}
  * @phpstan-type LogEvent array{clientId:?int, invoiceId:?int, event:string, detail:array<string,mixed>, actor:string, createdAt:string}
  */
 interface Repository
@@ -50,20 +51,23 @@ interface Repository
     /** @return list<array{id:int, clientId:?int, invoiceId:?int, event:string, detail:array<string,mixed>, actor:string, createdAt:string}> newest first */
     public function logEntries(?int $clientId, int $limit, int $offset = 0): array;
 
-    /** @return InvoiceRecordRow|null */
+    /** @return InvoiceRecordRow|null line 0 of the invoice, null when the module never recorded it; any record means the invoice was handled */
     public function invoiceRecord(int $invoiceId): ?array;
 
+    /** @return list<InvoiceRecordRow> every record of the invoice, ascending line */
+    public function invoiceRecordLines(int $invoiceId): array;
+
     /**
-     * First-writer-wins claim on an invoice: inserts a placeholder record
-     * (itemId null, tierIndex 0, percent/base/amount '0.00', dryRun false) only
-     * when no record exists. Production binds this to INSERT IGNORE on the
-     * invoice_id primary key.
+     * First-writer-wins claim on an invoice: inserts a placeholder record for
+     * line 0 (itemId null, taxed false, tierIndex 0, percent/base/amount '0.00',
+     * dryRun false) only when the invoice has no line 0 yet. Production binds
+     * this to INSERT IGNORE on the unique (invoice_id, line) key.
      *
      * @return bool true when this call claimed the invoice, false when a record already existed
      */
     public function claimInvoice(int $invoiceId, int $clientId, string $createdAt): bool;
 
-    /** @param InvoiceRecordRow $row  upsert by invoiceId */
+    /** @param InvoiceRecordRow $row  upsert by invoiceId and line */
     public function saveInvoiceRecord(array $row): void;
 
     /**
@@ -109,8 +113,9 @@ interface Repository
     public function adminRoleId(int $adminId): ?int;
 
     /**
-     * The discount the module added to the client's invoices (applied rows, not dry runs) created on
-     * or after $fromDate ('Y-m-d'), as a positive two-place amount; '0.00' when there are none.
+     * The discount the module added to the client's invoices (applied rows, not dry runs, every line
+     * of an invoice) created on or after $fromDate ('Y-m-d'), as a positive two-place amount; '0.00'
+     * when there are none.
      */
     public function appliedDiscountTotal(int $clientId, string $fromDate): string;
 

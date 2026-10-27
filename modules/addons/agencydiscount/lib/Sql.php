@@ -28,7 +28,7 @@ final class Sql
     public const SETTINGS = 'SELECT setting, value FROM tbladdonmodules WHERE module = ?';
     public const ADMIN_ROLE = 'SELECT roleid FROM tbladmins WHERE id = ?';
     public const APPLIED_DISCOUNT_TOTAL = 'SELECT COALESCE(SUM(amount), 0) AS total FROM mod_agencydiscount_invoices WHERE client_id = ? AND dry_run = 0 AND created_at >= ?';
-    public const CLAIM_INVOICE = 'INSERT IGNORE INTO mod_agencydiscount_invoices (invoice_id, client_id, item_id, tier_index, percent, base, amount, dry_run, created_at) VALUES (?, ?, NULL, 0, 0.00, 0.00, 0.00, 0, ?)';
+    public const CLAIM_INVOICE = 'INSERT IGNORE INTO mod_agencydiscount_invoices (invoice_id, line, client_id, item_id, taxed, tier_index, percent, base, amount, dry_run, created_at) VALUES (?, 0, ?, NULL, 0, 0, 0.00, 0.00, 0.00, 0, ?)';
 
     /**
      * @param list<int> $ids

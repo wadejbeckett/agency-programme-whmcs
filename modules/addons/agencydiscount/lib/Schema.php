@@ -46,17 +46,35 @@ SQL;
 
     private const INVOICES = <<<'SQL'
 CREATE TABLE IF NOT EXISTS mod_agencydiscount_invoices (
-  invoice_id INT NOT NULL PRIMARY KEY,
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  invoice_id INT NOT NULL,
+  line TINYINT NOT NULL DEFAULT 0,
   client_id INT NOT NULL,
   item_id INT NULL,
+  taxed TINYINT(1) NOT NULL DEFAULT 0,
   tier_index INT NOT NULL,
   percent DECIMAL(5,2) NOT NULL,
   base DECIMAL(16,2) NOT NULL,
   amount DECIMAL(16,2) NOT NULL,
   dry_run TINYINT(1) NOT NULL,
-  created_at DATETIME NOT NULL
+  created_at DATETIME NOT NULL,
+  UNIQUE KEY idx_invoice_line (invoice_id, line)
 ) DEFAULT CHARSET=utf8mb4
 SQL;
+
+    /**
+     * 0.2.1 lets an invoice hold one record per discount line (a taxed and an untaxed one). The unique
+     * (invoice_id, line) key keeps the first-writer-wins claim on line 0 that the invoice_id primary key gave.
+     */
+    private const INVOICES_0_2_1 = 'ALTER TABLE mod_agencydiscount_invoices'
+        . ' DROP PRIMARY KEY,'
+        . ' ADD COLUMN id INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST,'
+        . ' ADD COLUMN line TINYINT NOT NULL DEFAULT 0 AFTER invoice_id,'
+        . ' ADD COLUMN taxed TINYINT(1) NOT NULL DEFAULT 0 AFTER item_id,'
+        . ' ADD UNIQUE KEY idx_invoice_line (invoice_id, line)';
+
+    /** Records written before 0.2.1 take the taxed flag of the line they describe, so the stored history matches the invoices. */
+    private const INVOICES_0_2_1_TAXED = 'UPDATE mod_agencydiscount_invoices r JOIN tblinvoiceitems i ON i.id = r.item_id SET r.taxed = i.taxed';
 
     public static function install(Repository $repo): void
     {
@@ -76,6 +94,22 @@ SQL;
     public static function createStatements(): array
     {
         return [self::CLIENTS, self::LOG, self::INVOICES];
+    }
+
+    /**
+     * The statements that bring the tables of an install at version $from up to date, in order; empty
+     * when nothing changes.
+     *
+     * @return list<string>
+     */
+    public static function upgradeStatements(string $from): array
+    {
+        $statements = [];
+        if (version_compare($from, '0.2.1', '<')) {
+            $statements[] = self::INVOICES_0_2_1;
+            $statements[] = self::INVOICES_0_2_1_TAXED;
+        }
+        return $statements;
     }
 
     /** @return list<string> */

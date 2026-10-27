@@ -85,6 +85,31 @@ final class CliTest extends TestCase
         self::assertStringContainsString('Invoice 9001: dry_run - 5% of 595.00 = 29.75 on 3 lines, line text "Agency discount 5% on 3 qualifying items"', implode("\n", $lines));
     }
 
+    public function testRehearseInvoiceMixingTaxTreatmentsShowsBothLines(): void
+    {
+        $snapshot = sys_get_temp_dir() . '/ad-snapshot-' . bin2hex(random_bytes(4));
+        mkdir($snapshot);
+        foreach (glob(__DIR__ . '/fixtures/snapshot/*.json') ?: [] as $file) {
+            copy($file, $snapshot . '/' . basename($file));
+        }
+        $items = json_decode((string) file_get_contents($snapshot . '/tblinvoiceitems.json'), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($items);
+        $items[0]['taxed'] = 1;
+        file_put_contents($snapshot . '/tblinvoiceitems.json', json_encode($items));
+        try {
+            [$code, $lines] = $this->runCli(['rehearse', '--snapshot', $snapshot, '--settings', $this->settings, '--approve', '131', '--invoice', '9001']);
+        } finally {
+            array_map('unlink', glob($snapshot . '/*.json') ?: []);
+            rmdir($snapshot);
+        }
+        self::assertSame(0, $code);
+        self::assertSame([
+            'Invoice 9001: dry_run - 5% of 595.00 = 29.75 on 3 lines, as 2 discount lines, one per tax treatment',
+            '  untaxed: 21.25 of 425.00 on 2 lines, line text "Agency discount 5% on 2 qualifying items"',
+            '  taxed: 8.50 of 170.00 on 1 lines, line text "Agency discount 5% on 1 qualifying item"',
+        ], array_slice($lines, -3));
+    }
+
     public function testRehearseInvoiceSkipReasons(): void
     {
         [$code, $lines] = $this->runCli(['rehearse', '--snapshot', __DIR__ . '/fixtures/snapshot', '--settings', $this->settings, '--approve', '131', '--invoice', '9004']);

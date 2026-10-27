@@ -253,22 +253,29 @@ final class CapsuleRepository implements Repository
 
     public function invoiceRecord(int $invoiceId): ?array
     {
-        $row = Capsule::table(self::INVOICES)->where('invoice_id', $invoiceId)->first();
-        if ($row === null) {
-            return null;
+        return $this->invoiceRecordLines($invoiceId)[0] ?? null;
+    }
+
+    public function invoiceRecordLines(int $invoiceId): array
+    {
+        $records = [];
+        foreach (Capsule::table(self::INVOICES)->where('invoice_id', $invoiceId)->orderBy('line')->get() as $row) {
+            $row = (object) $row;
+            $records[] = [
+                'invoiceId' => (int) $row->invoice_id,
+                'line' => (int) $row->line,
+                'clientId' => (int) $row->client_id,
+                'itemId' => $row->item_id === null ? null : (int) $row->item_id,
+                'taxed' => (int) $row->taxed === 1,
+                'tierIndex' => (int) $row->tier_index,
+                'percent' => self::money($row->percent),
+                'base' => self::money($row->base),
+                'amount' => self::money($row->amount),
+                'dryRun' => (int) $row->dry_run === 1,
+                'createdAt' => (string) $row->created_at,
+            ];
         }
-        $row = (object) $row;
-        return [
-            'invoiceId' => (int) $row->invoice_id,
-            'clientId' => (int) $row->client_id,
-            'itemId' => $row->item_id === null ? null : (int) $row->item_id,
-            'tierIndex' => (int) $row->tier_index,
-            'percent' => self::money($row->percent),
-            'base' => self::money($row->base),
-            'amount' => self::money($row->amount),
-            'dryRun' => (int) $row->dry_run === 1,
-            'createdAt' => (string) $row->created_at,
-        ];
+        return $records;
     }
 
     public function claimInvoice(int $invoiceId, int $clientId, string $createdAt): bool
@@ -279,10 +286,11 @@ final class CapsuleRepository implements Repository
     public function saveInvoiceRecord(array $row): void
     {
         Capsule::table(self::INVOICES)->updateOrInsert(
-            ['invoice_id' => $row['invoiceId']],
+            ['invoice_id' => $row['invoiceId'], 'line' => $row['line']],
             [
                 'client_id' => $row['clientId'],
                 'item_id' => $row['itemId'],
+                'taxed' => $row['taxed'] ? 1 : 0,
                 'tier_index' => $row['tierIndex'],
                 'percent' => $row['percent'],
                 'base' => $row['base'],
