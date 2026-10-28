@@ -40,7 +40,7 @@ final class PageTest extends TestCase
         self::assertStringContainsString('Agency One', $html);
         self::assertStringContainsString('ZAR 1,012.92', $html);
         self::assertStringContainsString('1 (5%)', $html);
-        self::assertStringContainsString('2026-10-25: ZAR 42.50 off ZAR 850.00', $html);
+        self::assertStringContainsString('<span class="agencydiscount-nowrap">2026-10-25</span><br><small class="agencydiscount-nowrap">ZAR 42.50 off ZAR 850.00</small>', $html);
         self::assertStringContainsString('ZAR 987.09', $html);
         self::assertStringContainsString('clientssummary.php?userid=131', $html);
         self::assertStringContainsString('name="token" value="t"', $html);
@@ -56,7 +56,7 @@ final class PageTest extends TestCase
     {
         $this->repo->agencies[131]['effectiveFrom'] = '2026-11-01';
         $html = $this->page()->render('m', [], [], 'admin:1', '');
-        self::assertStringContainsString('2026-10-25: no discount on ZAR 850.00', $html);
+        self::assertStringContainsString('<span class="agencydiscount-nowrap">2026-10-25</span><br><small class="agencydiscount-nowrap">no discount on ZAR 850.00</small>', $html);
         $detail = $this->page()->render('m', ['action' => 'agency', 'id' => '131'], [], 'admin:1', '');
         self::assertStringContainsString('<td>2026-10-25</td><td>5</td><td>ZAR 850.00</td><td>ZAR 0.00</td>', $detail);
         self::assertStringContainsString('<td>2026-11-03</td><td>2</td><td>ZAR 1,955.00</td><td>ZAR 97.75</td>', $detail);

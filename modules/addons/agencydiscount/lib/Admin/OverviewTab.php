@@ -128,10 +128,11 @@ final class OverviewTab
             return $html . '<p>' . Html::e(Page::lang('no_matches')) . '</p>';
         }
         $head = '';
-        foreach (['col_client', 'col_currency', 'col_spend', 'col_tier', 'col_to_next', 'col_next_invoice', 'col_starts', 'col_recalculated', 'col_detail'] as $key) {
+        foreach (['col_client', 'col_spend', 'col_tier', 'col_to_next', 'col_next_invoice'] as $key) {
             $head .= '<th>' . Html::e(Page::lang($key)) . '</th>';
         }
-        return $html . '<div class="table-responsive"><table class="table table-striped" id="agencydiscount-overview"><thead><tr>' . $head . '</tr></thead><tbody>' . $rows . '</tbody></table></div>';
+        return $html . '<div class="table-responsive"><table class="table table-striped" id="agencydiscount-overview"><thead><tr>' . $head . '</tr></thead><tbody>' . $rows . '</tbody></table></div>'
+            . self::recalculatedNote($statuses);
     }
 
     private static function matches(AgencyStatus $status, string $filter): bool
@@ -177,18 +178,63 @@ final class OverviewTab
     {
         $report = $status->report;
         $class = $status->isWaiting() ? ' class="warning"' : (!$report->currencyHasTiers ? ' class="danger"' : '');
+        // Five columns, each at most two lines at 1440 wide (a long client name may take two on its
+        // own): the start state and the detail link sit under the tier badge, the amounts under the
+        // invoice date; the recalculation time is the spend's tooltip and the line under the table.
         $cells = [
             '<a href="clientssummary.php?userid=' . $report->clientId . '">' . Html::e($report->clientName) . '</a>',
-            Html::e($report->currency),
-            Html::e(Html::money($report->currency, $report->monthlySpend)),
-            self::tierBadge($status),
+            '<span class="agencydiscount-nowrap" title="' . Html::e(sprintf(Page::lang('recalculated_at'), $status->agency['calculatedAt'] ?? Page::lang('never'))) . '">'
+                . Html::e(Html::money($report->currency, $report->monthlySpend)) . '</span>',
+            self::tierBadge($status)
+                . '<br><small class="agencydiscount-nowrap">' . Page::startsCell($status) . ' &middot; '
+                . '<a href="' . Html::link($moduleLink, ['action' => 'agency', 'id' => $report->clientId]) . '">' . Html::e(Page::lang('detail')) . '</a></small>',
             self::progressCell($status),
-            Page::nextInvoiceCell($status),
-            Page::startsCell($status),
-            Html::e($status->agency['calculatedAt'] ?? Page::lang('never')),
-            '<a href="' . Html::link($moduleLink, ['action' => 'agency', 'id' => $report->clientId]) . '">' . Html::e(Page::lang('detail')) . '</a>',
+            self::nextInvoiceStacked($status),
         ];
         return '<tr' . $class . '><td>' . implode('</td><td>', $cells) . '</td></tr>';
+    }
+
+    /**
+     * One line under the table: when the figures were recalculated (the oldest and newest time when
+     * the agencies differ), so the rows do not each carry a timestamp.
+     *
+     * @param list<AgencyStatus> $statuses
+     */
+    public static function recalculatedNote(array $statuses): string
+    {
+        if ($statuses === []) {
+            return '';
+        }
+        $times = [];
+        foreach ($statuses as $status) {
+            if ($status->agency['calculatedAt'] !== null) {
+                $times[] = $status->agency['calculatedAt'];
+            }
+        }
+        sort($times);
+        if ($times === []) {
+            $text = Page::lang('recalculated_note_never');
+        } elseif ($times[0] === $times[count($times) - 1]) {
+            $text = sprintf(Page::lang('recalculated_note'), $times[0]);
+        } else {
+            $text = sprintf(Page::lang('recalculated_note_range'), $times[0], $times[count($times) - 1]);
+        }
+        return '<p class="text-muted"><small>' . Html::e($text) . '</small></p>';
+    }
+
+    /** The next invoice's date on one line and what it carries on the next ("ZAR 90.00 off ZAR 900.00"). */
+    public static function nextInvoiceStacked(AgencyStatus $status): string
+    {
+        $first = $status->nextInvoice();
+        if ($first === null) {
+            return Html::e(sprintf(Page::lang('next_invoice_none'), AgencyStatus::PREVIEW_DAYS));
+        }
+        $currency = $status->report->currency;
+        $base = Html::money($currency, $first['base']);
+        $detail = $first['percent'] === null
+            ? sprintf(Page::lang('next_invoice_detail_no_discount'), $base)
+            : sprintf(Page::lang('next_invoice_detail'), Html::money($currency, $first['discount']), $base);
+        return '<span class="agencydiscount-nowrap">' . Html::e($first['date']) . '</span><br><small class="agencydiscount-nowrap">' . Html::e($detail) . '</small>';
     }
 
     /** A Bootstrap label: the tier and percentage, "No tier", or the missing-tiers warning. */
@@ -364,6 +410,7 @@ final class OverviewTab
 .agencydiscount-toolbar .btn-group,.agencydiscount-toolbar form{display:inline-block;vertical-align:middle;margin-right:8px;margin-bottom:6px}
 .agencydiscount-progress{height:8px;margin:0 0 3px;min-width:120px}
 #agencydiscount-overview td{vertical-align:middle}
+#agencydiscount-overview .agencydiscount-nowrap,#agencydiscount-overview .label{white-space:nowrap}
 </style>
 HTML;
     }

@@ -8,6 +8,7 @@
 - The client area's "Saved in <year>" now counts a discount only while its line is still on the invoice and the invoice is not Cancelled or Refunded. Before, it summed every applied record, so a cancelled invoice or a discount line removed by hand still counted. Both lines of a mixed-tax invoice still count.
 - The development-only classes (the in-memory repository, the frozen clock, the recording activity log, the snapshot loader and the CLI) moved from the module folder to `bin/lib/`, loaded by `bin/lib/bootstrap.php` for the CLI, the tests and the preview harness. WHMCS no longer parses them on every request, and the module folder (41 files) no longer ships them.
 - Change log retention: a new setting "Change log retention (months)" (`log_retention_months`, default 24) makes the daily cron remove change log entries older than that. 0 keeps the log forever, and so does a value that is not a whole number from 0 to 600, so a mistyped value never deletes history and never stops the discounts. Approvals and invoice records are never removed.
+- Overview agencies table: five columns instead of nine, so no cell runs past two lines at 1440 pixels wide. The currency column is gone (every amount carries its currency), the start state and the detail link sit under the tier badge, the next invoice shows its date with the discount on a second line, and the recalculation time moved to the spend's tooltip and one line under the table.
 
 ## 0.2.1 — 2026-10-27
 
