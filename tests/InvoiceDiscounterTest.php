@@ -352,6 +352,63 @@ final class InvoiceDiscounterTest extends TestCase
         self::assertSame(['claimed' => false], $log['detail']);
     }
 
+    public function testFailedSecondLineRollsBackTheClaimAndTheFirstLine(): void
+    {
+        // the insert of the second (taxed) discount line fails after the claim and the first line
+        $failing = new class (Fixtures::data()) extends ArrayRepository {
+            public int $inserts = 0;
+            public bool $fail = true;
+
+            public function addInvoiceItem(int $invoiceId, int $clientId, string $type, int $relId, string $description, string $amount, int $taxed, ?string $dueDate, string $paymentMethod): int
+            {
+                if ($this->fail && ++$this->inserts === 2) {
+                    throw new \RuntimeException('insert failed');
+                }
+                return parent::addInvoiceItem($invoiceId, $clientId, $type, $relId, $description, $amount, $taxed, $dueDate, $paymentMethod);
+            }
+        };
+        $failing->agencies = $this->repo->agencies;
+        $failing->invoiceItems[9001][0]['taxed'] = 1;
+        $this->repo = $failing;
+        try {
+            $this->discounter()->apply(9001, 'autogen', 'system');
+            self::fail('the insert failure must reach the caller');
+        } catch (\RuntimeException $e) {
+            self::assertSame('insert failed', $e->getMessage());
+        }
+        self::assertCount(8, $failing->invoiceItems(9001), 'the first discount line is rolled back');
+        self::assertSame([], $failing->invoiceRecordLines(9001), 'no placeholder claim is left behind');
+        self::assertSame([], $failing->itemPaymentMethods);
+        self::assertSame([], array_filter($failing->logEntries(131, 10), static fn (array $e): bool => $e['event'] === 'applied'));
+
+        // the invoice is not blocked: a later attempt applies both lines
+        $failing->fail = false;
+        $outcome = $this->discounter()->apply(9001, 'manual', 'admin:1');
+        self::assertSame(DiscountOutcome::APPLIED, $outcome->status);
+        self::assertCount(10, $failing->invoiceItems(9001));
+        self::assertCount(2, $failing->invoiceRecordLines(9001));
+    }
+
+    public function testFailedRecordSaveRollsBackTheLine(): void
+    {
+        $failing = new class (Fixtures::data()) extends ArrayRepository {
+            public function saveInvoiceRecord(array $row): void
+            {
+                throw new \RuntimeException('record failed');
+            }
+        };
+        $failing->agencies = $this->repo->agencies;
+        $this->repo = $failing;
+        try {
+            $this->discounter()->apply(9001, 'autogen', 'system');
+            self::fail('the record failure must reach the caller');
+        } catch (\RuntimeException $e) {
+            self::assertSame('record failed', $e->getMessage());
+        }
+        self::assertCount(8, $failing->invoiceItems(9001));
+        self::assertNull($failing->invoiceRecord(9001));
+    }
+
     public function testSubCentDiscountIsSkipped(): void
     {
         $this->repo->invoices[9006] = ['id' => 9006, 'clientId' => 131, 'status' => 'Unpaid', 'dueDate' => '2026-10-27'];

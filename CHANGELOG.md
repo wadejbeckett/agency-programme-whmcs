@@ -3,6 +3,7 @@
 ## Unreleased
 
 - A stored invoice line text equal to the 0.2.0 default (`… qualifying items`) now renders as the 0.2.1 default (`… qualifying {items}`). On a production install the 0.2.1 upgrade rewrote the stored text, but a Settings form opened at the same time was filled with the old value and its Save wrote it back; the line then read "on 1 qualifying items" again. The rendering no longer depends on that timing.
+- Claiming an invoice, adding its discount lines and recording them now run in one database transaction. Before, a failed line insert after the claim left a placeholder record (amount 0.00, no line) that marked the invoice as handled, so it was never discounted; the failure now rolls the claim back and a later attempt can apply the discount.
 
 ## 0.2.1 — 2026-10-27
 

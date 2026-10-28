@@ -194,24 +194,31 @@ final class InvoiceDiscounter
                 return DiscountOutcome::skipped('already_processed');
             }
         }
-        if (!$this->repo->claimInvoice($invoiceId, $clientId, $now)) {
+        // Claim, discount lines and their records commit together: a failed insert rolls the claim back,
+        // so the invoice is not left with a placeholder record that blocks a later attempt.
+        $lines = $this->repo->transaction(function () use ($invoiceId, $clientId, $lines, $tier, $invoice, $now): ?array {
+            if (!$this->repo->claimInvoice($invoiceId, $clientId, $now)) {
+                return null;
+            }
+            foreach ($lines as $n => $line) {
+                $lines[$n]['itemId'] = $this->repo->addInvoiceItem(
+                    $invoiceId,
+                    $clientId,
+                    self::ITEM_TYPE,
+                    $clientId,
+                    $line['description'],
+                    Money::negate($line['amount']),
+                    $line['taxed'],
+                    $invoice['dueDate'],
+                    $invoice['paymentMethod'],
+                );
+                $this->saveRecord($invoiceId, $n, $clientId, $lines[$n], $tier, false, $now);
+            }
+            return $lines;
+        });
+        if ($lines === null) {
             $this->log($clientId, $invoiceId, 'already_processed', ['claimed' => false], $actor);
             return DiscountOutcome::skipped('already_processed');
-        }
-
-        foreach ($lines as $n => $line) {
-            $lines[$n]['itemId'] = $this->repo->addInvoiceItem(
-                $invoiceId,
-                $clientId,
-                self::ITEM_TYPE,
-                $clientId,
-                $line['description'],
-                Money::negate($line['amount']),
-                $line['taxed'],
-                $invoice['dueDate'],
-                $invoice['paymentMethod'],
-            );
-            $this->saveRecord($invoiceId, $n, $clientId, $lines[$n], $tier, false, $now);
         }
         $itemIds = array_map(static fn (array $line): int => (int) $line['itemId'], $lines);
         $applied = $detail + self::linesDetail($lines);

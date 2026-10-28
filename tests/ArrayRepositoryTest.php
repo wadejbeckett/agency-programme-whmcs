@@ -220,4 +220,34 @@ final class ArrayRepositoryTest extends TestCase
         self::assertSame('5.00', $repo->appliedDiscountTotal(131, '2026-02-01'));
         self::assertSame('0.00', $repo->appliedDiscountTotal(600, '2026-01-01'));
     }
+
+    public function testTransactionReturnsTheResultAndKeepsTheWrites(): void
+    {
+        $repo = new ArrayRepository();
+        $result = $repo->transaction(static function () use ($repo): string {
+            $repo->claimInvoice(7, 1, '2026-10-29 00:00:00');
+            return 'done';
+        });
+        self::assertSame('done', $result);
+        self::assertNotNull($repo->invoiceRecord(7));
+    }
+
+    public function testTransactionRestoresInvoiceStateOnAThrow(): void
+    {
+        $repo = new ArrayRepository();
+        $repo->claimInvoice(6, 1, '2026-10-29 00:00:00');
+        try {
+            $repo->transaction(static function () use ($repo): void {
+                $repo->claimInvoice(7, 1, '2026-10-29 00:00:00');
+                $repo->addInvoiceItem(7, 1, 'AgencyDiscount', 1, 'x', '-1.00', 0, null, 'banktransfer');
+                throw new \LogicException('stop');
+            });
+            self::fail('the exception must be rethrown');
+        } catch (\LogicException) {
+        }
+        self::assertNull($repo->invoiceRecord(7));
+        self::assertSame([], $repo->invoiceItems(7));
+        self::assertSame([], $repo->itemPaymentMethods);
+        self::assertNotNull($repo->invoiceRecord(6), 'state from before the transaction stays');
+    }
 }

@@ -119,6 +119,17 @@ interface Repository
      */
     public function appliedDiscountTotal(int $clientId, string $fromDate): string;
 
+    /**
+     * Runs $work in one database transaction and returns its result: committed when it returns,
+     * rolled back (and the exception rethrown) when it throws. Production binds this to the WHMCS
+     * connection's transaction(); ArrayRepository restores its invoice and record state on a throw.
+     *
+     * @template T
+     * @param callable(): T $work
+     * @return T
+     */
+    public function transaction(callable $work): mixed;
+
     /** Runs one DDL statement. ArrayRepository records it in $executed. */
     public function execute(string $sql): void;
 }

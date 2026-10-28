@@ -386,6 +386,11 @@ final class CapsuleRepository implements Repository
         return self::money($row?->total);
     }
 
+    public function transaction(callable $work): mixed
+    {
+        return Capsule::connection()->transaction(static fn () => $work());
+    }
+
     public function execute(string $sql): void
     {
         Capsule::connection()->statement($sql);

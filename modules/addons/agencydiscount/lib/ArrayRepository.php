@@ -358,6 +358,22 @@ class ArrayRepository implements Repository
         return $total;
     }
 
+    /** On a throw, invoice items, invoice records and item payment methods go back to their state before $work. */
+    public function transaction(callable $work): mixed
+    {
+        $items = $this->invoiceItems;
+        $records = $this->invoiceRecords;
+        $methods = $this->itemPaymentMethods;
+        try {
+            return $work();
+        } catch (\Throwable $e) {
+            $this->invoiceItems = $items;
+            $this->invoiceRecords = $records;
+            $this->itemPaymentMethods = $methods;
+            throw $e;
+        }
+    }
+
     public function execute(string $sql): void
     {
         $this->executed[] = $sql;
