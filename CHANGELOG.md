@@ -9,6 +9,7 @@
 - The development-only classes (the in-memory repository, the frozen clock, the recording activity log, the snapshot loader and the CLI) moved from the module folder to `bin/lib/`, loaded by `bin/lib/bootstrap.php` for the CLI, the tests and the preview harness. WHMCS no longer parses them on every request, and the module folder (41 files) no longer ships them.
 - Change log retention: a new setting "Change log retention (months)" (`log_retention_months`, default 24) makes the daily cron remove change log entries older than that. 0 keeps the log forever, and so does a value that is not a whole number from 0 to 600, so a mistyped value never deletes history and never stops the discounts. Approvals and invoice records are never removed.
 - Overview agencies table: five columns instead of nine, so no cell runs past two lines at 1440 pixels wide. The currency column is gone (every amount carries its currency), the start state and the detail link sit under the tier badge, the next invoice shows its date with the discount on a second line, and the recalculation time moved to the spend's tooltip and one line under the table.
+- `whmcs.json` now carries the feature list and the support links (project home, documentation, issues) that WHMCS's Apps & Integrations pages read; a logo and a support email are still to come. The README's "What has and has not been verified" list records what the live installs since 12 October 2026 have shown.
 
 ## 0.2.1 — 2026-10-27
 

@@ -200,21 +200,26 @@ vendor/bin/phpunit --testsuite integration
 
 ### What has and has not been verified
 
-The hooks were exercised against a MariaDB copy of a WHMCS 9.0.8 database through Illuminate's Capsule. On a licensed WHMCS installation, this has been verified:
+The hooks were exercised against a MariaDB copy of a WHMCS 9.0.8 database through Illuminate's Capsule. On licensed WHMCS installations (9.0.9 from 12 October 2026, 9.1.0 from 25 October 2026), this has been verified:
 
-- WHMCS recalculates invoice totals after the `InvoiceCreation` hook returns. Verified on WHMCS 9.1.0 in production on 25 October 2026: on each of five invoices from the automatic invoice run, the subtotal and total equalled the sum of the lines, including the discount line.
+- WHMCS recalculates invoice totals after the `InvoiceCreation` hook returns. On each of five invoices from the automatic invoice run of 25 October 2026, the subtotal and total equalled the sum of the lines, including the discount line.
+- The `InvoiceCreation` hook runs on invoices from the automatic invoice run, and an invoice without qualifying lines is skipped and logged.
+- The addon settings saved through WHMCS's Configure form, notably the tiers JSON, are decoded correctly: a changed tier table gave the expected tiers on recalculation.
+- `generate_token()` output: the overview's "Recalculate now" form and the Settings tab's mode switch were accepted.
+- Approving an agency on the client's Profile tab (a note without a start date) stores the approval.
+- The admin pages (Overview, Settings, Change log, Configuration check, agency detail, client summary card) render inside the WHMCS admin template, and the admin home widget renders on the real dashboard in both the Blend and Iris admin themes; the widget and the profile field honour the admin role checks.
+- `agencydiscount_upgrade()` runs on the first admin page load after new files are copied: 0.1.0 to 0.2.0, and 0.2.0 to 0.2.1 with its change to `mod_agencydiscount_invoices`, each recorded in the activity log, with existing records intact.
 
 These points remain to be confirmed on a real install:
 
-- How WHMCS's input sanitiser encodes the profile fields (the note and start date), which the module decodes before storing, and the addon settings (notably the tiers JSON), which the module decodes when it reads them.
-- The output of `generate_token()`, used for the CSRF field on the overview's "Recalculate now" form and the Settings tab's forms.
+- How WHMCS's input sanitiser encodes a profile note containing quotes or ampersands, and the start date field; both are decoded before storing.
 - That the Settings tab's inline script (currency sub-tabs, add and remove tier rows, name filters) runs unchanged inside the WHMCS admin template; the server accepts any number of rows, so the page works without it.
 - How the yes/no `Default` values render in the addon settings screen.
 - That `agencydiscount_deactivate()` runs before WHMCS deletes the module's settings rows; this decides whether "Delete module data on deactivate" is honoured. If WHMCS deletes the settings first, the module finds no setting and keeps its tables.
-- That the discount line, which copies the invoice's `paymentmethod`, displays correctly in WHMCS invoice views.
-- The admin home widget on a real dashboard: its base class `\WHMCS\Module\AbstractWidget` is only stubbed here, its "View Income Totals" permission check is WHMCS's, and the tests cover the figures and markup (`Admin\WidgetData`) and a failure path against a stand-in base class.
+- That the discount line, which copies the invoice's `paymentmethod`, displays correctly in WHMCS invoice views and the invoice PDF.
 - The client-area home panel's `addChild` attributes (`label`, `icon`, `extras` with `btn-link` and `btn-text`, `bodyHtml`) against WHMCS's `\WHMCS\View\Menu\Item`, which is stubbed here, and that the module page's template passes WHMCS's Smarty security policy (it uses only `escape`, `if` and `foreach`). The template was rendered with Smarty 3.1 outside WHMCS.
-- That `\WHMCS\Session::get('adminid')` and `get('uid')` give the logged-in admin and client as expected by the role check and the client area.
+- That `\WHMCS\Session::get('uid')` gives the logged-in client as the client area expects.
+- How a new-order invoice carries a setup fee (inside the Hosting line or as a separate line), and whether WHMCS applies available credit before the discount line is added; no live invoice for an approved agency has had either.
 - Tax: every invoice observed so far carried no tax, so neither the taxed discount line nor the split into a taxed and an untaxed line has been seen on a real invoice.
 
 This is why the module ships with dry-run on. Run it in dry-run on the real installation first, then check the first live invoice.
