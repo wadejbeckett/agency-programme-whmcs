@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/../modules/addons/agencydiscount/lib/Bootstrap.php';
+require __DIR__ . '/lib/bootstrap.php';
 
 /** @var list<string> $arguments */
 $arguments = array_values($_SERVER['argv'] ?? []);

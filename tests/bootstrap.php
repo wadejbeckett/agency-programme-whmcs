@@ -6,4 +6,4 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/Support/FakeWhmcs.php';
-require_once __DIR__ . '/../modules/addons/agencydiscount/lib/Bootstrap.php';
+require_once __DIR__ . '/../bin/lib/bootstrap.php';

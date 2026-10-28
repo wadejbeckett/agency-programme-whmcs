@@ -6,5 +6,5 @@
         <testsuite name="unit"><directory>tests</directory><exclude>tests/integration</exclude></testsuite>
         <testsuite name="integration"><directory>tests/integration</directory></testsuite>
     </testsuites>
-    <source><include><directory suffix=".php">modules/addons/agencydiscount/lib</directory></include></source>
+    <source><include><directory suffix=".php">modules/addons/agencydiscount/lib</directory><directory suffix=".php">bin/lib</directory></include></source>
 </phpunit>
