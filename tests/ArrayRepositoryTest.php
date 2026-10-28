@@ -131,6 +131,7 @@ final class ArrayRepositoryTest extends TestCase
         self::assertSame(44, $repo->invoiceRecord(9)['itemId'] ?? null, 'invoiceRecord gives line 0');
         self::assertSame([], $repo->invoiceRecordLines(10));
         self::assertFalse($repo->claimInvoice(9, 1, '2026-10-12 10:00:01'));
+        Fixtures::withDiscountLines($repo);
         self::assertSame('7.50', $repo->appliedDiscountTotal(1, '2026-01-01'), 'both lines are summed');
     }
 
@@ -216,9 +217,30 @@ final class ArrayRepositoryTest extends TestCase
         $repo->saveInvoiceRecord(['invoiceId' => 3, 'amount' => '9.00', 'dryRun' => true] + $row);
         $repo->saveInvoiceRecord(['invoiceId' => 4, 'amount' => '11.00', 'createdAt' => '2025-12-31 23:59:59'] + $row);
         $repo->saveInvoiceRecord(['invoiceId' => 5, 'amount' => '13.00', 'clientId' => 404] + $row);
+        Fixtures::withDiscountLines($repo);
         self::assertSame('12.25', $repo->appliedDiscountTotal(131, '2026-01-01'));
         self::assertSame('5.00', $repo->appliedDiscountTotal(131, '2026-02-01'));
         self::assertSame('0.00', $repo->appliedDiscountTotal(600, '2026-01-01'));
+    }
+
+    public function testAppliedDiscountTotalLeavesOutCancelledInvoicesAndRemovedLines(): void
+    {
+        $repo = new ArrayRepository();
+        $row = ['line' => 0, 'taxed' => false, 'clientId' => 131, 'tierIndex' => 1, 'percent' => '5.00', 'base' => '100.00', 'dryRun' => false, 'createdAt' => '2026-03-01 10:00:00'];
+        // invoice 1: a two-line (mixed tax) invoice, both lines count
+        $repo->saveInvoiceRecord(['invoiceId' => 1, 'itemId' => 11, 'amount' => '5.00'] + $row);
+        $repo->saveInvoiceRecord(['invoiceId' => 1, 'line' => 1, 'itemId' => 12, 'taxed' => true, 'amount' => '2.50'] + $row);
+        // invoice 2: cancelled; invoice 3: refunded
+        $repo->saveInvoiceRecord(['invoiceId' => 2, 'itemId' => 21, 'amount' => '7.00'] + $row);
+        $repo->saveInvoiceRecord(['invoiceId' => 3, 'itemId' => 31, 'amount' => '8.00'] + $row);
+        // invoice 4: discount line deleted by hand; invoice 5: a placeholder claim with no line
+        $repo->saveInvoiceRecord(['invoiceId' => 4, 'itemId' => 41, 'amount' => '9.00'] + $row);
+        $repo->saveInvoiceRecord(['invoiceId' => 5, 'itemId' => null, 'amount' => '0.00'] + $row);
+        $repo->invoices[2] = ['id' => 2, 'clientId' => 131, 'status' => 'Cancelled', 'dueDate' => null];
+        $repo->invoices[3] = ['id' => 3, 'clientId' => 131, 'status' => 'Refunded', 'dueDate' => null];
+        Fixtures::withDiscountLines($repo, 'Unpaid');
+        $repo->invoiceItems[4] = [];
+        self::assertSame('7.50', $repo->appliedDiscountTotal(131, '2026-01-01'));
     }
 
     public function testTransactionReturnsTheResultAndKeepsTheWrites(): void

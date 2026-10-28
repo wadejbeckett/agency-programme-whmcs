@@ -5,6 +5,7 @@
 - A stored invoice line text equal to the 0.2.0 default (`… qualifying items`) now renders as the 0.2.1 default (`… qualifying {items}`). On a production install the 0.2.1 upgrade rewrote the stored text, but a Settings form opened at the same time was filled with the old value and its Save wrote it back; the line then read "on 1 qualifying items" again. The rendering no longer depends on that timing.
 - Claiming an invoice, adding its discount lines and recording them now run in one database transaction. Before, a failed line insert after the claim left a placeholder record (amount 0.00, no line) that marked the invoice as handled, so it was never discounted; the failure now rolls the claim back and a later attempt can apply the discount.
 - A recalculation (daily cron or invoice time) now writes only its own columns (currency, spend, tier, counts and times). Before, it rewrote the whole agency row from what it had read, so a revoke, note or start-date change saved while it ran could be undone.
+- The client area's "Saved in <year>" now counts a discount only while its line is still on the invoice and the invoice is not Cancelled or Refunded. Before, it summed every applied record, so a cancelled invoice or a discount line removed by hand still counted. Both lines of a mixed-tax invoice still count.
 
 ## 0.2.1 — 2026-10-27
 

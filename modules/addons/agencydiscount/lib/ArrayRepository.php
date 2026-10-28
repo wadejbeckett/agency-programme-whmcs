@@ -357,12 +357,27 @@ class ArrayRepository implements Repository
         $total = '0.00';
         foreach ($this->invoiceRecords as $lines) {
             foreach ($lines as $record) {
-                if ($record['clientId'] === $clientId && !$record['dryRun'] && $record['createdAt'] >= $fromDate) {
+                if ($record['clientId'] === $clientId && !$record['dryRun'] && $record['createdAt'] >= $fromDate
+                    && $this->lineStillOnInvoice($record['invoiceId'], $record['itemId'])) {
                     $total = bcadd($total, $record['amount'], 2);
                 }
             }
         }
         return $total;
+    }
+
+    private function lineStillOnInvoice(int $invoiceId, ?int $itemId): bool
+    {
+        $status = $this->invoices[$invoiceId]['status'] ?? null;
+        if ($itemId === null || $status === null || in_array($status, ['Cancelled', 'Refunded'], true)) {
+            return false;
+        }
+        foreach ($this->invoiceItems[$invoiceId] ?? [] as $item) {
+            if ($item['id'] === $itemId) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** On a throw, invoice items, invoice records and item payment methods go back to their state before $work. */

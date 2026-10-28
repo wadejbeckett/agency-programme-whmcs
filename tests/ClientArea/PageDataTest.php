@@ -29,6 +29,7 @@ final class PageDataTest extends TestCase
         $this->repo->saveInvoiceRecord(['invoiceId' => 1] + $record);
         $this->repo->saveInvoiceRecord(['invoiceId' => 2, 'amount' => '10.00', 'dryRun' => true] + $record);
         $this->repo->saveInvoiceRecord(['invoiceId' => 3, 'amount' => '99.00', 'createdAt' => '2025-12-25 10:00:00'] + $record);
+        Fixtures::withDiscountLines($this->repo);
     }
 
     /** @param array<string,string> $override */

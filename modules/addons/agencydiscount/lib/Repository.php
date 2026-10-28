@@ -124,7 +124,8 @@ interface Repository
     /**
      * The discount the module added to the client's invoices (applied rows, not dry runs, every line
      * of an invoice) created on or after $fromDate ('Y-m-d'), as a positive two-place amount; '0.00'
-     * when there are none.
+     * when there are none. A record counts only while its discount line is still on the invoice and
+     * the invoice is not Cancelled or Refunded.
      */
     public function appliedDiscountTotal(int $clientId, string $fromDate): string;
 
