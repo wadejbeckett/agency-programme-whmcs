@@ -208,6 +208,14 @@ class ArrayRepository implements Repository
         $this->logs[] = ['id' => $id] + $event;
     }
 
+    public function pruneLog(string $before): int
+    {
+        $kept = array_values(array_filter($this->logs, static fn (array $row): bool => $row['createdAt'] >= $before));
+        $pruned = count($this->logs) - count($kept);
+        $this->logs = $kept;
+        return $pruned;
+    }
+
     public function logEntries(?int $clientId, int $limit, int $offset = 0): array
     {
         $rows = array_filter(

@@ -272,4 +272,26 @@ final class HooksTest extends TestCase
         Hooks::profileSave(['userid' => 131], ['firstname' => 'x']);
         self::assertTrue($this->repo->agency(131)['approved'] ?? false);
     }
+
+    public function testDailyPruneRemovesOnlyLogEntriesOlderThanTheRetention(): void
+    {
+        $event = ['clientId' => 131, 'invoiceId' => null, 'event' => 'tier_changed', 'detail' => [], 'actor' => 'test'];
+        $this->repo->log($event + ['createdAt' => '2024-10-18 01:59:59']);
+        $this->repo->log($event + ['createdAt' => '2024-10-18 02:00:00']);
+        $this->repo->log($event + ['createdAt' => '2026-10-01 00:00:00']);
+        $this->repo->saveInvoiceRecord(['invoiceId' => 1, 'line' => 0, 'clientId' => 131, 'itemId' => 1, 'taxed' => false, 'tierIndex' => 1, 'percent' => '5.00', 'base' => '1.00', 'amount' => '0.05', 'dryRun' => false, 'createdAt' => '2020-01-01 00:00:00']);
+        $this->useModule(Fixtures::settings());
+        Hooks::pruneLog();
+        self::assertSame(['2026-10-01 00:00:00', '2024-10-18 02:00:00'], array_column($this->repo->logEntries(null, 10), 'createdAt'));
+        self::assertNotNull($this->repo->invoiceRecord(1), 'invoice records are never pruned');
+        self::assertSame([], WhmcsCalls::$activity);
+    }
+
+    public function testRetentionOfZeroKeepsTheWholeLog(): void
+    {
+        $this->repo->log(['clientId' => 131, 'invoiceId' => null, 'event' => 'tier_changed', 'detail' => [], 'actor' => 'test', 'createdAt' => '2000-01-01 00:00:00']);
+        $this->useModule(['log_retention_months' => '0'] + Fixtures::settings());
+        Hooks::pruneLog();
+        self::assertCount(1, $this->repo->logEntries(null, 10));
+    }
 }

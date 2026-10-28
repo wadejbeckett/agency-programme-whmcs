@@ -25,6 +25,7 @@ final class Config
         'description' => self::DEFAULT_DESCRIPTION,
         'delete_data' => '',
         'activity_log' => 'on',
+        'log_retention_months' => '24',
     ];
 
     /**
@@ -45,6 +46,7 @@ final class Config
         public readonly string $descriptionTemplate,
         public readonly bool $deleteData,
         public readonly bool $activityLog,
+        public readonly int $logRetentionMonths,
     ) {
     }
 
@@ -105,7 +107,22 @@ final class Config
             $description,
             self::yesNo($s['delete_data'], false),
             self::yesNo($s['activity_log'], true),
+            self::retentionMonths($s['log_retention_months']),
         );
+    }
+
+    /**
+     * Months of change log to keep: a whole number from 0 to 600, where 0 keeps the log forever.
+     * Anything else also keeps it forever, so a mistyped value never deletes history and never
+     * blocks the discounts the way a configuration problem does.
+     */
+    public static function retentionMonths(string $value): int
+    {
+        $v = trim($value);
+        if (preg_match('/^\d{1,3}$/', $v) !== 1 || (int) $v > 600) {
+            return 0;
+        }
+        return (int) $v;
     }
 
     /**

@@ -56,6 +56,16 @@ final class Hooks
         }
     }
 
+    /** DailyCronJob: change log retention. A failure goes to the activity log and stops nothing else. */
+    public static function pruneLog(): void
+    {
+        try {
+            self::module()?->pruneLog();
+        } catch (\Throwable $e) {
+            self::report($e);
+        }
+    }
+
     /**
      * Approval grants a recurring discount, so the field is shown only to admin roles on the addon's
      * access list, the same check as the client summary card.

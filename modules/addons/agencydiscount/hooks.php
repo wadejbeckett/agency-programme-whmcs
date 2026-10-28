@@ -20,6 +20,7 @@ add_hook('PreInvoicingGenerateInvoiceItems', 1, static function (): void {
 });
 add_hook('DailyCronJob', 1, static function (): void {
     Hooks::recalculateAll('cron:daily');
+    Hooks::pruneLog();
 });
 add_hook('AdminClientProfileTabFields', 1, static function (array $vars): array {
     return Hooks::profileFields($vars);

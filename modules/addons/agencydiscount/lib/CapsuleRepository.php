@@ -238,6 +238,11 @@ final class CapsuleRepository implements Repository
         ]);
     }
 
+    public function pruneLog(string $before): int
+    {
+        return (int) Capsule::table(self::LOG)->where('created_at', '<', $before)->delete();
+    }
+
     public function logEntries(?int $clientId, int $limit, int $offset = 0): array
     {
         $query = Capsule::table(self::LOG);

@@ -57,6 +57,9 @@ interface Repository
     /** @param LogEvent $event */
     public function log(array $event): void;
 
+    /** Deletes the change log entries created before $before ('Y-m-d H:i:s'); returns how many went. */
+    public function pruneLog(string $before): int;
+
     /** @return list<array{id:int, clientId:?int, invoiceId:?int, event:string, detail:array<string,mixed>, actor:string, createdAt:string}> newest first */
     public function logEntries(?int $clientId, int $limit, int $offset = 0): array;
 

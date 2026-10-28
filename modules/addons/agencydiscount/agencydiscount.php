@@ -43,6 +43,7 @@ function agencydiscount_config(): array
             'new_orders' => ['FriendlyName' => 'Discount new orders', 'Type' => 'yesno', 'Default' => $d['new_orders'] === 'on' ? 'yes' : 'no', 'Description' => 'Also discount an approved agency\'s new-order invoice, where the ordered items are still Pending. The tier is chosen on the current qualifying spend plus the ordered items.'],
             'description' => ['FriendlyName' => 'Invoice line text', 'Type' => 'text', 'Size' => '60', 'Default' => $d['description'], 'Description' => 'Placeholders: {percent}, {count}, {items} ("item" for a count of 1, "items" otherwise).'],
             'activity_log' => ['FriendlyName' => 'Write to activity log', 'Type' => 'yesno', 'Default' => 'yes', 'Description' => 'Also record applied discounts and tier changes in the WHMCS activity log.'],
+            'log_retention_months' => ['FriendlyName' => 'Change log retention (months)', 'Type' => 'text', 'Size' => '5', 'Default' => $d['log_retention_months'], 'Description' => 'Change log entries older than this are removed by the daily cron. 0 keeps the log forever. Invoice records and approvals are never removed by this.'],
             'delete_data' => ['FriendlyName' => 'Delete module data on deactivate', 'Type' => 'yesno', 'Description' => 'The tables with the agency approvals, the change log and the invoice records are removed on deactivate only when this is ticked.'],
         ],
     ];
