@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- A stored invoice line text equal to the 0.2.0 default (`… qualifying items`) now renders as the 0.2.1 default (`… qualifying {items}`). On a production install the 0.2.1 upgrade rewrote the stored text, but a Settings form opened at the same time was filled with the old value and its Save wrote it back; the line then read "on 1 qualifying items" again. The rendering no longer depends on that timing.
+
 ## 0.2.1 — 2026-10-27
 
 Fixes from the 27 October 2026 production-readiness audit, and the work on `main` after the 0.2.0 deploy. The upgrade changes one table: see "Upgrade" below.

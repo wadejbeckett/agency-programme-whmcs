@@ -93,6 +93,12 @@ final class ConfigTest extends TestCase
         self::assertSame('Rebate (1 item)', $c->description('5', 1));
     }
 
+    public function testTheOldDefaultTextRendersAsTheNewDefault(): void
+    {
+        self::assertSame('Agency discount 5% on 1 qualifying item', Config::renderDescription(Config::OLD_DEFAULT_DESCRIPTION, '5', 1));
+        self::assertSame('Agency discount 5% on 2 qualifying items', Config::fromSettings(['description' => Config::OLD_DEFAULT_DESCRIPTION])->description('5', 2));
+    }
+
     public function testProductIdCountsEvenWhenGroupDoesNot(): void
     {
         $c = Config::fromSettings(['products' => '120']);

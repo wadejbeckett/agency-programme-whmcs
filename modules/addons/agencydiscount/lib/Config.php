@@ -150,6 +150,10 @@ final class Config
     /** One substitution shared by the invoice line and the Settings tab example, so the example shows exactly what an invoice gets. */
     public static function renderDescription(string $template, string $percent, int $count): string
     {
+        if ($template === self::OLD_DEFAULT_DESCRIPTION) {
+            // The 0.2.0 default survives a 0.2.1 upgrade when the Settings form was filled before the upgrade ran and then saved.
+            $template = self::DEFAULT_DESCRIPTION;
+        }
         return str_replace(['{percent}', '{count}', '{items}'], [$percent, (string) $count, $count === 1 ? 'item' : 'items'], $template);
     }
 
