@@ -35,13 +35,8 @@ final class Recalculator
         $now = $this->clock->now()->format('Y-m-d H:i:s');
         $tier = $report->tier;
 
-        $this->repo->saveAgency([
-            'clientId' => $clientId,
-            'approved' => $previous['approved'],
-            'note' => $previous['note'],
-            'approvedBy' => $previous['approvedBy'],
-            'approvedAt' => $previous['approvedAt'],
-            'effectiveFrom' => $previous['effectiveFrom'],
+        // Only the computed columns: an approval change saved meanwhile must survive this write.
+        $this->repo->saveCalculation($clientId, [
             'currency' => $report->currency,
             'spend' => $report->monthlySpend,
             'tierIndex' => $tier?->index,

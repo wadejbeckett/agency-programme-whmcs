@@ -121,4 +121,37 @@ final class RecalculatorTest extends TestCase
         self::assertSame('cron:daily', $log['actor']);
         self::assertSame('2026-10-12 09:00:00', $failing->agency(500)['calculatedAt'] ?? null);
     }
+
+    public function testRevokeSavedDuringARecalculationSurvivesIt(): void
+    {
+        // an admin revokes 131 and edits its note and start date after the recalculation read the row
+        $racing = new class (Fixtures::data()) extends ArrayRepository {
+            public function agency(int $clientId): ?array
+            {
+                $row = parent::agency($clientId);
+                if ($row !== null) {
+                    $this->agencies[$clientId] = ['approved' => false, 'note' => 'revoked', 'effectiveFrom' => '2027-06-01', 'approvedBy' => 'admin:9', 'updatedAt' => '2026-10-12 08:59:59'] + $row;
+                }
+                return $row;
+            }
+        };
+        $racing->agencies = $this->repo->agencies;
+        $recalc = new Recalculator($racing, Config::fromSettings(Fixtures::settings()), new FrozenClock(new \DateTimeImmutable('2026-10-12 09:00:00')), $this->activity);
+        $recalc->recalculate(131, 'cron:daily');
+        $row = $racing->agencies[131];
+        self::assertFalse($row['approved'], 'the revoke is not undone');
+        self::assertSame('revoked', $row['note']);
+        self::assertSame('2027-06-01', $row['effectiveFrom']);
+        self::assertSame('admin:9', $row['approvedBy']);
+        self::assertSame('2026-10-01 00:00:00', $row['approvedAt']);
+        self::assertSame('1012.92', $row['spend'], 'the computed columns are still written');
+        self::assertSame(1, $row['tierIndex']);
+        self::assertSame('2026-10-12 09:00:00', $row['calculatedAt']);
+    }
+
+    public function testCalculationForAnUnknownAgencyWritesNothing(): void
+    {
+        $this->repo->saveCalculation(999, ['currency' => 'ZAR', 'spend' => '1.00', 'tierIndex' => null, 'tierPercent' => null, 'countedServices' => 0, 'countedAddons' => 0, 'calculatedAt' => '2026-10-12 09:00:00', 'updatedAt' => '2026-10-12 09:00:00']);
+        self::assertNull($this->repo->agency(999));
+    }
 }

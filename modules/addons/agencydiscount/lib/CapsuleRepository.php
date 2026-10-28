@@ -212,6 +212,20 @@ final class CapsuleRepository implements Repository
         );
     }
 
+    public function saveCalculation(int $clientId, array $calculation): void
+    {
+        Capsule::table(self::CLIENTS)->where('client_id', $clientId)->update([
+            'currency' => $calculation['currency'],
+            'spend' => $calculation['spend'],
+            'tier_index' => $calculation['tierIndex'],
+            'tier_percent' => $calculation['tierPercent'],
+            'counted_services' => $calculation['countedServices'],
+            'counted_addons' => $calculation['countedAddons'],
+            'calculated_at' => $calculation['calculatedAt'],
+            'updated_at' => $calculation['updatedAt'],
+        ]);
+    }
+
     public function log(array $event): void
     {
         Capsule::table(self::LOG)->insert([

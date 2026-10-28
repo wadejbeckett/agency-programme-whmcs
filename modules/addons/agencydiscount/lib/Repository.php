@@ -45,6 +45,15 @@ interface Repository
     /** @param AgencyRow $row  upsert by clientId */
     public function saveAgency(array $row): void;
 
+    /**
+     * Writes only the computed columns of an existing agency row (currency, spend, tier, counts,
+     * calculatedAt, updatedAt); approval, note, start date and approver are left as stored, so a
+     * recalculation racing an approval change cannot undo it. Does nothing when the row is absent.
+     *
+     * @param array{currency:string, spend:string, tierIndex:?int, tierPercent:?string, countedServices:int, countedAddons:int, calculatedAt:string, updatedAt:string} $calculation
+     */
+    public function saveCalculation(int $clientId, array $calculation): void;
+
     /** @param LogEvent $event */
     public function log(array $event): void;
 

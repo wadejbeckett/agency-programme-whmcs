@@ -195,6 +195,13 @@ class ArrayRepository implements Repository
         $this->agencies[$normalised['clientId']] = $normalised;
     }
 
+    public function saveCalculation(int $clientId, array $calculation): void
+    {
+        if (isset($this->agencies[$clientId])) {
+            $this->agencies[$clientId] = $calculation + $this->agencies[$clientId];
+        }
+    }
+
     public function log(array $event): void
     {
         $id = $this->logs === [] ? 1 : $this->logs[array_key_last($this->logs)]['id'] + 1;
