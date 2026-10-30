@@ -11,6 +11,8 @@ final class Module
 {
     public const NAME = 'agencydiscount';
     public const VERSION = '0.3.0';
+    /** Rows removed per DELETE while pruning the change log. */
+    public const PRUNE_BATCH = 1000;
 
     public function __construct(
         public readonly Repository $repo,
@@ -41,15 +43,14 @@ final class Module
         return new Recalculator($this->repo, $this->config, $this->clock, $this->activity);
     }
 
-    /** Rows removed per DELETE while pruning the change log. */
-    public const PRUNE_BATCH = 1000;
-
     /**
      * Removes change log entries older than the retention setting (none when it is 0), in batches
-     * of PRUNE_BATCH rows, writes one 'log_pruned' entry with the count and the cut-off when anything
-     * went, and returns how many went. The cut-off is the same day of the month $months back,
-     * clamped to that month's last day (31 March less one month is 28 February, not 3 March).
-     * Approvals and invoice records are not touched.
+     * of PRUNE_BATCH rows, writes one 'log_pruned' entry (actor cron:daily, the only caller) with the
+     * count and the cut-off when anything went, and returns how many went. The 'log_pruned' entries
+     * themselves are removed separately and never counted, so a prune does not keep itself going.
+     * The cut-off is the same day of the month $months back, clamped to that month's last day
+     * (31 March less one month is 28 February, not 3 March). Approvals and invoice records are
+     * not touched.
      */
     public function pruneLog(): int
     {
@@ -64,7 +65,8 @@ final class Module
         do {
             $batch = $this->repo->pruneLog($before, self::PRUNE_BATCH);
             $total += $batch;
-        } while ($batch >= self::PRUNE_BATCH);
+        } while ($batch >= self::PRUNE_BATCH && $total < 100 * self::PRUNE_BATCH); // the cap only guards a repository that misreports
+        $this->repo->prunePruneRecords($before);
         if ($total > 0) {
             $this->repo->log([
                 'clientId' => null,

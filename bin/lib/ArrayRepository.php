@@ -220,7 +220,7 @@ class ArrayRepository implements Repository
         $pruned = 0;
         $kept = [];
         foreach ($this->logs as $row) {
-            if ($pruned < $limit && $row['createdAt'] < $before) {
+            if ($pruned < $limit && $row['createdAt'] < $before && $row['event'] !== 'log_pruned') {
                 $pruned++;
                 continue;
             }
@@ -229,6 +229,11 @@ class ArrayRepository implements Repository
         $this->logs = $kept;
         $this->pruneCalls[] = $pruned;
         return $pruned;
+    }
+
+    public function prunePruneRecords(string $before): void
+    {
+        $this->logs = array_values(array_filter($this->logs, static fn (array $row): bool => !($row['event'] === 'log_pruned' && $row['createdAt'] < $before)));
     }
 
     public function logEntries(?int $clientId, int $limit, int $offset = 0, ?string $event = null): array

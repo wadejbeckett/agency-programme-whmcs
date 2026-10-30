@@ -478,10 +478,13 @@ final class SandboxTest extends TestCase
         $repo->log($event + ['createdAt' => '2000-12-31 23:59:59']);
         $repo->log($event + ['createdAt' => '2001-01-01 00:00:00']);
         $repo->log($event + ['createdAt' => '2000-06-30 00:00:00']);
+        $repo->log(['clientId' => null, 'invoiceId' => null, 'event' => 'log_pruned', 'detail' => ['count' => 1], 'actor' => 'cron:daily', 'createdAt' => '2000-01-01 00:00:00']);
         $total = Manager::table('mod_agencydiscount_log')->count();
         self::assertSame(1, $repo->pruneLog('2001-01-01 00:00:00', 1), 'a batch deletes at most its limit');
-        self::assertSame(1, $repo->pruneLog('2001-01-01 00:00:00', 1000));
+        self::assertSame(1, $repo->pruneLog('2001-01-01 00:00:00', 1000), 'the old log_pruned row is not counted');
         self::assertSame($total - 2, Manager::table('mod_agencydiscount_log')->count());
+        $repo->prunePruneRecords('2001-01-01 00:00:00');
+        self::assertSame($total - 3, Manager::table('mod_agencydiscount_log')->count());
         self::assertSame(['2001-01-01 00:00:00'], array_column($repo->logEntries($other, 10), 'createdAt'));
         self::assertSame(0, $repo->pruneLog('2001-01-01 00:00:00', 1000));
 

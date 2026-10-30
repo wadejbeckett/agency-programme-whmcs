@@ -53,7 +53,7 @@ final class LogEntry
             'recalculate_failed' => 'Recalculating ' . $client . ' failed: ' . self::str($d['message'] ?? '') . '.',
             'settings_changed' => 'Settings changed by ' . $actor . ': ' . implode(', ', array_map('strval', array_keys(is_array($d['changed'] ?? null) ? $d['changed'] : []))) . '.',
             'mode_changed' => 'Switched to ' . self::str($d['to'] ?? '') . ' mode by ' . $actor . '.',
-            'log_pruned' => self::str($d['count'] ?? '0') . ' change log entries older than ' . substr(self::str($d['before'] ?? ''), 0, 10) . ' removed (retention ' . self::str($d['months'] ?? '?') . ' months).',
+            'log_pruned' => self::plural((int) ($d['count'] ?? 0), 'change log entry', 'change log entries') . ' older than ' . substr(self::str($d['before'] ?? ''), 0, 10) . ' removed (retention ' . self::plural((int) ($d['months'] ?? 0), 'month', 'months') . ').',
             default => $entry['event'] . ' for ' . $client . ' by ' . $actor . ': ' . self::json($d),
         };
     }
@@ -95,6 +95,11 @@ final class LogEntry
     private static function money(string $currency, string $amount): string
     {
         return Html::money($currency, is_numeric($amount) ? $amount : '0');
+    }
+
+    private static function plural(int $n, string $one, string $many): string
+    {
+        return $n . ' ' . ($n === 1 ? $one : $many);
     }
 
     private static function str(mixed $value): string

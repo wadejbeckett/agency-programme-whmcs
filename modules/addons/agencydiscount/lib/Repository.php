@@ -59,11 +59,15 @@ interface Repository
     public function log(array $event): void;
 
     /**
-     * Deletes at most $limit change log entries created before $before ('Y-m-d H:i:s') and returns
-     * how many went; Module::pruneLog() calls it until a batch comes back short, so one long-overdue
-     * prune never locks the table for one huge DELETE.
+     * Deletes at most $limit change log entries created before $before ('Y-m-d H:i:s'), leaving the
+     * 'log_pruned' bookkeeping entries alone, and returns how many went; Module::pruneLog() calls it
+     * until a batch comes back short, so one long-overdue prune never locks the table for one huge
+     * DELETE, and writes a 'log_pruned' entry only when real entries went.
      */
     public function pruneLog(string $before, int $limit): int;
+
+    /** Deletes the 'log_pruned' bookkeeping entries created before $before; they are few and are not counted or recorded. */
+    public function prunePruneRecords(string $before): void;
 
     /**
      * @param string|null $event only entries of this event when given
