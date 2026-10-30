@@ -43,11 +43,9 @@ final class PageDataTest extends TestCase
         $vars = PageData::build($this->module(), 131);
         self::assertTrue($vars['approved']);
         self::assertSame('Agency programme', $vars['text']['title']);
-        self::assertSame('index.php?m=agencydiscount', $vars['link']);
-        self::assertSame('ZAR', $vars['currency']);
         self::assertSame('ZAR 1,012.92', $vars['spend']);
         self::assertTrue($vars['hasTiers']);
-        self::assertSame(['index' => 1, 'percent' => '5', 'label' => 'Tier 1 (5% off)'], $vars['tier']);
+        self::assertSame(['label' => 'Tier 1 (5% off)'], $vars['tier']);
         self::assertSame([
             ['index' => 1, 'above' => 'ZAR 1,000.00', 'percent' => '5', 'current' => true],
             ['index' => 2, 'above' => 'ZAR 2,000.00', 'percent' => '10', 'current' => false],
@@ -57,11 +55,8 @@ final class PageDataTest extends TestCase
         self::assertSame(1, $vars['progress']);
         self::assertSame('ZAR 987.09 more a month reaches tier 2 (10% off)', $vars['toNextText']);
         self::assertSame('ZAR 42.50 off the 2026-10-25 invoice of ZAR 850.00', $vars['nextInvoiceText']);
-        self::assertSame(['date' => '2026-10-25', 'base' => 'ZAR 850.00', 'discount' => 'ZAR 42.50', 'hasDiscount' => true], $vars['nextInvoice']);
         self::assertSame('ZAR 42.50', $vars['savedThisYear'], 'applied rows of this year only: not the dry run, not last year');
         self::assertSame('Saved in 2026', $vars['savedLabel']);
-        self::assertSame(2026, $vars['year']);
-        self::assertNull($vars['startsOn']);
         self::assertSame('', $vars['startsText']);
         self::assertFalse($vars['dryRun']);
         self::assertSame(['Legacy', 'Premium Shared', 'Reseller Hosting', 'Cloud'], $vars['counts']['groups'], 'in configured order');
@@ -82,12 +77,10 @@ final class PageDataTest extends TestCase
     {
         $this->repo->agencies[131]['effectiveFrom'] = '2027-01-01';
         $vars = PageData::build($this->module(['dry_run' => 'on', 'stack_with_promotions' => 'on']), 131);
-        self::assertSame('2027-01-01', $vars['startsOn']);
         self::assertSame('Your discount starts on 2027-01-01: invoices due before that date are not discounted.', $vars['startsText']);
         self::assertTrue($vars['dryRun']);
         self::assertStringNotContainsString('promotion', $vars['notCountedText']);
         self::assertSame('No discount on the 2026-10-25 invoice of ZAR 850.00', $vars['nextInvoiceText']);
-        self::assertFalse($vars['nextInvoice']['hasDiscount'] ?? true);
     }
 
     public function testTopTierAndCurrencyWithoutTiers(): void
@@ -115,7 +108,27 @@ final class PageDataTest extends TestCase
         self::assertNull($vars['tier']);
         self::assertSame('ZAR 600.01 more a month reaches tier 1 (5% off)', $vars['toNextText']);
         self::assertSame('No invoice in the next 35 days', $vars['nextInvoiceText']);
-        self::assertNull($vars['nextInvoice']);
+    }
+
+    /**
+     * Every top-level variable build() passes is read by the template (as $key, not as a prefix of a
+     * longer name, comments stripped), by panelHtml() or by the home panel hook ($vars['key']).
+     * Nested keys are not checked here; the template render tests cover their use.
+     */
+    public function testEveryTopLevelVariableIsReadByTheTemplateOrThePanel(): void
+    {
+        $vars = PageData::build($this->module(), 131);
+        $template = (string) preg_replace('/\{\*.*?\*\}/s', '', (string) file_get_contents(dirname(__DIR__, 2) . '/modules/addons/agencydiscount/templates/clientarea.tpl'));
+        $panel = (string) file_get_contents(dirname(__DIR__, 2) . '/modules/addons/agencydiscount/lib/ClientArea/PageData.php');
+        $panel = substr($panel, (int) strpos($panel, 'public static function panelHtml'));
+        $hook = (string) file_get_contents(dirname(__DIR__, 2) . '/modules/addons/agencydiscount/lib/Hooks.php');
+        foreach (array_keys($vars) as $key) {
+            self::assertTrue(
+                preg_match('/\$' . preg_quote($key, '/') . '(?![A-Za-z0-9_])/', $template) === 1 || str_contains($panel, "\$vars['" . $key . "']") || str_contains($hook, "\$vars['" . $key . "']"),
+                'nothing reads $' . $key,
+            );
+        }
+        self::assertSame(0, preg_match('/\$tier(?![A-Za-z0-9_])/', '{$tiers}'), 'the boundary tells tier from tiers');
     }
 
     public function testNotApprovedMissingOrAnonymous(): void

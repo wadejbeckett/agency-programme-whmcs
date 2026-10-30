@@ -153,7 +153,7 @@ function agencydiscount_clientarea(array $vars): array
         } catch (\Throwable) {
             error_log('Agency Discount: client area: ' . $e->getMessage());
         }
-        $data = ['approved' => false, 'text' => PageData::text(), 'link' => PageData::MODULE_PAGE];
+        $data = ['approved' => false, 'text' => PageData::text()];
     }
     $title = $data['text']['title'];
     return [

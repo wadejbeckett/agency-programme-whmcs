@@ -29,7 +29,7 @@ final class PageData
     /** @return array<string, mixed> */
     public static function build(Module $module, ?int $clientId): array
     {
-        $vars = ['approved' => false, 'text' => self::text(), 'link' => self::MODULE_PAGE];
+        $vars = ['approved' => false, 'text' => self::text()];
         if ($clientId === null || $clientId <= 0) {
             return $vars;
         }
@@ -83,21 +83,17 @@ final class PageData
 
         return array_merge($vars, [
             'approved' => true,
-            'currency' => $currency,
             'spend' => Html::money($currency, $report->monthlySpend),
             'hasTiers' => $report->currencyHasTiers,
-            'tier' => $tier === null ? null : ['index' => $tier->index, 'percent' => Money::formatPercent($tier->percent), 'label' => sprintf($text['tier_label'], $tier->index, Money::formatPercent($tier->percent))],
+            'tier' => $tier === null ? null : ['label' => sprintf($text['tier_label'], $tier->index, Money::formatPercent($tier->percent))],
             'tiers' => $tiers,
             'hasProgress' => $progress !== null,
             'progress' => $progress ?? 0,
             'toNextText' => $toNextText,
             'nextInvoiceText' => $nextInvoiceText,
-            'nextInvoice' => $invoice === null ? null : ['date' => $invoice['date'], 'base' => Html::money($currency, $invoice['base']), 'discount' => Html::money($currency, $invoice['discount']), 'hasDiscount' => $invoice['percent'] !== null],
             'savedThisYear' => Html::money($currency, $module->repo->appliedDiscountTotal($clientId, $year . '-01-01')),
             'savedLabel' => sprintf($text['saved'], $year),
-            'year' => $year,
             'noTiersText' => sprintf($text['no_tiers_currency'], $currency),
-            'startsOn' => $status->startsOn(),
             'startsText' => $status->startsOn() === null ? '' : sprintf($text['starts_line'], (string) $status->startsOn()),
             'dryRun' => $config->dryRun,
             'counts' => [
@@ -131,13 +127,13 @@ final class PageData
         $text = $vars['text'];
         $tier = $vars['tier'];
         $badge = $tier === null
-            ? '<span class="badge badge-secondary">' . Html::e($vars['hasTiers'] ? $text['no_tier'] : sprintf($text['no_tiers_currency'], $vars['currency'])) . '</span>'
+            ? '<span class="badge badge-secondary">' . Html::e($vars['hasTiers'] ? $text['no_tier'] : $vars['noTiersText']) . '</span>'
             : '<span class="badge badge-success">' . Html::e($tier['label']) . '</span>';
         $rows = [
             [$text['tier'], $badge],
             [$text['spend'], Html::e($vars['spend'])],
             [$text['next_invoice'], Html::e($vars['nextInvoiceText'])],
-            [sprintf($text['saved'], $vars['year']), Html::e($vars['savedThisYear'])],
+            [$vars['savedLabel'], Html::e($vars['savedThisYear'])],
             [$text['to_next'], Html::e($vars['toNextText'])],
         ];
         $html = '';

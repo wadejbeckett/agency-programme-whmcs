@@ -44,6 +44,16 @@ final class TemplateTest extends TestCase
         self::assertStringNotContainsString('{if', $html);
     }
 
+    public function testAnAgencyWaitingForItsStartDate(): void
+    {
+        $module = $this->module();
+        $module->repo->agencies[131]['effectiveFrom'] = '2027-01-01';
+        $html = ClientAreaTemplate::render(PageData::build($module, 131));
+        self::assertStringContainsString('<div class="alert alert-info">Your discount starts on 2027-01-01: invoices due before that date are not discounted.</div>', $html);
+        self::assertStringContainsString('No discount on the 2026-10-25 invoice of ZAR 850.00', $html);
+        self::assertStringContainsString('Tier 1 (5% off)', $html, 'the tier is shown while the discount waits');
+    }
+
     public function testAClientOutsideTheProgrammeGetsOneLine(): void
     {
         $html = ClientAreaTemplate::render(PageData::build($this->module(), null));
@@ -68,8 +78,8 @@ final class TemplateTest extends TestCase
         foreach ($blocks[0] as $block) {
             if (preg_match('/^\{\/?([a-z_]+)\b/', $block, $m) === 1) {
                 $tags[] = $m[1];
-            } elseif (preg_match('/^\{\$[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*(?:\|escape)?\}$/', $block) !== 1) {
-                self::fail('not a plain variable output: ' . $block);
+            } elseif (preg_match('/^\{\$[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*\|escape\}$/', $block) !== 1) {
+                self::fail('not an escaped variable output: ' . $block);
             }
             preg_match_all('/\|([a-z_]+)/', $block, $m);
             array_push($modifiers, ...$m[1]);
