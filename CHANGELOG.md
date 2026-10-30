@@ -2,6 +2,8 @@
 
 ## Unreleased (0.3.0)
 
+- "Saved in <year>" (client area and agency detail) now counts a discount only while its invoice is Paid, Unpaid, Payment Pending or in Collections, so a Draft invoice no longer counts, and follows the discount line by its id, so a line WHMCS moved to another invoice by merging still counts and is judged by that invoice (the detail page says "now on invoice N"); a reused item id of another type cannot count (#30).
+
 - Saving the client's Profile tab writes only the approval columns (approved, note, approved by and when, start date, updated time), so a recalculation that landed while the form was open keeps its figures. Before, the save wrote the whole agency row from what it had read (#29).
 - Change log pruning runs in batches of 1000 rows, writes one `log_pruned` entry with the count, the cut-off and the retention when anything went (its own bookkeeping entries are removed in their turn and never counted, so a prune does not keep itself going), and takes the same day of the month as the cut-off, clamped to the month's last day (#31).
 - README brought in line with the consolidated control planes: three admin tabs and the detail view, the Settings tab as the one place for tiers, qualifying items, statuses, mode, behaviour and line text, the Configure form for the access list and housekeeping, the smaller summary card and profile field, and no mention of the removed Configuration check page (#19).

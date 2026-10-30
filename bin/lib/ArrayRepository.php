@@ -268,9 +268,11 @@ class ArrayRepository implements Repository
                 if ($record['clientId'] !== $clientId) {
                     continue;
                 }
+                $lineInvoice = $this->lineInvoice($record['itemId']);
                 $records[] = $record + [
-                    'invoiceStatus' => $this->invoices[$record['invoiceId']]['status'] ?? null,
-                    'lineOnInvoice' => $this->lineStillOnInvoice($record['invoiceId'], $record['itemId']),
+                    'invoiceStatus' => $this->invoices[$lineInvoice ?? $record['invoiceId']]['status'] ?? null,
+                    'lineOnInvoice' => $lineInvoice !== null,
+                    'lineInvoiceId' => $lineInvoice,
                 ];
             }
         }
@@ -447,8 +449,11 @@ class ArrayRepository implements Repository
         $total = '0.00';
         foreach ($this->invoiceRecords as $lines) {
             foreach ($lines as $record) {
-                if ($record['clientId'] === $clientId && !$record['dryRun'] && $record['createdAt'] >= $fromDate
-                    && $this->lineStillOnInvoice($record['invoiceId'], $record['itemId'])) {
+                if ($record['clientId'] !== $clientId || $record['dryRun'] || $record['createdAt'] < $fromDate) {
+                    continue;
+                }
+                $lineInvoice = $this->lineInvoice($record['itemId']);
+                if ($lineInvoice !== null && in_array($this->invoices[$lineInvoice]['status'] ?? '', Repository::SAVED_STATUSES, true)) {
                     $total = bcadd($total, $record['amount'], 2);
                 }
             }
@@ -456,18 +461,20 @@ class ArrayRepository implements Repository
         return $total;
     }
 
-    private function lineStillOnInvoice(int $invoiceId, ?int $itemId): bool
+    /** The invoice an AgencyDiscount line with this id sits on now (followed by id, as the SQL does), or null when the line is gone. */
+    private function lineInvoice(?int $itemId): ?int
     {
-        $status = $this->invoices[$invoiceId]['status'] ?? null;
-        if ($itemId === null || $status === null || in_array($status, ['Cancelled', 'Refunded'], true)) {
-            return false;
+        if ($itemId === null) {
+            return null;
         }
-        foreach ($this->invoiceItems[$invoiceId] ?? [] as $item) {
-            if ($item['id'] === $itemId) {
-                return true;
+        foreach ($this->invoiceItems as $invoiceId => $items) {
+            foreach ($items as $item) {
+                if ($item['id'] === $itemId && $item['type'] === 'AgencyDiscount') {
+                    return (int) $invoiceId;
+                }
             }
         }
-        return false;
+        return null;
     }
 
     /** On a throw, invoice items, invoice records and item payment methods go back to their state before $work. */
