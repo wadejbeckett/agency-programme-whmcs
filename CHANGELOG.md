@@ -2,6 +2,7 @@
 
 ## Unreleased (0.3.0)
 
+- The invoice hook's transaction no longer fails when WHMCS already holds a transaction opened straight on the PDO handle (outside Laravel's counter): the module's work then runs under its own savepoint inside that transaction, released on success and rolled back on a failure, instead of "There is already an active transaction" leaving the invoice undiscounted (#32).
 - "Saved in <year>" (client area and agency detail) now counts a discount only while its invoice is Paid, Unpaid, Payment Pending or in Collections, so a Draft invoice no longer counts, and follows the discount line by its id, so a line that keeps its id when WHMCS merges invoices still counts and is judged by its new invoice (the detail page says "now on invoice N"); a reused item id of another type cannot count (#30).
 - Saving the client's Profile tab writes only the approval columns (approved, note, approved by and when, start date, updated time), so a recalculation that landed while the form was open keeps its figures. Before, the save wrote the whole agency row from what it had read (#29).
 - Change log pruning runs in batches of 1000 rows, writes one `log_pruned` entry with the count, the cut-off and the retention when anything went (its own bookkeeping entries are removed in their turn and never counted, so a prune does not keep itself going), and takes the same day of the month as the cut-off, clamped to the month's last day (#31).

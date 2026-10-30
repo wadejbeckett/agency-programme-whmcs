@@ -148,7 +148,7 @@ The template uses the client theme's Bootstrap 4 classes (WHMCS's "twenty-one" t
 
 | Hook | What the module does |
 | --- | --- |
-| `InvoiceCreation` | Adds the discount line to a new invoice of an approved agency. |
+| `InvoiceCreation` | Adds the discount line to a new invoice of an approved agency. The claim, the lines and the records are written all or nothing, inside WHMCS's own transaction when it holds one. |
 | `PreInvoicingGenerateInvoiceItems` | Recalculates every agency before the cron invoicing run. |
 | `DailyCronJob` | Recalculates every agency daily, removes change log entries older than the retention setting, and writes one activity-log line while an engine setting has no stored value. |
 | `AdminClientProfileTabFields` | Renders the "Agency discount" profile field (approval, note, start date). |
