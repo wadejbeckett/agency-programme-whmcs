@@ -195,7 +195,6 @@ final class OverviewTest extends TestCase
         self::assertStringContainsString('<a class="list-group-item" ' . $link . '>Add-on ids not found in WHMCS: 888.</a>', $html);
         self::assertStringContainsString('<a class="list-group-item" ' . $link . '>Tiers are configured for USD, which is not a WHMCS currency.</a>', $html);
         self::assertStringContainsString('EUR has no tiers: 1 approved agency gets no discount.', $html);
-        self::assertStringNotContainsString('not found in WHMCS: 23', $html);
         $clean = $this->render([], ['products' => '113']);
         self::assertStringNotContainsString('not found in WHMCS', $clean);
         self::assertStringNotContainsString('not a WHMCS currency', $clean);

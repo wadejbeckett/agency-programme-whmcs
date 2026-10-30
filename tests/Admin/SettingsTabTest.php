@@ -260,6 +260,12 @@ final class SettingsTabTest extends TestCase
         self::assertStringContainsString('name="product_groups[]" value="999" checked> #999 <span class="text-muted">(not found in WHMCS)</span>', $html);
         self::assertStringContainsString('data-agencydiscount-tab="USD">USD (not a WHMCS currency)</a>', $html);
         self::assertStringNotContainsString('alert-warning', $this->render(['action' => 'settings_save'] + self::validPost() + ['description' => 'x {percent}']));
+        // a save that changes nothing still reports them
+        $this->repo->settings['products'] = '777';
+        $post = self::validPost();
+        $post['products'] = ['777'];
+        $html = $this->render(['action' => 'settings_save'] + $post, $this->page());
+        self::assertStringContainsString('No changes to save.</div><div class="alert alert-warning"><p>Worth a look (the discount runs without these):</p><ul><li>Product ids not found in WHMCS: 777.</li></ul></div>', $html);
     }
 
     public function testSavingTheSameValuesWritesAndLogsNothing(): void

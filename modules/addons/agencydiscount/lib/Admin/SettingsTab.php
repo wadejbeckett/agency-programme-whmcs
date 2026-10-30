@@ -167,7 +167,7 @@ final class SettingsTab
             }
         }
         if ($changed === [] && $this->module !== null) {
-            return self::alert('info', Page::lang('saved_nothing'));
+            return self::alert('info', Page::lang('saved_nothing')) . self::warningList(ConfigWarnings::texts($this->repo, $config));
         }
         $this->repo->saveSettings($settings);
         $this->repo->log([
