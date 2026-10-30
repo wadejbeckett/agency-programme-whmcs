@@ -118,7 +118,7 @@ final class PageTest extends TestCase
         $html = $this->page()->render($link, ['action' => 'log', 'client' => '131'], [], 'admin:1', '');
         self::assertStringContainsString('<form method="get" action="addonmodules.php" class="form-inline agencydiscount-log-filter"><input type="hidden" name="action" value="log"><input type="hidden" name="client" value="131"><input type="hidden" name="module" value="agencydiscount">', $html);
         self::assertStringContainsString('<option value="">All events</option><option value="approved">approved</option>', $html);
-        self::assertStringContainsString('<option value="log_pruned">log_pruned</option></select>', $html);
+        self::assertStringContainsString('<option value="apply_failed">apply_failed</option></select>', $html);
         self::assertStringContainsString('<h3>Change log for client 131</h3>', $html);
         self::assertStringContainsString('<a href="addonmodules.php?module=agencydiscount&amp;action=log">All clients</a>', $html);
         self::assertStringNotContainsString('bonjour', $html);

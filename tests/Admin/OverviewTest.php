@@ -196,6 +196,29 @@ final class OverviewTest extends TestCase
         self::assertStringContainsString('Figures recalculated 2026-10-12 03:00:00.', $this->render(['q' => 'Agency One']));
     }
 
+    public function testAFailedApplyIsListedWithARetryThatAppliesTheDiscount(): void
+    {
+        $this->repo->log(['clientId' => 131, 'invoiceId' => 9001, 'event' => 'apply_failed', 'detail' => ['message' => 'insert failed', 'amount' => '42.50'], 'actor' => 'system', 'createdAt' => '2026-10-10 03:00:00']);
+        $this->repo->log(['clientId' => 131, 'invoiceId' => 8000, 'event' => 'apply_failed', 'detail' => ['message' => 'old'], 'actor' => 'system', 'createdAt' => '2026-08-01 03:00:00']);
+        $html = $this->render();
+        self::assertStringContainsString('<div class="list-group-item"><form method="post" class="form-inline">' . self::TOKEN . '<input type="hidden" name="action" value="retry"><input type="hidden" name="invoice" value="9001"><a href="invoices.php?action=edit&amp;id=9001">Invoice #9001 got no discount</a> (failed on 2026-10-10: insert failed). <button type="submit" class="btn btn-default btn-xs">Retry</button></form></div>', $html);
+        self::assertStringNotContainsString('value="8000"', $html, 'older than 35 days');
+
+        // Retry applies the discount (live mode) and the item is gone
+        $html = $this->page()->render(self::LINK, [], ['action' => 'retry', 'invoice' => '9001'], 'admin:1', self::TOKEN);
+        self::assertStringContainsString('<div class="alert alert-success">Discount applied to invoice #9001.</div>', $html);
+        self::assertNotNull($this->repo->invoiceRecord(9001));
+        self::assertStringNotContainsString('Invoice #9001 got no discount', $html);
+        self::assertSame('applied', $this->repo->logEntries(131, 1)[0]['event']);
+        self::assertSame('retry', $this->repo->logEntries(131, 1)[0]['detail']['source']);
+
+        // a retry on an invoice that is already done, or with no id, says so
+        $html = $this->page()->render(self::LINK, [], ['action' => 'retry', 'invoice' => '9001'], 'admin:1', self::TOKEN);
+        self::assertStringContainsString('<div class="alert alert-info">Invoice #9001: nothing applied (already_processed).</div>', $html);
+        $html = $this->page()->render(self::LINK, [], ['action' => 'retry', 'invoice' => 'x'], 'admin:1', self::TOKEN);
+        self::assertStringContainsString('<div class="alert alert-danger">No invoice given to retry.</div>', $html);
+    }
+
     public function testNeedsAttentionNamesEngineRowsWithNoStoredValue(): void
     {
         $this->repo->settings = ['statuses' => 'Active', 'description' => 'x {percent}', 'product_groups' => '23', 'activity_log' => 'on'];

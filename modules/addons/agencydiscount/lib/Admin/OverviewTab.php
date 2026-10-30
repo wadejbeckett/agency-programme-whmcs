@@ -8,6 +8,8 @@ namespace AgencyDiscount\Admin;
 
 use AgencyDiscount\AgencyStatus;
 use AgencyDiscount\Config;
+use AgencyDiscount\DiscountOutcome;
+use AgencyDiscount\InvoiceDiscounter;
 use AgencyDiscount\LogEntry;
 use AgencyDiscount\Module;
 use AgencyDiscount\Money;
@@ -23,6 +25,10 @@ use AgencyDiscount\Repository;
 final class OverviewTab
 {
     public const ACTION_RECALCULATE = 'recalculate';
+    /** POST action=retry&invoice=N: apply the discount again to an invoice whose first attempt failed (apply_failed). */
+    public const ACTION_RETRY = 'retry';
+    /** How many days back a failed apply stays under "Needs attention". */
+    public const FAILED_DAYS = 35;
     public const FILTERS = ['all', 'tier', 'waiting', 'no_tiers'];
     /** How many change-log entries the side column shows. */
     public const RECENT_ENTRIES = 6;
@@ -43,6 +49,9 @@ final class OverviewTab
         if (($post['action'] ?? null) === self::ACTION_RECALCULATE) {
             $reports = $this->module->recalculator()->recalculateAll($actor);
             $html .= '<div class="alert alert-success">' . Html::e(sprintf(Page::lang('recalculated'), count($reports))) . '</div>';
+        }
+        if (($post['action'] ?? null) === self::ACTION_RETRY) {
+            $html .= $this->retry($post['invoice'] ?? null, $actor);
         }
 
         $missing = [];
@@ -280,10 +289,68 @@ final class OverviewTab
         return sprintf(Page::lang('to_next_tier'), Html::money($status->report->currency, $shortfall), $next->index, Money::formatPercent($next->percent));
     }
 
+    /** Applies the discount again to an invoice whose first attempt failed; the outcome as an alert. */
+    private function retry(mixed $invoice, string $actor): string
+    {
+        $invoiceId = is_string($invoice) && preg_match('/^\d{1,9}$/', $invoice) === 1 ? (int) $invoice : 0;
+        if ($invoiceId === 0) {
+            return '<div class="alert alert-danger">' . Html::e(Page::lang('retry_no_invoice')) . '</div>';
+        }
+        try {
+            $outcome = $this->module->discounter()->apply($invoiceId, 'retry', $actor);
+        } catch (\Throwable $e) {
+            return '<div class="alert alert-danger">' . Html::e(sprintf(Page::lang('retry_failed'), $invoiceId, $e->getMessage())) . '</div>';
+        }
+        if ($outcome->status === DiscountOutcome::APPLIED) {
+            return '<div class="alert alert-success">' . Html::e(sprintf(Page::lang('retry_applied'), $invoiceId)) . '</div>';
+        }
+        return '<div class="alert alert-info">' . Html::e(sprintf(Page::lang('retry_skipped'), $invoiceId, $outcome->reason)) . '</div>';
+    }
+
+    /**
+     * The apply_failed entries of the last FAILED_DAYS days whose invoice still has no discount (no
+     * record and no AgencyDiscount line): one per invoice, newest first, as attention items with a
+     * Retry button.
+     *
+     * @return list<array{invoiceId:int, clientId:?int, createdAt:string, message:string}>
+     */
+    private function failedApplies(): array
+    {
+        $since = $this->module->clock->now()->modify('-' . self::FAILED_DAYS . ' days')->format('Y-m-d H:i:s');
+        $failed = [];
+        foreach ($this->module->repo->logEntries(null, 50, 0, 'apply_failed') as $entry) {
+            $invoiceId = $entry['invoiceId'];
+            if ($invoiceId === null || $entry['createdAt'] < $since || isset($failed[$invoiceId])) {
+                continue;
+            }
+            if ($this->module->repo->invoiceRecord($invoiceId) !== null) {
+                continue; // applied since
+            }
+            $hasLine = false;
+            foreach ($this->module->repo->invoiceItems($invoiceId) as $item) {
+                $hasLine = $hasLine || $item['type'] === InvoiceDiscounter::ITEM_TYPE;
+            }
+            if ($hasLine) {
+                continue;
+            }
+            $message = $entry['detail']['message'] ?? '';
+            $failed[$invoiceId] = ['invoiceId' => $invoiceId, 'clientId' => $entry['clientId'], 'createdAt' => $entry['createdAt'], 'message' => is_scalar($message) ? (string) $message : ''];
+        }
+        return array_values($failed);
+    }
+
     /** @param list<AgencyStatus> $statuses */
     private function attention(string $moduleLink, array $statuses): string
     {
         $items = [];
+        $forms = '';
+        foreach ($this->failedApplies() as $failure) {
+            $forms .= '<div class="list-group-item"><form method="post" class="form-inline">' . $this->tokenField
+                . '<input type="hidden" name="action" value="' . self::ACTION_RETRY . '"><input type="hidden" name="invoice" value="' . $failure['invoiceId'] . '">'
+                . '<a href="invoices.php?action=edit&amp;id=' . $failure['invoiceId'] . '">' . Html::e(sprintf(Page::lang('attention_apply_failed'), $failure['invoiceId'])) . '</a> '
+                . Html::e(sprintf(Page::lang('attention_apply_failed_detail'), substr($failure['createdAt'], 0, 10), $failure['message'])) . ' '
+                . '<button type="submit" class="btn btn-default btn-xs">' . Html::e(Page::lang('retry')) . '</button></form></div>';
+        }
         if ($this->module->config->dryRun) {
             $days = $this->dryRunDays($statuses);
             $text = match (true) {
@@ -324,7 +391,7 @@ final class OverviewTab
             ];
         }
 
-        $list = '';
+        $list = $forms;
         foreach ($items as [$text, $href]) {
             $list .= '<a class="list-group-item" href="' . $href . '">' . Html::e($text) . '</a>';
         }

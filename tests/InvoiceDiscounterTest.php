@@ -11,6 +11,7 @@ use AgencyDiscount\Config;
 use AgencyDiscount\DiscountOutcome;
 use AgencyDiscount\FrozenClock;
 use AgencyDiscount\InvoiceDiscounter;
+use AgencyDiscount\LogEntry;
 use AgencyDiscount\Recalculator;
 use AgencyDiscount\RecordingActivityLog;
 use AgencyDiscount\Tests\Support\Fixtures;
@@ -387,6 +388,30 @@ final class InvoiceDiscounterTest extends TestCase
         self::assertSame(DiscountOutcome::APPLIED, $outcome->status);
         self::assertCount(10, $failing->invoiceItems(9001));
         self::assertCount(2, $failing->invoiceRecordLines(9001));
+    }
+
+    public function testAFailedApplyIsLoggedAsApplyFailedOutsideTheTransaction(): void
+    {
+        $failing = new class (Fixtures::data()) extends ArrayRepository {
+            public function saveInvoiceRecord(array $row): void
+            {
+                throw new \RuntimeException('record failed');
+            }
+        };
+        $failing->agencies = $this->repo->agencies;
+        $discounter = new InvoiceDiscounter($failing, Config::fromSettings(Fixtures::settings()), new Recalculator($failing, Config::fromSettings(Fixtures::settings()), new FrozenClock(new \DateTimeImmutable('2026-10-12 09:00:00')), $this->activity), new FrozenClock(new \DateTimeImmutable('2026-10-12 09:00:00')), $this->activity);
+        try {
+            $discounter->apply(9001, 'api', 'system');
+            self::fail('expected the failure to propagate');
+        } catch (\RuntimeException $e) {
+            self::assertSame('record failed', $e->getMessage());
+        }
+        $entry = $failing->logEntries(131, 1)[0];
+        self::assertSame('apply_failed', $entry['event']);
+        self::assertSame(9001, $entry['invoiceId']);
+        self::assertSame(['record failed', \RuntimeException::class, 1, '29.75', '5.00'], [$entry['detail']['message'], $entry['detail']['error'], $entry['detail']['lineCount'], $entry['detail']['amount'], $entry['detail']['percent']], 'the promoted service\'s line is left out of the amount, as on a success');
+        self::assertNull($failing->invoiceRecord(9001), 'the transaction rolled back; only the log entry outside it remains');
+        self::assertStringContainsString('failed and was rolled back: record failed. Retry it from the Overview.', LogEntry::sentence($entry, [131 => ['name' => 'Agency One', 'currency' => 'ZAR']]));
     }
 
     public function testFailedRecordSaveRollsBackTheLine(): void
