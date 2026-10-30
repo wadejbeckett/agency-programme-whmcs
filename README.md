@@ -97,7 +97,7 @@ Addons > Agency Programme has three tabs (Overview, Settings, Change log) plus a
 - **Overview.** Four tiles: approved agencies (how many sit at a tier and how many wait for a start date), qualifying spend per month and the discount expected in the next 35 days, each summed per currency, and the mode. Below them one row per approved agency in five columns: client; qualifying monthly spend (the time it was last recalculated shows on hover); a tier badge with, under it, whether the discount is active or starts on a date and a link to the detail; a progress bar through the current tier band with the amount still needed for the next tier; and the next invoice's date with its discount under it. A line under the table gives when the figures were recalculated. Rows waiting for a start date are highlighted in yellow and rows in a currency without tiers in red. The table can be filtered (all, at a tier, not yet started, no tiers for currency) and searched by client name; both are plain links and a GET form, so they work without scripts. A side column lists what needs attention (how long dry-run has been on, engine settings with no stored value, configured ids and tier currencies WHMCS does not have, currencies with approved agencies but no tiers, agencies within 5% of the next threshold, each linking to where it is fixed) and the six most recent change-log entries as sentences. "Recalculate now" refreshes every agency. Viewing the page changes nothing.
 - **Agency detail.** The counted services and add-ons with their cycle, amount, monthly equivalent, next invoice date and promotion flag, the upcoming invoices in the next 35 days with the base and the discount each would receive, and a link to that client's change log. The upcoming invoices are an estimate from the next invoice dates: they include services on a promotion, because whether a promotion still reduces an invoice is only known from that invoice's lines, and dates before the agency's start date show no discount. Pending new-order items are not listed and not estimated; they are only discounted on the order invoice itself.
 - **Settings.** The configuration, described under [Configuration](#configuration).
-- **Change log.** Every event, newest first, filterable by client, with its actor, a one-sentence summary and the raw detail.
+- **Change log.** Every event, newest first, filterable by client and by event (a select that works without scripts), with its actor, a one-sentence summary and the raw detail.
 
 Change log events:
 
@@ -117,7 +117,7 @@ Change log events:
 | `no_qualifying_lines` | The invoice had no discountable lines. |
 | `not_yet_effective` | The invoice is due before the agency's start date. |
 | `invoice_not_found` | The hook was called for an invoice that does not exist. |
-| `client_missing` | An approved agency's client no longer exists in WHMCS. |
+| `client_missing` | An approved agency's client no longer exists in WHMCS. Written once, when it is first found missing, not on every run. |
 | `recalculate_failed` | Recalculating one agency failed with an unexpected error (the message is in the detail); the other agencies were still recalculated. |
 | `settings_changed` | An administrator saved the Settings tab; the detail lists each changed key with its old and new value. |
 | `mode_changed` | An administrator switched between dry-run and live on the Settings tab. |

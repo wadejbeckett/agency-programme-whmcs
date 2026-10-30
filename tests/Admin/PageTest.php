@@ -120,7 +120,7 @@ final class PageTest extends TestCase
         self::assertStringContainsString('<option value="">All events</option><option value="approved">approved</option>', $html);
         self::assertStringContainsString('<option value="mode_changed">mode_changed</option></select>', $html);
         self::assertStringContainsString('<h3>Change log for client 131</h3>', $html);
-        self::assertStringContainsString('>All clients</a>', $html);
+        self::assertStringContainsString('<a href="addonmodules.php?module=agencydiscount&amp;action=log">All clients</a>', $html);
         self::assertStringNotContainsString('bonjour', $html);
 
         // event + client: only that event, paged, both filters kept in the pager
@@ -130,6 +130,11 @@ final class PageTest extends TestCase
         self::assertStringContainsString('<option value="no_qualifying_lines" selected>', $html);
         self::assertStringContainsString('href="addonmodules.php?module=agencydiscount&amp;action=log&amp;client=131&amp;event=no_qualifying_lines&amp;page=2">Older</a>', $html);
         self::assertStringContainsString('href="addonmodules.php?module=agencydiscount&amp;action=log&amp;client=131">All events</a>', $html);
+        // the form's own keys win over anything the module link carries
+        $odd = $this->page()->render('addonmodules.php?module=agencydiscount&action=stale&event=mode_changed&page=9', ['action' => 'log', 'client' => '131'], [], 'admin:1', '');
+        self::assertStringContainsString('<input type="hidden" name="action" value="log"><input type="hidden" name="client" value="131"><input type="hidden" name="module" value="agencydiscount">', $odd);
+        self::assertStringNotContainsString('name="page"', $odd);
+        self::assertSame(1, substr_count($odd, 'name="action"'));
         $page2 = $this->page()->render($link, ['action' => 'log', 'client' => '131', 'event' => 'no_qualifying_lines', 'page' => '2'], [], 'admin:1', '');
         self::assertSame(5, substr_count($page2, '<td>no_qualifying_lines</td>'));
         self::assertStringContainsString('event=no_qualifying_lines&amp;page=1">Newer</a>', $page2);

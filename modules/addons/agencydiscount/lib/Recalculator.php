@@ -68,9 +68,11 @@ final class Recalculator
     /**
      * One agency's failure never stops the others: a ClientNotFound is logged as 'client_missing',
      * any other error as 'recalculate_failed', and that agency is skipped. 'client_missing' is
-     * written once per state change, not on every run: while the client's newest log entry is
-     * already 'client_missing', nothing is added (a client that comes back writes other entries,
-     * so its going missing again is logged again).
+     * written once, not on every run: while the client's newest log entry is already
+     * 'client_missing', nothing is added. A client that comes back is logged as missing again only
+     * once another entry (a tier change, a note, an applied discount) has been written for it in
+     * between; a return with nothing else logged is not told apart. A failed lookup counts as
+     * "not yet logged", so the entry is written rather than lost.
      *
      * @return list<SpendReport> one per approved agency, ascending client id
      */
@@ -81,7 +83,7 @@ final class Recalculator
             try {
                 $reports[] = $this->recalculate($agency['clientId'], $actor);
             } catch (\Throwable $e) {
-                if ($e instanceof ClientNotFound && ($this->repo->logEntries($agency['clientId'], 1)[0]['event'] ?? null) === 'client_missing') {
+                if ($e instanceof ClientNotFound && $this->alreadyLoggedMissing($agency['clientId'])) {
                     continue;
                 }
                 $this->repo->log([
@@ -95,6 +97,15 @@ final class Recalculator
             }
         }
         return $reports;
+    }
+
+    private function alreadyLoggedMissing(int $clientId): bool
+    {
+        try {
+            return ($this->repo->logEntries($clientId, 1)[0]['event'] ?? null) === 'client_missing';
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /** @param array{tierIndex:?int, tierPercent:?string} $previous */

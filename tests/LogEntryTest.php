@@ -11,6 +11,23 @@ use PHPUnit\Framework\TestCase;
 
 final class LogEntryTest extends TestCase
 {
+    public function testEveryEventTheModuleWritesIsListedAndHasASentence(): void
+    {
+        $lib = dirname(__DIR__) . '/modules/addons/agencydiscount/lib';
+        $written = [];
+        foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($lib)) as $file) {
+            if ($file->isFile() && str_ends_with($file->getFilename(), '.php')) {
+                preg_match_all("/'event' => '([a-z_]+)'/", (string) file_get_contents($file->getPathname()), $m);
+                array_push($written, ...$m[1]);
+            }
+        }
+        $written = array_values(array_unique($written));
+        self::assertNotSame([], $written);
+        self::assertSame([], array_diff($written, LogEntry::EVENTS), 'an event is written that the filter does not list');
+        preg_match_all("/^\s+'([a-z_]+)' => /m", (string) file_get_contents($lib . '/LogEntry.php'), $arms);
+        self::assertSame([], array_diff(LogEntry::EVENTS, $arms[1]), 'an event has no sentence');
+    }
+
     private const CLIENTS = [131 => ['name' => 'Agency One', 'currency' => 'ZAR']];
 
     /** @param array<string,mixed> $detail */

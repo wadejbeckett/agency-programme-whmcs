@@ -198,18 +198,19 @@ final class Page
         // The event filter is a GET form (works without scripts); the client filter travels with it as a hidden field.
         $options = '<option value="">' . Html::e(self::lang('log_all_events')) . '</option>';
         foreach (LogEntry::EVENTS as $name) {
-            $options .= '<option value="' . $name . '"' . ($name === $event ? ' selected' : '') . '>' . $name . '</option>';
+            $options .= '<option value="' . Html::e($name) . '"' . ($name === $event ? ' selected' : '') . '>' . Html::e($name) . '</option>';
         }
         [$script, $params] = explode('?', $moduleLink . '?', 2);
         parse_str(rtrim($params, '?'), $hidden);
+        unset($hidden['event'], $hidden['page']);
         $hiddenFields = '';
-        foreach ($hidden + ['action' => 'log'] + ($clientId === null ? [] : ['client' => $clientId]) as $name => $value) {
+        foreach (['action' => 'log'] + ($clientId === null ? [] : ['client' => $clientId]) + $hidden as $name => $value) {
             $hiddenFields .= '<input type="hidden" name="' . Html::e((string) $name) . '" value="' . Html::e(is_scalar($value) ? (string) $value : '') . '">';
         }
         $html .= '<form method="get" action="' . Html::e($script) . '" class="form-inline agencydiscount-log-filter">' . $hiddenFields
             . '<label for="agencydiscount-log-event">' . Html::e(self::lang('log_event')) . '</label> '
-            . '<select id="agencydiscount-log-event" name="event" class="form-control input-sm">' . $options . '</select> '
-            . '<button type="submit" class="btn btn-default btn-sm">' . Html::e(self::lang('filter_apply')) . '</button>'
+            . '<select id="agencydiscount-log-event" name="event" class="form-control">' . $options . '</select> '
+            . '<button type="submit" class="btn btn-default">' . Html::e(self::lang('filter_apply')) . '</button>'
             . ($clientId === null ? '' : ' <a href="' . Html::link($moduleLink, ['action' => 'log', 'event' => $event]) . '">' . Html::e(self::lang('log_all_clients')) . '</a>')
             . ($event === null ? '' : ' <a href="' . Html::link($moduleLink, ['action' => 'log', 'client' => $clientId]) . '">' . Html::e(self::lang('log_all_events')) . '</a>')
             . '</form>';
