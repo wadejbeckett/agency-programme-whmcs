@@ -14,11 +14,18 @@ namespace AgencyDiscount;
  *
  * @phpstan-type AgencyRow array{clientId:int, approved:bool, note:string, approvedBy:string, approvedAt:?string, effectiveFrom:?string, currency:string, spend:string, tierIndex:?int, tierPercent:?string, countedServices:int, countedAddons:int, calculatedAt:?string, updatedAt:string}
  * @phpstan-type InvoiceRecordRow array{invoiceId:int, line:int, clientId:int, itemId:?int, taxed:bool, tierIndex:int, percent:string, base:string, amount:string, dryRun:bool, createdAt:string}
- * @phpstan-type ClientRecordRow array{invoiceId:int, line:int, clientId:int, itemId:?int, taxed:bool, tierIndex:int, percent:string, base:string, amount:string, dryRun:bool, createdAt:string, invoiceStatus:?string, lineOnInvoice:bool}
+ * @phpstan-type ClientRecordRow array{invoiceId:int, line:int, clientId:int, itemId:?int, taxed:bool, tierIndex:int, percent:string, base:string, amount:string, dryRun:bool, createdAt:string, invoiceStatus:?string, lineOnInvoice:bool, lineInvoiceId:?int}
  * @phpstan-type LogEvent array{clientId:?int, invoiceId:?int, event:string, detail:array<string,mixed>, actor:string, createdAt:string}
  */
 interface Repository
 {
+    /**
+     * The invoice statuses under which an applied discount counts as saved: the invoice is issued and
+     * stands (paid, or still to be paid). Draft, Cancelled and Refunded invoices do not count. Used by
+     * appliedDiscountTotal() (inlined in Sql::APPLIED_DISCOUNT_TOTAL) and by the detail page's per-record state.
+     */
+    public const SAVED_STATUSES = ['Paid', 'Unpaid', 'Payment Pending', 'Collections'];
+
     /** @return array{id:int, name:string, currency:string, currencyId:int}|null  name = companyname if non-empty else "firstname lastname" trimmed */
     public function client(int $clientId): ?array;
 
@@ -155,9 +162,10 @@ interface Repository
     public function hasColumn(string $table, string $column): bool;
 
     /**
-     * Every discount record of a client, newest first, with the invoice's current status (null when
-     * the invoice is gone) and whether the discount line is still on it; the agency detail view
-     * lists them and marks the ones appliedDiscountTotal() leaves out.
+     * Every discount record of a client, newest first, with whether its discount line still exists,
+     * the invoice that line is on now (lineInvoiceId: the record's invoice unless WHMCS moved the
+     * line, null when the line is gone) and that invoice's current status (null when the invoice is
+     * gone); the agency detail view lists them and marks the ones appliedDiscountTotal() leaves out.
      *
      * @return list<ClientRecordRow>
      */
