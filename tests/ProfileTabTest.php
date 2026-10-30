@@ -69,6 +69,33 @@ final class ProfileTabTest extends TestCase
         self::assertStringContainsString('tier 1 (5%), 7 items', $html);
     }
 
+    public function testARecalculationSavedDuringAProfileSaveSurvivesIt(): void
+    {
+        // the daily cron writes new figures after the profile form read the row and before its save
+        $racing = new class (Fixtures::data()) extends ArrayRepository {
+            public function agency(int $clientId): ?array
+            {
+                $row = parent::agency($clientId);
+                if ($row !== null) {
+                    $this->saveCalculation($clientId, ['currency' => 'ZAR', 'spend' => '9999.00', 'tierIndex' => 3, 'tierPercent' => '15.00', 'countedServices' => 9, 'countedAddons' => 9, 'calculatedAt' => '2026-10-12 08:59:59', 'updatedAt' => '2026-10-12 08:59:59']);
+                }
+                return $row;
+            }
+        };
+        $racing->saveAgency(['clientId' => 131, 'approved' => true, 'note' => 'old', 'approvedBy' => 'admin:1', 'approvedAt' => '2026-10-01 00:00:00', 'updatedAt' => '2026-10-01 00:00:00']);
+        $module = new Module($racing, Config::fromSettings(Fixtures::settings()), new FrozenClock(new \DateTimeImmutable('2026-10-12 09:00:00')), $this->activity);
+        (new ProfileTab($module))->save(131, ['agencydiscount_present' => '1', 'agencydiscount_approved' => '1', 'agencydiscount_note' => 'new note', 'agencydiscount_effective_from' => '2027-01-01'], 'admin:2');
+        $row = $racing->agencies[131];
+        self::assertSame(['new note', '2027-01-01', true, 'admin:1'], [$row['note'], $row['effectiveFrom'], $row['approved'], $row['approvedBy']], 'the approval fields are saved');
+        self::assertSame(['9999.00', 3, '15.00', 9, '2026-10-12 08:59:59'], [$row['spend'], $row['tierIndex'], $row['tierPercent'], $row['countedServices'], $row['calculatedAt']], 'the recalculation is not undone');
+        self::assertSame('2026-10-12 09:00:00', $row['updatedAt']);
+
+        // a first approval of a client without a row inserts one, and the approval's own recalculation then fills the figures
+        (new ProfileTab($module))->save(404, ['agencydiscount_present' => '1', 'agencydiscount_approved' => '1', 'agencydiscount_note' => ''], 'admin:2');
+        self::assertSame(['admin:2', true, '2026-10-12 09:00:00'], [$racing->agencies[404]['approvedBy'], $racing->agencies[404]['approved'], $racing->agencies[404]['calculatedAt']]);
+        self::assertNotSame('0.00', $racing->agencies[404]['spend']);
+    }
+
     public function testRevokeAndNoteChange(): void
     {
         $this->tab->save(131, ['agencydiscount_present' => '1', 'agencydiscount_approved' => '1', 'agencydiscount_note' => 'a'], 'admin:1');

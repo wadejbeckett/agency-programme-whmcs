@@ -47,6 +47,15 @@ interface Repository
     public function saveAgency(array $row): void;
 
     /**
+     * Writes the approval columns only (approved, note, approved_by, approved_at, effective_from,
+     * updated_at), inserting the row when it does not exist, so a recalculation saved while the
+     * profile form was open is not written over (the mirror image of saveCalculation()).
+     *
+     * @param array{approved:bool, note:string, approvedBy:string, approvedAt:?string, effectiveFrom:?string, updatedAt:string} $approval
+     */
+    public function saveApproval(int $clientId, array $approval): void;
+
+    /**
      * Writes only the computed columns of an existing agency row (currency, spend, tier, counts,
      * calculatedAt, updatedAt); approval, note, start date and approver are left as stored, so a
      * recalculation racing an approval change cannot undo it. Does nothing when the row is absent.

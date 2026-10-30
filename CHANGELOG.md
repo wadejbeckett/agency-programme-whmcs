@@ -2,6 +2,8 @@
 
 ## Unreleased (0.3.0)
 
+- Saving the client's Profile tab writes only the approval columns (approved, note, approved by and when, start date, updated time), so a recalculation that landed while the form was open keeps its figures. Before, the save wrote the whole agency row from what it had read (#29).
+
 - README: "What has and has not been verified" is a section of its own; the rehearsal CLI and the real-database sandbox sit under "Development and operations" after Limitations, with a one-line pointer from Install; the opening paragraph no longer lists the CLI among the product's features (#17).
 
 - Change log: `client_missing` is logged once per state change (while the client's newest entry is already `client_missing`, a recalculation adds nothing), not twice a day for ever; and the Change log tab has an event filter (a select and a Filter button, a plain GET form) that combines with the client filter and the pager. Its strings moved to the language file (#15).

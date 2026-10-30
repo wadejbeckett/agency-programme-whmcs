@@ -93,7 +93,15 @@ final class ProfileTab
             $row['approvedBy'] = $actor;
             $row['approvedAt'] = $now;
         }
-        $this->module->repo->saveAgency($row);
+        // Only the approval columns: a recalculation that landed while the form was open keeps its figures.
+        $this->module->repo->saveApproval($clientId, [
+            'approved' => $row['approved'],
+            'note' => $row['note'],
+            'approvedBy' => $row['approvedBy'],
+            'approvedAt' => $row['approvedAt'],
+            'effectiveFrom' => $row['effectiveFrom'],
+            'updatedAt' => $row['updatedAt'],
+        ]);
 
         if ($approved && !$wasApproved) {
             $this->log($clientId, 'approved', ['note' => $note], $actor, $now);
