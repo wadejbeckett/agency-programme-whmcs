@@ -59,7 +59,7 @@ final class Scenarios
     }
 
     /**
-     * Stored settings that do not parse, for the repair page: a tier threshold that is not a number
+     * Stored settings that do not parse, for the repair page: a tier threshold with three decimals
      * and a product group id that is not a number (as an import or a hand edit in SQL could leave them).
      *
      * @return array<string,string>
@@ -67,7 +67,7 @@ final class Scenarios
     public static function brokenSettings(): array
     {
         return [
-            'tiers' => '{"ZAR":[{"above":0,"percent":5},{"above":"5k","percent":10}]}',
+            'tiers' => '{"ZAR":[{"above":0,"percent":5},{"above":5000.009,"percent":10}]}',
             'product_groups' => '23,premium',
         ] + self::settings(true);
     }

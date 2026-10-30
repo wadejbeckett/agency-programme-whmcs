@@ -132,6 +132,9 @@ final class Tiers
             $above = self::decimal($raw['above'] ?? null);
             if ($above === null) {
                 $problems[] = $label . ' "above" must be a number';
+            } elseif (self::tooPrecise($raw['above'] ?? null)) {
+                $problems[] = $label . ' "above" must have at most two decimals (got ' . self::shown($raw['above'] ?? null) . ')';
+                $above = null;
             } elseif (bccomp($above, '0', 2) < 0) {
                 $problems[] = $label . ' "above" must not be negative';
                 $above = null;
@@ -142,6 +145,9 @@ final class Tiers
             $percent = self::decimal($raw['percent'] ?? null);
             if ($percent === null) {
                 $problems[] = $label . ' "percent" must be a number';
+            } elseif (self::tooPrecise($raw['percent'] ?? null)) {
+                $problems[] = $label . ' "percent" must have at most two decimals (got ' . self::shown($raw['percent'] ?? null) . ')';
+                $percent = null;
             } elseif (bccomp($percent, '0', 2) <= 0 || bccomp($percent, '100', 2) > 0) {
                 $problems[] = $label . ' "percent" must be between 0 and 100';
             }
@@ -153,6 +159,29 @@ final class Tiers
         }
 
         return count($problems) === $before ? $tiers : null;
+    }
+
+    /**
+     * A number (as decimal() accepts it) that the two-place normalisation would change: 1000.009 or
+     * 7.555 would be truncated, so it is rejected instead of silently changed. Trailing zeros
+     * (3000.100, "1000.000") change nothing and pass. A float is compared with its two-place
+     * rounding, so a large threshold such as 10000000.01 is not misread through binary noise.
+     */
+    private static function tooPrecise(mixed $value): bool
+    {
+        if (is_float($value)) {
+            return is_finite($value) && round($value, 2) !== $value;
+        }
+        return is_string($value) && preg_match('/\.\d{2}\d*[1-9]\d*\s*$/', $value) === 1;
+    }
+
+    /** The value as the administrator typed or stored it, for a problem message (a float in its shortest exact form). */
+    private static function shown(mixed $value): string
+    {
+        if (is_float($value)) {
+            return (string) json_encode($value);
+        }
+        return is_scalar($value) ? trim((string) $value) : '';
     }
 
     /** Normalises a JSON number or numeric string to two decimals, or null when it is not a plain number. */
