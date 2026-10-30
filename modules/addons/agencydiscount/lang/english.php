@@ -95,6 +95,7 @@ $_ADDONLANG['preview'] = 'Preview impact';
 $_ADDONLANG['save'] = 'Save settings';
 $_ADDONLANG['saved'] = 'Settings saved. Changed: %s.';
 $_ADDONLANG['saved_nothing'] = 'No changes to save.';
+$_ADDONLANG['saved_repaired'] = 'Settings saved: the stored values are valid again.';
 $_ADDONLANG['problems'] = 'The settings were not saved. Fix these and try again:';
 $_ADDONLANG['advanced_json'] = 'Advanced: edit as JSON';
 $_ADDONLANG['advanced_json_help'] = 'The raw settings form under System Settings > Addon Modules stores the same keys.';

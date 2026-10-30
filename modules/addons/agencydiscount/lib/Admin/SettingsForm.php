@@ -31,6 +31,12 @@ final class SettingsForm
     public const SWITCHES = ['new_orders', 'stack_with_promotions', 'activity_log', 'delete_data'];
     /** The stored keys this form writes. */
     public const KEYS = ['tiers', 'product_groups', 'products', 'addons', 'statuses', 'new_orders', 'stack_with_promotions', 'activity_log', 'delete_data', 'description'];
+    /**
+     * The currency keys given a pane: letters and digits only, so a key is safe in a field name and in
+     * the row template's attributes. Any other key (a stored value from SQL or an import, a crafted
+     * POST) is left out; the validation problem names it and a save replaces the whole setting.
+     */
+    private const CODE_PATTERN = '/^[A-Za-z0-9]{1,10}$/';
 
     /**
      * @param array<string, list<TierRow>> $tiers currency code => rows as typed, ascending as entered
@@ -103,12 +109,16 @@ final class SettingsForm
             $unreadable = $s['tiers'];
         } else {
             foreach ($decoded as $code => $rows) {
+                $code = (string) $code; // PHP turns a key like "123" into an int
+                if (preg_match(self::CODE_PATTERN, $code) !== 1) {
+                    continue;
+                }
                 $list = [];
                 foreach (self::arr($rows) as $row) {
                     $row = is_array($row) ? $row : ['above' => $row];
                     $list[] = ['above' => self::str($row['above'] ?? null), 'percent' => self::str($row['percent'] ?? null)];
                 }
-                $tiers[(string) $code] = $list;
+                $tiers[$code] = $list;
             }
         }
 
@@ -140,6 +150,10 @@ final class SettingsForm
     {
         $tiers = [];
         foreach (self::arr($post['tiers'] ?? null) as $code => $rows) {
+            $code = (string) $code;
+            if (preg_match(self::CODE_PATTERN, $code) !== 1) {
+                continue;
+            }
             $list = [];
             foreach (self::arr($rows) as $row) {
                 $row = self::arr($row);
@@ -150,7 +164,7 @@ final class SettingsForm
                 }
                 $list[] = ['above' => $above, 'percent' => $percent];
             }
-            $tiers[(string) $code] = $list;
+            $tiers[$code] = $list;
         }
 
         $switches = [];

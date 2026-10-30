@@ -179,10 +179,10 @@ final class SettingsTab
             'createdAt' => $this->clock->now()->format('Y-m-d H:i:s'),
         ]);
         $keys = implode(', ', array_keys($changed));
-        $this->activity->log('Agency Discount: settings changed: ' . $keys . ($this->module === null ? ' (configuration repaired)' : ''));
+        $this->activity->log('Agency Discount: settings changed: ' . ($keys === '' ? 'none' : $keys) . ($this->module === null ? ' (configuration repaired)' : ''));
         $this->module = new Module($this->repo, $config, $this->clock, $this->activity);
         $this->storedProblems = [];
-        return self::alert('success', sprintf(Page::lang('saved'), $keys));
+        return self::alert('success', $keys === '' ? Page::lang('saved_repaired') : sprintf(Page::lang('saved'), $keys));
     }
 
     /** @return array{SettingsForm, string, list<string>} the form (target rows replaced on success), a notice, problems */
@@ -271,8 +271,9 @@ final class SettingsTab
         }
         $codes = array_keys($currencies);
         foreach (array_keys($form->tiers) as $code) {
+            $code = (string) $code; // PHP turns a key like "123" into an int
             if (!isset($currencies[$code])) {
-                $codes[] = $code; // tiers for a currency WHMCS no longer has: shown so they can be removed
+                $codes[] = $code; // tiers for a currency WHMCS no longer has (or a stored key that is not a currency): shown so they can be removed
             }
         }
         // Problems about the setting as a whole (not a currency's rows) sit under the heading; a pane shows its own.
@@ -298,9 +299,19 @@ final class SettingsTab
             return $head . '<p>' . Html::e(Page::lang('tiers_none')) . '</p>';
         }
 
+        // The open pane is the first with a problem, so a problem on a non-default currency is not hidden behind its pill.
+        $active = $codes[0];
+        foreach ($codes as $code) {
+            foreach ($problems as $problem) {
+                if (str_starts_with($problem, 'tiers: ' . $code . ' ')) {
+                    $active = $code;
+                    break 2;
+                }
+            }
+        }
         $tabs = '';
         $panes = '';
-        foreach ($codes as $i => $code) {
+        foreach ($codes as $code) {
             $known = isset($currencies[$code]);
             $label = $code;
             if ($default !== null && $code === $default['code']) {
@@ -308,8 +319,8 @@ final class SettingsTab
             } elseif (!$known) {
                 $label .= ' (' . Page::lang('tiers_not_in_whmcs') . ')';
             }
-            $tabs .= '<li' . ($i === 0 ? ' class="active"' : '') . '><a href="#agencydiscount-tiers-' . Html::e($code) . '" data-agencydiscount-tab="' . Html::e($code) . '">' . Html::e($label) . '</a></li>';
-            $panes .= $this->tierPane($code, $form->tiers[$code] ?? [], $i === 0, $known && $default !== null && $code !== $default['code'] ? $default['code'] : null, $currencies[$code]['rate'] ?? null, $problems);
+            $tabs .= '<li' . ($code === $active ? ' class="active"' : '') . '><a href="#agencydiscount-tiers-' . Html::e($code) . '" data-agencydiscount-tab="' . Html::e($code) . '">' . Html::e($label) . '</a></li>';
+            $panes .= $this->tierPane($code, $form->tiers[$code] ?? [], $code === $active, $known && $default !== null && $code !== $default['code'] ? $default['code'] : null, $currencies[$code]['rate'] ?? null, $problems);
         }
 
         return $head

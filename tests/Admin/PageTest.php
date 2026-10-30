@@ -245,6 +245,27 @@ final class PageTest extends TestCase
         self::assertStringContainsString('<tr class="warning">', $preview);
     }
 
+    public function testRepairPageSurvivesStoredCurrencyKeysThatAreNotCodes(): void
+    {
+        // "123" comes back from json_decode as an int key; a key with quotes must never reach a field name or the row template
+        $page = $this->repairPage(['tiers' => '{"123":[{"above":0,"percent":5}],"a\\"],b[c":[{"above":0,"percent":5}],"zar":[{"above":0,"percent":5}]}'] + Fixtures::settings());
+        $html = $page->render('m', ['action' => 'settings'], [], 'admin:1', '');
+        self::assertStringContainsString('<li>tiers: currency &quot;123&quot; must be a three-letter uppercase code</li>', $html);
+        self::assertStringContainsString('data-agencydiscount-tab="123">123 (not a WHMCS currency)</a>', $html);
+        self::assertStringContainsString('name="tiers[123][0][above]" value="0"', $html);
+        self::assertStringContainsString('data-agencydiscount-tab="zar">zar (not a WHMCS currency)</a>', $html);
+        self::assertStringNotContainsString('data-agencydiscount-tab="a', $html, 'a key that is not letters and digits gets no pane');
+        self::assertStringNotContainsString('name="tiers[a', $html);
+        self::assertStringNotContainsString('data-agencydiscount-add="a', $html);
+        self::assertStringContainsString('<li>tiers: currency &quot;a\&quot;],b[c&quot; must be a three-letter uppercase code</li>', $html);
+        // the open pane is the first with a problem on it
+        $page = $this->repairPage(['tiers' => '{"ZAR":[{"above":0,"percent":5}],"EUR":[{"above":"x","percent":5}]}'] + Fixtures::settings());
+        $html = $page->render('m', ['action' => 'settings'], [], 'admin:1', '');
+        self::assertStringContainsString('<li class="active"><a href="#agencydiscount-tiers-EUR"', $html);
+        self::assertStringContainsString('<div class="tab-pane active" id="agencydiscount-tiers-EUR"', $html);
+        self::assertStringContainsString('<li><a href="#agencydiscount-tiers-ZAR"', $html);
+    }
+
     public function testStoredSettingsThatParseGiveTheNormalPage(): void
     {
         $html = $this->repairPage(Fixtures::settings())->render('m', [], [], 'admin:1', '');
