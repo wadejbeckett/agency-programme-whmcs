@@ -2,7 +2,7 @@
 
 ## Unreleased (0.3.0)
 
-- A product group, product or add-on id of `0` or of more than nine digits in the stored settings is now a configuration problem (shown on the repair page) instead of an id the engine accepted but the Settings form dropped on its next save without a word; the engine and the form follow the same rule, positive integers of up to nine digits, as WHMCS ids are (#34).
+- A product group, product or add-on id of `0` or of more than nine digits in the stored settings is now a configuration problem (shown on the repair page) instead of an id the engine accepted but the Settings form dropped on its next save without a word; the engine and the form follow the same rule, a whole number from 1 to 999999999. The upgrade from 0.2.x drops a lone `0` from those lists itself, logged, since it matched nothing before and would otherwise stop the discounts until the Settings tab is saved (#34).
 
 - README: "What has and has not been verified" is a section of its own; the rehearsal CLI and the real-database sandbox sit under "Development and operations" after Limitations, with a one-line pointer from Install; the opening paragraph no longer lists the CLI among the product's features (#17).
 

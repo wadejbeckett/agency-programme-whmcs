@@ -458,10 +458,11 @@ final class SettingsTabTest extends TestCase
         $this->repo->settings['products'] = '0,113,12345678901';
         $page = Page::forStoredSettings($this->repo, new FrozenClock(new \DateTimeImmutable('2026-10-12 09:00:00')), $this->activity);
         $html = $page->render('addonmodules.php?module=agencydiscount', ['action' => 'settings'], [], 'admin:1', self::TOKEN);
-        self::assertStringContainsString('<li>products: &quot;0&quot; is not a WHMCS id (ids start at 1)</li>', $html);
-        self::assertStringContainsString('<li>products: &quot;12345678901&quot; is not a number</li>', $html);
+        self::assertStringContainsString('<li>products: &quot;0&quot; is not a WHMCS id (a whole number from 1 to 999999999)</li>', $html);
+        self::assertStringContainsString('<li>products: &quot;12345678901&quot; is not a WHMCS id (a whole number from 1 to 999999999)</li>', $html);
         self::assertStringContainsString('name="products[]" value="113" checked>', $html);
         self::assertStringNotContainsString('value="12345678901"', $html);
+        self::assertStringNotContainsString('name="products[]" value="0"', $html);
         // a save keeps exactly what the form showed, and the engine reads the same list back
         $post = self::validPost();
         $post['products'] = ['0', '113', '12345678901'];

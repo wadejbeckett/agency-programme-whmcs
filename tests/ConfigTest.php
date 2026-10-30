@@ -104,12 +104,18 @@ final class ConfigTest extends TestCase
             self::fail('expected ConfigException');
         } catch (ConfigException $e) {
             self::assertSame([
-                'products: "0" is not a WHMCS id (ids start at 1)',
-                'products: "12345678901" is not a number',
-                'addons: "0" is not a WHMCS id (ids start at 1)',
+                'products: "0" is not a WHMCS id (a whole number from 1 to 999999999)',
+                'products: "12345678901" is not a WHMCS id (a whole number from 1 to 999999999)',
+                'addons: "0" is not a WHMCS id (a whole number from 1 to 999999999)',
             ], $e->problems());
         }
-        self::assertSame([7, 113], Config::fromSettings(['tiers' => '{}', 'products' => '007,113', 'statuses' => 'Active', 'description' => 'x'])->productIds, 'leading zeros are a number');
+        self::assertSame([7, 113, 999999999], Config::fromSettings(['tiers' => '{}', 'products' => '007,113,999999999', 'statuses' => 'Active', 'description' => 'x'])->productIds, 'leading zeros are a number; nine digits are the top');
+        try {
+            Config::fromSettings(['tiers' => '{}', 'products' => '00', 'statuses' => 'Active', 'description' => 'x']);
+            self::fail('expected ConfigException');
+        } catch (ConfigException $e) {
+            self::assertSame(['products: "00" is not a WHMCS id (a whole number from 1 to 999999999)'], $e->problems());
+        }
     }
 
     public function testParsesLists(): void
