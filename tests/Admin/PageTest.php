@@ -257,7 +257,7 @@ final class PageTest extends TestCase
         self::assertStringNotContainsString('data-agencydiscount-tab="a', $html, 'a key that is not letters and digits gets no pane');
         self::assertStringNotContainsString('name="tiers[a', $html);
         self::assertStringNotContainsString('data-agencydiscount-add="a', $html);
-        self::assertStringContainsString('<li>tiers: currency &quot;a\&quot;],b[c&quot; must be a three-letter uppercase code</li>', $html);
+        self::assertStringContainsString('<li>tiers: currency &quot;a&quot;],b[c&quot; must be a three-letter uppercase code</li>', $html);
         // the open pane is the first with a problem on it
         $page = $this->repairPage(['tiers' => '{"ZAR":[{"above":0,"percent":5}],"EUR":[{"above":"x","percent":5}]}'] + Fixtures::settings());
         $html = $page->render('m', ['action' => 'settings'], [], 'admin:1', '');
