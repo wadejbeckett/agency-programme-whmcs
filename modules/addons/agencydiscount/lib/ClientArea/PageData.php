@@ -29,7 +29,7 @@ final class PageData
     /** @return array<string, mixed> */
     public static function build(Module $module, ?int $clientId): array
     {
-        $vars = ['approved' => false, 'text' => self::text(), 'link' => self::MODULE_PAGE];
+        $vars = ['approved' => false, 'text' => self::text()];
         if ($clientId === null || $clientId <= 0) {
             return $vars;
         }
@@ -92,12 +92,10 @@ final class PageData
             'progress' => $progress ?? 0,
             'toNextText' => $toNextText,
             'nextInvoiceText' => $nextInvoiceText,
-            'nextInvoice' => $invoice === null ? null : ['date' => $invoice['date'], 'base' => Html::money($currency, $invoice['base']), 'discount' => Html::money($currency, $invoice['discount']), 'hasDiscount' => $invoice['percent'] !== null],
             'savedThisYear' => Html::money($currency, $module->repo->appliedDiscountTotal($clientId, $year . '-01-01')),
             'savedLabel' => sprintf($text['saved'], $year),
             'year' => $year,
             'noTiersText' => sprintf($text['no_tiers_currency'], $currency),
-            'startsOn' => $status->startsOn(),
             'startsText' => $status->startsOn() === null ? '' : sprintf($text['starts_line'], (string) $status->startsOn()),
             'dryRun' => $config->dryRun,
             'counts' => [
