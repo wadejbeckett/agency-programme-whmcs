@@ -8,6 +8,7 @@ namespace AgencyDiscount\Tests;
 
 use AgencyDiscount\ArrayRepository;
 use AgencyDiscount\Config;
+use AgencyDiscount\Module;
 use AgencyDiscount\Schema;
 use AgencyDiscount\Upgrade;
 use PHPUnit\Framework\TestCase;
@@ -45,9 +46,19 @@ final class UpgradeTest extends TestCase
     public function testFromTheCurrentVersionNothingChanges(): void
     {
         $repo = new ArrayRepository(['settings' => ['description' => Config::OLD_DEFAULT_DESCRIPTION]]);
-        self::assertSame([], Upgrade::run($repo, '0.2.1'));
+        self::assertSame([], Upgrade::run($repo, Module::VERSION));
         self::assertSame([], $repo->executed);
         self::assertSame(Config::OLD_DEFAULT_DESCRIPTION, $repo->settings['description']);
+    }
+
+    public function testFrom021RunsNoStatementAndChangesNoSetting(): void
+    {
+        $settings = ['description' => 'Custom {percent}% text', 'tiers' => '{"USD":[{"above":0,"percent":5}]}', 'dry_run' => ''];
+        $repo = new ArrayRepository(['settings' => $settings]);
+        self::assertSame([], Schema::upgradeStatements('0.2.1'));
+        self::assertSame([], Upgrade::run($repo, '0.2.1'));
+        self::assertSame([], $repo->executed);
+        self::assertSame($settings, $repo->settings);
     }
 
     public function testAnUnknownVersionChangesNothing(): void

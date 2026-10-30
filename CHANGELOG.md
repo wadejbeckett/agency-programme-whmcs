@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.2.2 — 2026-10-30
+
+Audit should-fix items S1, S2, S3, S5, S8, S9 and S10 (retention), the Overview table, and the release tooling. No schema change: see "Upgrade" below.
 
 - A stored invoice line text equal to the 0.2.0 default (`… qualifying items`) now renders as the 0.2.1 default (`… qualifying {items}`). On a production install the 0.2.1 upgrade rewrote the stored text, but a Settings form opened at the same time was filled with the old value and its Save wrote it back; the line then read "on 1 qualifying items" again. The rendering no longer depends on that timing.
 - Claiming an invoice, adding its discount lines and recording them now run in one database transaction. Before, a failed line insert after the claim left a placeholder record (amount 0.00, no line) that marked the invoice as handled, so it was never discounted; the failure now rolls the claim, the lines and the records back together, so the invoice carries no half-applied discount and no placeholder record.
@@ -9,7 +11,11 @@
 - The development-only classes (the in-memory repository, the frozen clock, the recording activity log, the snapshot loader and the CLI) moved from the module folder to `bin/lib/`, loaded by `bin/lib/bootstrap.php` for the CLI, the tests and the preview harness. WHMCS no longer parses them on every request, and the module folder (41 files) no longer ships them.
 - Change log retention: a new setting "Change log retention (months)" (`log_retention_months`, default 24) makes the daily cron remove change log entries older than that. 0 keeps the log forever, and so does a value that is not a whole number from 0 to 600, so a mistyped value never deletes history and never stops the discounts. Approvals and invoice records are never removed.
 - Overview agencies table: five columns instead of nine, so no cell runs past two lines at 1440 pixels wide. The currency column is gone (every amount carries its currency), the start state and the detail link sit under the tier badge, the next invoice shows its date with the discount on a second line, and the recalculation time moved to the spend's tooltip and one line under the table.
+- `tools/release.sh VERSION` builds the release archive (`agency-programme-whmcs-VERSION.zip`: the module folder plus LICENSE, README and CHANGELOG, checked against the files tracked at the tag) with a `.sha256`, and pushing a `v*` tag publishes it as a GitHub release.
+- The sandbox integration test now covers the repository paths above on MariaDB (saved-this-year with cancelled, refunded, hand-removed, mixed-tax and dry-run cases; transaction rollback; recalculation columns; pruning), and the preview harness fixture uses round demo figures.
 - `whmcs.json` now carries the feature list and the support links (project home, documentation, issues) that WHMCS's Apps & Integrations pages read; a logo and a support email are still to come. The README's "What has and has not been verified" list records what the live installs since 12 October 2026 have shown.
+
+Upgrade: no table changes. `log_retention_months` is a new setting on the Configure form (default 24; it is read as 24 when the row is absent). Replace the whole `modules/addons/agencydiscount` directory rather than copying the new folder over the old one, so the five files moved to `bin/lib/` leave the install; `agencydiscount_upgrade` from 0.2.1 records "no schema change".
 
 ## 0.2.1 — 2026-10-27
 
