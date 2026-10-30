@@ -57,6 +57,17 @@ final class TiersTest extends TestCase
         yield 'percent zero' => ['{"ZAR":[{"above":10,"percent":0}]}', 'tiers: ZAR tier 1 "percent" must be between 0 and 100'];
         yield 'percent high' => ['{"ZAR":[{"above":10,"percent":101}]}', 'tiers: ZAR tier 1 "percent" must be between 0 and 100'];
         yield 'above missing' => ['{"ZAR":[{"percent":5}]}', 'tiers: ZAR tier 1 "above" must be a number'];
+        yield 'above three decimals' => ['{"ZAR":[{"above":1000.009,"percent":5}]}', 'tiers: ZAR tier 1 "above" must have at most two decimals (got 1000.009)'];
+        yield 'percent three decimals' => ['{"ZAR":[{"above":0,"percent":7.555}]}', 'tiers: ZAR tier 1 "percent" must have at most two decimals (got 7.555)'];
+        yield 'above three decimals as a string' => ['{"ZAR":[{"above":"1000.009","percent":5}]}', 'tiers: ZAR tier 1 "above" must have at most two decimals (got 1000.009)'];
+        yield 'tiny float' => ['{"ZAR":[{"above":1000.00001,"percent":5}]}', 'tiers: ZAR tier 1 "above" must have at most two decimals (got 1000.00001)'];
+    }
+
+    public function testTwoDecimalsAndTrailingZerosAreAccepted(): void
+    {
+        $tiers = Tiers::fromJson('{"ZAR":[{"above":1000.00,"percent":7.5},{"above":"2000.50","percent":"10.25"},{"above":3000.100,"percent":12.000}]}')->forCurrency('ZAR');
+        self::assertSame(['1000.00', '2000.50', '3000.10'], array_map(static fn ($t) => $t->above, $tiers));
+        self::assertSame(['7.50', '10.25', '12.00'], array_map(static fn ($t) => $t->percent, $tiers));
     }
 
     #[DataProvider('badJson')]

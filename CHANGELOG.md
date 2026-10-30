@@ -2,6 +2,8 @@
 
 ## Unreleased (0.3.0)
 
+- Tier thresholds and percentages with more than two decimals (1000.009, 7.555) are rejected with a problem naming the currency, the tier and the value, shown inline on the Settings tab, instead of being truncated silently; a stored value like that opens the repair page, where it can be corrected. 1000.00, 7.5 and 3000.100 are still accepted (#16).
+
 - Client area: the module page keeps its content as it was (owner's ruling: the full lists of qualifying product groups, products and add-ons stay), and the home panel is unchanged. The page's variables that nothing read are gone, and the tests now render the template for an approved agency, one waiting for its start date and a client outside the programme under the narrow Smarty policy (#13).
 
 - The "Agency Programme" card on the client summary page shows the tier badge (with the start state), the qualifying monthly spend, the dry-run note while dry-run is on, and one link to the agency detail page; the next invoice, the progress bar and the change log and profile links moved to the detail page. The client's Profile tab keeps the approval checkbox, who approved and when, the note and the start date; the "Right now" box beside them is gone (owner's ruling), since the same figures sit on the summary card of the same client record (#12).

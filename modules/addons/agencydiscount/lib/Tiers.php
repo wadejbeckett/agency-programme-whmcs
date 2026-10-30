@@ -132,6 +132,9 @@ final class Tiers
             $above = self::decimal($raw['above'] ?? null);
             if ($above === null) {
                 $problems[] = $label . ' "above" must be a number';
+            } elseif (self::tooPrecise($raw['above'] ?? null)) {
+                $problems[] = $label . ' "above" must have at most two decimals (got ' . self::shown($raw['above'] ?? null) . ')';
+                $above = null;
             } elseif (bccomp($above, '0', 2) < 0) {
                 $problems[] = $label . ' "above" must not be negative';
                 $above = null;
@@ -142,6 +145,9 @@ final class Tiers
             $percent = self::decimal($raw['percent'] ?? null);
             if ($percent === null) {
                 $problems[] = $label . ' "percent" must be a number';
+            } elseif (self::tooPrecise($raw['percent'] ?? null)) {
+                $problems[] = $label . ' "percent" must have at most two decimals (got ' . self::shown($raw['percent'] ?? null) . ')';
+                $percent = null;
             } elseif (bccomp($percent, '0', 2) <= 0 || bccomp($percent, '100', 2) > 0) {
                 $problems[] = $label . ' "percent" must be between 0 and 100';
             }
@@ -153,6 +159,22 @@ final class Tiers
         }
 
         return count($problems) === $before ? $tiers : null;
+    }
+
+    /**
+     * A number (as decimal() accepts it) with more than two decimals: 1000.009 or 7.555 would be
+     * truncated by the two-place normalisation, so it is rejected instead of silently changed.
+     */
+    private static function tooPrecise(mixed $value): bool
+    {
+        $text = is_float($value) ? rtrim(rtrim(sprintf('%.10F', $value), '0'), '.') : (is_scalar($value) ? trim((string) $value) : '');
+        return preg_match('/\.\d{3,}$/', $text) === 1;
+    }
+
+    /** The value as the administrator typed or stored it, for a problem message. */
+    private static function shown(mixed $value): string
+    {
+        return is_float($value) ? rtrim(rtrim(sprintf('%.10F', $value), '0'), '.') : (is_scalar($value) ? trim((string) $value) : '');
     }
 
     /** Normalises a JSON number or numeric string to two decimals, or null when it is not a plain number. */
