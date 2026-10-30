@@ -33,7 +33,7 @@
                     <h5 class="card-title">{$text.to_next|escape}</h5>
                     {if $hasProgress}
                     <div class="progress mb-2">
-                        <div class="progress-bar" role="progressbar" style="width: {$progress}%" aria-valuenow="{$progress}" aria-valuemin="0" aria-valuemax="100"></div>
+                        <div class="progress-bar" role="progressbar" style="width: {$progress|escape}%" aria-valuenow="{$progress|escape}" aria-valuemin="0" aria-valuemax="100"></div>
                     </div>
                     {/if}
                     <p class="mb-0">{$toNextText|escape}</p>
@@ -51,7 +51,7 @@
             <tbody>
             {foreach $tiers as $row}
                 <tr{if $row.current} class="table-success"{/if}>
-                    <td>{$row.index}</td>
+                    <td>{$row.index|escape}</td>
                     <td>{$row.above|escape}</td>
                     <td>{$row.percent|escape}%</td>
                     <td>{if $row.current}<span class="badge badge-success">{$text.you_are_here|escape}</span>{/if}</td>

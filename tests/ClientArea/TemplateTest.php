@@ -78,8 +78,8 @@ final class TemplateTest extends TestCase
         foreach ($blocks[0] as $block) {
             if (preg_match('/^\{\/?([a-z_]+)\b/', $block, $m) === 1) {
                 $tags[] = $m[1];
-            } elseif (preg_match('/^\{\$[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*(?:\|escape)?\}$/', $block) !== 1) {
-                self::fail('not a plain variable output: ' . $block);
+            } elseif (preg_match('/^\{\$[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*\|escape\}$/', $block) !== 1) {
+                self::fail('not an escaped variable output: ' . $block);
             }
             preg_match_all('/\|([a-z_]+)/', $block, $m);
             array_push($modifiers, ...$m[1]);
