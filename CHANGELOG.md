@@ -2,6 +2,8 @@
 
 ## Unreleased (0.3.0)
 
+- Change log: `client_missing` is logged once per state change (while the client's newest entry is already `client_missing`, a recalculation adds nothing), not twice a day for ever; and the Change log tab has an event filter (a select and a Filter button, a plain GET form) that combines with the client filter and the pager. Its strings moved to the language file (#15).
+
 - Client area: the module page keeps its content as it was (owner's ruling: the full lists of qualifying product groups, products and add-ons stay), and the home panel is unchanged. The page's variables that nothing read are gone, and the tests now render the template for an approved agency, one waiting for its start date and a client outside the programme under the narrow Smarty policy (#13).
 
 - The "Agency Programme" card on the client summary page shows the tier badge (with the start state), the qualifying monthly spend, the dry-run note while dry-run is on, and one link to the agency detail page; the next invoice, the progress bar and the change log and profile links moved to the detail page. The client's Profile tab keeps the approval checkbox, who approved and when, the note and the start date; the "Right now" box beside them is gone (owner's ruling), since the same figures sit on the summary card of the same client record (#12).

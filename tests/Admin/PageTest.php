@@ -105,6 +105,45 @@ final class PageTest extends TestCase
         self::assertStringContainsString('&lt;script&gt;10', $page2);
     }
 
+    public function testLogViewFiltersByEventWithTheClientFilterAndThePager(): void
+    {
+        $link = 'addonmodules.php?module=agencydiscount';
+        for ($i = 1; $i <= 55; $i++) {
+            $this->repo->log(['clientId' => 131, 'invoiceId' => 9000 + $i, 'event' => 'no_qualifying_lines', 'detail' => [], 'actor' => 'system', 'createdAt' => '2026-10-12 09:00:00']);
+        }
+        $this->repo->log(['clientId' => 131, 'invoiceId' => null, 'event' => 'note_changed', 'detail' => ['to' => 'hello'], 'actor' => 'admin:1', 'createdAt' => '2026-10-12 09:01:00']);
+        $this->repo->log(['clientId' => 500, 'invoiceId' => null, 'event' => 'note_changed', 'detail' => ['to' => 'bonjour'], 'actor' => 'admin:1', 'createdAt' => '2026-10-12 09:02:00']);
+
+        // the filter form: a GET form carrying the module and the client, a select of every event, works without scripts
+        $html = $this->page()->render($link, ['action' => 'log', 'client' => '131'], [], 'admin:1', '');
+        self::assertStringContainsString('<form method="get" action="addonmodules.php" class="form-inline agencydiscount-log-filter"><input type="hidden" name="module" value="agencydiscount"><input type="hidden" name="action" value="log"><input type="hidden" name="client" value="131">', $html);
+        self::assertStringContainsString('<option value="">All events</option><option value="approved">approved</option>', $html);
+        self::assertStringContainsString('<option value="mode_changed">mode_changed</option></select>', $html);
+        self::assertStringContainsString('<h3>Change log for client 131</h3>', $html);
+        self::assertStringContainsString('>All clients</a>', $html);
+        self::assertStringNotContainsString('bonjour', $html);
+
+        // event + client: only that event, paged, both filters kept in the pager
+        $html = $this->page()->render($link, ['action' => 'log', 'client' => '131', 'event' => 'no_qualifying_lines'], [], 'admin:1', '');
+        self::assertStringNotContainsString('hello', $html);
+        self::assertSame(50, substr_count($html, '<td>no_qualifying_lines</td>'));
+        self::assertStringContainsString('<option value="no_qualifying_lines" selected>', $html);
+        self::assertStringContainsString('href="addonmodules.php?module=agencydiscount&amp;action=log&amp;client=131&amp;event=no_qualifying_lines&amp;page=2">Older</a>', $html);
+        self::assertStringContainsString('href="addonmodules.php?module=agencydiscount&amp;action=log&amp;client=131">All events</a>', $html);
+        $page2 = $this->page()->render($link, ['action' => 'log', 'client' => '131', 'event' => 'no_qualifying_lines', 'page' => '2'], [], 'admin:1', '');
+        self::assertSame(5, substr_count($page2, '<td>no_qualifying_lines</td>'));
+        self::assertStringContainsString('event=no_qualifying_lines&amp;page=1">Newer</a>', $page2);
+
+        // event alone spans clients; an unknown event is ignored
+        $html = $this->page()->render($link, ['action' => 'log', 'event' => 'note_changed'], [], 'admin:1', '');
+        self::assertStringContainsString('hello', $html);
+        self::assertStringContainsString('bonjour', $html);
+        self::assertStringNotContainsString('<td>no_qualifying_lines</td>', $html);
+        $html = $this->page()->render($link, ['action' => 'log', 'event' => '<script>'], [], 'admin:1', '');
+        self::assertStringNotContainsString('<script>', $html);
+        self::assertStringContainsString('<td>no_qualifying_lines</td>', $html, 'an unknown event filters nothing');
+    }
+
     public function testThreeTabsAndAnOldCheckLinkOpensTheOverview(): void
     {
         $html = $this->page()->render('m', ['action' => 'check'], [], 'admin:1', '');

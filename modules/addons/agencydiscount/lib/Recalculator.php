@@ -67,7 +67,10 @@ final class Recalculator
 
     /**
      * One agency's failure never stops the others: a ClientNotFound is logged as 'client_missing',
-     * any other error as 'recalculate_failed', and that agency is skipped.
+     * any other error as 'recalculate_failed', and that agency is skipped. 'client_missing' is
+     * written once per state change, not on every run: while the client's newest log entry is
+     * already 'client_missing', nothing is added (a client that comes back writes other entries,
+     * so its going missing again is logged again).
      *
      * @return list<SpendReport> one per approved agency, ascending client id
      */
@@ -78,6 +81,9 @@ final class Recalculator
             try {
                 $reports[] = $this->recalculate($agency['clientId'], $actor);
             } catch (\Throwable $e) {
+                if ($e instanceof ClientNotFound && ($this->repo->logEntries($agency['clientId'], 1)[0]['event'] ?? null) === 'client_missing') {
+                    continue;
+                }
                 $this->repo->log([
                     'clientId' => $agency['clientId'],
                     'invoiceId' => null,

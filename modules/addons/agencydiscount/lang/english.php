@@ -151,6 +151,19 @@ $_ADDONLANG['activity'] = 'Recent activity';
 $_ADDONLANG['activity_none'] = 'No activity yet.';
 $_ADDONLANG['activity_all'] = 'Full change log';
 $_ADDONLANG['log_summary'] = 'Summary';
+$_ADDONLANG['log_for_client'] = 'for client %d';
+$_ADDONLANG['log_event'] = 'Event';
+$_ADDONLANG['log_all_events'] = 'All events';
+$_ADDONLANG['log_all_clients'] = 'All clients';
+$_ADDONLANG['log_none'] = 'No log entries.';
+$_ADDONLANG['log_older'] = 'Older';
+$_ADDONLANG['log_newer'] = 'Newer';
+$_ADDONLANG['log_col_time'] = 'Time';
+$_ADDONLANG['log_col_client'] = 'Client';
+$_ADDONLANG['log_col_invoice'] = 'Invoice';
+$_ADDONLANG['log_col_event'] = 'Event';
+$_ADDONLANG['log_col_actor'] = 'Actor';
+$_ADDONLANG['log_col_detail'] = 'Detail';
 
 // Agency detail view (Overview > Detail)
 $_ADDONLANG['agency_unknown'] = 'Client %d is not an approved agency.';

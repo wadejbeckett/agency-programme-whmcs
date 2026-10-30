@@ -260,11 +260,14 @@ final class CapsuleRepository implements Repository
         return (int) Capsule::table(self::LOG)->where('created_at', '<', $before)->delete();
     }
 
-    public function logEntries(?int $clientId, int $limit, int $offset = 0): array
+    public function logEntries(?int $clientId, int $limit, int $offset = 0, ?string $event = null): array
     {
         $query = Capsule::table(self::LOG);
         if ($clientId !== null) {
             $query = $query->where('client_id', $clientId);
+        }
+        if ($event !== null) {
+            $query = $query->where('event', $event);
         }
         $entries = [];
         foreach ($query->orderBy('id', 'desc')->offset($offset)->limit($limit)->get() as $row) {
