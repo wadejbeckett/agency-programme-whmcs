@@ -207,7 +207,7 @@ The hooks were exercised against a MariaDB copy of a WHMCS 9.0.8 database throug
 - The addon settings saved through WHMCS's Configure form, notably the tiers JSON, are decoded correctly: a changed tier table gave the expected tiers on recalculation.
 - `generate_token()` output: the overview's "Recalculate now" form and the Settings tab's mode switch were accepted.
 - Approving an agency on the client's Profile tab (a note without a start date) stores the approval.
-- The admin pages (Overview, Settings, Change log, Configuration check, agency detail, client summary card) render inside the WHMCS admin template, and the admin home widget renders on the real dashboard in both the Blend and Iris admin themes; the widget and the profile field honour the admin role checks.
+- The admin pages (Overview, Settings, Change log, Configuration check, agency detail, client summary card) render inside the WHMCS admin template, and the admin home widget renders on the real dashboard in the Iris admin theme (in Blend it has been seen in offline renders only); the widget and the profile field honour the admin role checks.
 - `agencydiscount_upgrade()` runs on the first admin page load after new files are copied: 0.1.0 to 0.2.0, and 0.2.0 to 0.2.1 with its change to `mod_agencydiscount_invoices`, each recorded in the activity log, with existing records intact.
 
 These points remain to be confirmed on a real install:
@@ -220,6 +220,7 @@ These points remain to be confirmed on a real install:
 - The client-area home panel's `addChild` attributes (`label`, `icon`, `extras` with `btn-link` and `btn-text`, `bodyHtml`) against WHMCS's `\WHMCS\View\Menu\Item`, which is stubbed here, and that the module page's template passes WHMCS's Smarty security policy (it uses only `escape`, `if` and `foreach`). The template was rendered with Smarty 3.1 outside WHMCS.
 - That `\WHMCS\Session::get('uid')` gives the logged-in client as the client area expects.
 - How a new-order invoice carries a setup fee (inside the Hosting line or as a separate line), and whether WHMCS applies available credit before the discount line is added; no live invoice for an approved agency has had either.
+- The admin home widget on a real dashboard in the Blend admin theme; it has only been rendered offline.
 - Tax: every invoice observed so far carried no tax, so neither the taxed discount line nor the split into a taxed and an untaxed line has been seen on a real invoice.
 
 This is why the module ships with dry-run on. Run it in dry-run on the real installation first, then check the first live invoice.

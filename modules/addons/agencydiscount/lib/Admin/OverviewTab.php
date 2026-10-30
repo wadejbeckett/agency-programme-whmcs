@@ -410,7 +410,7 @@ final class OverviewTab
 .agencydiscount-toolbar .btn-group,.agencydiscount-toolbar form{display:inline-block;vertical-align:middle;margin-right:8px;margin-bottom:6px}
 .agencydiscount-progress{height:8px;margin:0 0 3px;min-width:120px}
 #agencydiscount-overview td{vertical-align:middle}
-#agencydiscount-overview .agencydiscount-nowrap,#agencydiscount-overview .label{white-space:nowrap}
+#agencydiscount-overview .agencydiscount-nowrap{white-space:nowrap}
 </style>
 HTML;
     }
