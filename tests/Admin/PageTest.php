@@ -116,7 +116,7 @@ final class PageTest extends TestCase
 
         // the filter form: a GET form carrying the module and the client, a select of every event, works without scripts
         $html = $this->page()->render($link, ['action' => 'log', 'client' => '131'], [], 'admin:1', '');
-        self::assertStringContainsString('<form method="get" action="addonmodules.php" class="form-inline agencydiscount-log-filter"><input type="hidden" name="module" value="agencydiscount"><input type="hidden" name="action" value="log"><input type="hidden" name="client" value="131">', $html);
+        self::assertStringContainsString('<form method="get" action="addonmodules.php" class="form-inline agencydiscount-log-filter"><input type="hidden" name="action" value="log"><input type="hidden" name="client" value="131"><input type="hidden" name="module" value="agencydiscount">', $html);
         self::assertStringContainsString('<option value="">All events</option><option value="approved">approved</option>', $html);
         self::assertStringContainsString('<option value="mode_changed">mode_changed</option></select>', $html);
         self::assertStringContainsString('<h3>Change log for client 131</h3>', $html);
