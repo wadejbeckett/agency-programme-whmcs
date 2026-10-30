@@ -50,7 +50,7 @@ Upgrading: replace the whole `modules/addons/agencydiscount` directory with the 
 
 ## Configuration
 
-Addons > Agency Programme > **Settings** is where the programme is configured: tiers, what counts, statuses, the mode, the behaviour switches and the invoice line text. It saves into the addon settings the engine reads (the keys below; the CLI profile uses the same). The WHMCS Configure form under System Settings > Addon Modules > Agency Programme holds only the access list and the three housekeeping settings (activity log, change log retention, delete data on deactivate). No setting has two homes, so a Configure form left open cannot write old values over a Settings save.
+Addons > Agency Programme > **Settings** is where the programme is configured: tiers, what counts, statuses, the mode, the behaviour switches and the invoice line text. It saves into the addon settings the engine reads (the keys below; a rehearsal profile under [Development and operations](#development-and-operations) uses the same keys). The WHMCS Configure form under System Settings > Addon Modules > Agency Programme holds only the access list and the three housekeeping settings (activity log, change log retention, delete data on deactivate). No setting has two homes, so a Configure form left open cannot write old values over a Settings save.
 
 The Settings tab has:
 
@@ -90,7 +90,7 @@ An invalid configuration (bad JSON, a non-numeric id, no statuses) is reported a
 {"USD":[{"above":500,"percent":5},{"above":1000,"percent":10}]}
 ```
 
-With this setting a client in USD with qualifying monthly spend of 500.00 gets no discount, 500.01 gets 5% and above 1000.00 gets 10%. Add one key per currency in use; a currency without an entry gets no discount, and the Configuration check page flags it.
+With this setting a client in USD with qualifying monthly spend of 500.00 gets no discount, 500.01 gets 5% and above 1000.00 gets 10%. Add one key per currency in use; a currency without an entry gets no discount: its pane on the Settings tab says so, and the Overview's "Needs attention" panel lists it while an approved agency is in that currency.
 
 ## Admin page
 
@@ -113,7 +113,7 @@ Change log events:
 | `tier_changed` | A recalculation moved the agency to a different tier (or to none). |
 | `no_tier` | The agency has no tier: no tiers are configured for its currency, or at invoice time its spend is not above the first threshold. |
 | `applied` | A discount line was added to an invoice (two lines, listed in the detail, when the invoice mixes taxed and untaxed items). |
-| `dry_run` | A discount line would have been added; dry-run mode (or a rehearsal) prevented it. |
+| `dry_run` | A discount line would have been added; dry-run mode prevented it. |
 | `already_processed` | The invoice has already been handled; nothing was changed. |
 | `zero_amount` | The discount rounded to nothing. |
 | `no_qualifying_lines` | The invoice had no discountable lines. |
@@ -126,7 +126,7 @@ Change log events:
 
 ## Admin home widget
 
-The `AdminHomeWidgets` hook adds an "Agency Programme" widget to the admin dashboard: the number of approved agencies, qualifying spend per month and the discount expected in the next 35 days (per currency), the mode badge, one row per agency with its tier badge and next invoice, the last cron check (the newest recalculation) and a link to the addon. It is read-only and never cached. Two things gate it: the widget requires the WHMCS admin permission "View Income Totals" (the one WHMCS's own billing widget uses), and it only answers for an admin whose role is on the addon's access list, the roles ticked under System Settings > Addon Modules > Agency Programme > Configure; any other admin sees "Agency Programme is not available to your admin role". If the figures cannot be built, the widget shows "Agency Programme: unavailable (see activity log)" and the error is in the WHMCS activity log; the dashboard itself is never affected. The widget is only registered when WHMCS's widget base class exists, so the unit tests and the CLI never load it.
+The `AdminHomeWidgets` hook adds an "Agency Programme" widget to the admin dashboard: the number of approved agencies, qualifying spend per month and the discount expected in the next 35 days (per currency), the mode badge, one row per agency with its tier badge and next invoice, the last cron check (the newest recalculation) and a link to the addon. It is read-only and never cached. Two things gate it: the widget requires the WHMCS admin permission "View Income Totals" (the one WHMCS's own billing widget uses), and it only answers for an admin whose role is on the addon's access list, the roles ticked under System Settings > Addon Modules > Agency Programme > Configure; any other admin sees "Agency Programme is not available to your admin role". If the figures cannot be built, the widget shows "Agency Programme: unavailable (see activity log)" and the error is in the WHMCS activity log; the dashboard itself is never affected. The widget is registered only inside WHMCS, where its base class exists.
 
 ## Client profile
 
