@@ -11,6 +11,8 @@ final class Upgrade
 {
     /** The setting 0.2.1 replaced with delete_data; its row was left stored until 0.3.0 deletes it. */
     public const RETIRED_SETTING = 'keep_data';
+    /** The id lists 0.3.0 cleans of a lone "0" (an entry 0.2.x accepted and matched nothing with; 0.3.0 rejects it). */
+    private const ID_LISTS = ['product_groups', 'products', 'addons'];
 
     /**
      * What the administrator should know about an upgrade from $from that changes nothing stored:
@@ -52,9 +54,28 @@ final class Upgrade
             $changes[] = $step['sentence'];
         }
         if (version_compare($from, '0.3.0', '<')) {
-            if (array_key_exists(self::RETIRED_SETTING, $repo->settings())) {
+            $settings = $repo->settings();
+            if (array_key_exists(self::RETIRED_SETTING, $settings)) {
                 $repo->deleteSettings([self::RETIRED_SETTING]);
                 $changes[] = 'the unread ' . self::RETIRED_SETTING . ' setting row deleted (replaced by delete_data in 0.2.1)';
+            }
+            // A "0" in an id list matched nothing under 0.2.x and is a configuration problem from 0.3.0, which would stop
+            // the discounts until the Settings tab is saved: drop it here instead, so behaviour is exactly as before.
+            $cleaned = [];
+            foreach (self::ID_LISTS as $key) {
+                $value = $settings[$key] ?? null;
+                if (!is_string($value) || $value === '') {
+                    continue;
+                }
+                $items = array_values(array_filter(array_map('trim', explode(',', $value)), static fn (string $item): bool => $item !== ''));
+                $kept = array_values(array_filter($items, static fn (string $item): bool => preg_match('/^0+$/', $item) !== 1));
+                if ($kept !== $items) {
+                    $cleaned[$key] = implode(',', $kept);
+                }
+            }
+            if ($cleaned !== []) {
+                $repo->saveSettings($cleaned);
+                $changes[] = 'a "0" removed from ' . implode(', ', array_keys($cleaned)) . ' (it matched nothing; 0.3.0 would reject it)';
             }
         }
         if (version_compare($from, '0.2.1', '<')

@@ -218,6 +218,10 @@ final class Config
     }
 
     /**
+     * An id is a whole number from 1 to 999999999 (the Settings form accepts the same), so what the
+     * engine reads and what the form shows never differ: an id the engine took but the form dropped
+     * would vanish on the next save without a word.
+     *
      * @param list<string> $problems
      * @return list<int>
      */
@@ -227,6 +231,10 @@ final class Config
         foreach (self::split($value) as $item) {
             if (preg_match('/^\d+$/', $item) !== 1) {
                 $problems[] = $key . ': "' . $item . '" is not a number';
+                continue;
+            }
+            if (strlen($item) > 9 || (int) $item === 0) {
+                $problems[] = $key . ': "' . $item . '" is not a WHMCS id (a whole number from 1 to 999999999)';
                 continue;
             }
             $ids[] = (int) $item;
