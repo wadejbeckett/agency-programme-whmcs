@@ -2,6 +2,8 @@
 
 ## Unreleased (0.3.0)
 
+- Change log pruning runs in batches of 1000 rows, writes one `log_pruned` entry with the count, the cut-off and the retention when anything went, and takes the same day of the month as the cut-off, clamped to the month's last day (#31).
+
 - README brought in line with the consolidated control planes: three admin tabs and the detail view, the Settings tab as the one place for tiers, qualifying items, statuses, mode, behaviour and line text, the Configure form for the access list and housekeeping, the smaller summary card and profile field, and no mention of the removed Configuration check page (#19).
 - A product group, product or add-on id of `0` or of more than nine digits in the stored settings is now a configuration problem (shown on the repair page) instead of an id the engine accepted but the Settings form dropped on its next save without a word; the engine and the form follow the same rule, a whole number from 1 to 999999999. The upgrade from 0.2.x drops a lone `0` from those lists itself, logged, since it matched nothing before and would otherwise stop the discounts until the Settings tab is saved (#34).
 

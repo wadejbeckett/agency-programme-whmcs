@@ -477,11 +477,13 @@ final class SandboxTest extends TestCase
         $event = ['clientId' => $other, 'invoiceId' => null, 'event' => 'tier_changed', 'detail' => [], 'actor' => 'sandbox'];
         $repo->log($event + ['createdAt' => '2000-12-31 23:59:59']);
         $repo->log($event + ['createdAt' => '2001-01-01 00:00:00']);
+        $repo->log($event + ['createdAt' => '2000-06-30 00:00:00']);
         $total = Manager::table('mod_agencydiscount_log')->count();
-        self::assertSame(1, $repo->pruneLog('2001-01-01 00:00:00'));
-        self::assertSame($total - 1, Manager::table('mod_agencydiscount_log')->count());
+        self::assertSame(1, $repo->pruneLog('2001-01-01 00:00:00', 1), 'a batch deletes at most its limit');
+        self::assertSame(1, $repo->pruneLog('2001-01-01 00:00:00', 1000));
+        self::assertSame($total - 2, Manager::table('mod_agencydiscount_log')->count());
         self::assertSame(['2001-01-01 00:00:00'], array_column($repo->logEntries($other, 10), 'createdAt'));
-        self::assertSame(0, $repo->pruneLog('2001-01-01 00:00:00'));
+        self::assertSame(0, $repo->pruneLog('2001-01-01 00:00:00', 1000));
 
         // j. deactivate keeps the tables unless "Delete module data on deactivate" is ticked; then it drops them.
         //    Clean up and prove nothing is left

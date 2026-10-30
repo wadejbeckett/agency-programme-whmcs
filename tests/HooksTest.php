@@ -10,6 +10,7 @@ use AgencyDiscount\ArrayRepository;
 use AgencyDiscount\Config;
 use AgencyDiscount\FrozenClock;
 use AgencyDiscount\Hooks;
+use AgencyDiscount\LogEntry;
 use AgencyDiscount\Module;
 use AgencyDiscount\RecordingActivityLog;
 use AgencyDiscount\Tests\Support\Fixtures;
@@ -294,9 +295,35 @@ final class HooksTest extends TestCase
         $this->repo->saveInvoiceRecord(['invoiceId' => 1, 'line' => 0, 'clientId' => 131, 'itemId' => 1, 'taxed' => false, 'tierIndex' => 1, 'percent' => '5.00', 'base' => '1.00', 'amount' => '0.05', 'dryRun' => false, 'createdAt' => '2020-01-01 00:00:00']);
         $this->useModule(Fixtures::settings());
         Hooks::pruneLog();
-        self::assertSame(['2026-10-01 00:00:00', '2024-10-18 02:00:00'], array_column($this->repo->logEntries(null, 10), 'createdAt'));
+        self::assertSame(['log_pruned', 'tier_changed', 'tier_changed'], array_column($this->repo->logEntries(null, 10), 'event'));
+        self::assertSame(['2026-10-01 00:00:00', '2024-10-18 02:00:00'], array_column($this->repo->logEntries(null, 10, 0, 'tier_changed'), 'createdAt'));
+        $pruned = $this->repo->logEntries(null, 1)[0];
+        self::assertSame(['count' => 1, 'before' => '2024-10-18 02:00:00', 'months' => 24], $pruned['detail']);
+        self::assertSame('cron:daily', $pruned['actor']);
         self::assertNotNull($this->repo->invoiceRecord(1), 'invoice records are never pruned');
         self::assertSame([], WhmcsCalls::$activity);
+        // nothing to prune: no entry either
+        Hooks::reset();
+        $this->useModule(Fixtures::settings());
+        Hooks::pruneLog();
+        self::assertSame(1, substr_count(implode(',', array_column($this->repo->logEntries(null, 10), 'event')), 'log_pruned'));
+    }
+
+    public function testPruneRunsInBatchesAndClampsTheCutOffToTheMonthEnd(): void
+    {
+        $event = ['clientId' => 131, 'invoiceId' => null, 'event' => 'tier_changed', 'detail' => [], 'actor' => 'test'];
+        for ($i = 0; $i < 2500; $i++) {
+            $this->repo->log($event + ['createdAt' => '2020-01-01 00:00:00']);
+        }
+        $this->repo->log($event + ['createdAt' => '2026-02-28 02:00:00']);
+        $this->repo->log($event + ['createdAt' => '2026-02-28 01:59:59']);
+        // 31 March 2026 02:00 less one month is 28 February 2026 02:00, not 3 March; the time of day is kept
+        $module = new Module($this->repo, Config::fromSettings(['log_retention_months' => '1'] + Fixtures::settings()), new FrozenClock(new \DateTimeImmutable('2026-03-31 02:00:00')), new RecordingActivityLog());
+        self::assertSame(2501, $module->pruneLog());
+        self::assertSame([1000, 1000, 501], $this->repo->pruneCalls, 'three batches: two full, one short');
+        self::assertSame(['log_pruned', 'tier_changed'], array_column($this->repo->logEntries(null, 10), 'event'));
+        self::assertSame('2026-02-28 02:00:00', $this->repo->logEntries(null, 1)[0]['detail']['before']);
+        self::assertSame('2501 change log entries older than 2026-02-28 removed (retention 1 months).', LogEntry::sentence($this->repo->logEntries(null, 1)[0], []));
     }
 
     public function testRetentionOfZeroKeepsTheWholeLog(): void
