@@ -20,8 +20,9 @@ use AgencyDiscount\Tiers;
 
 /**
  * The Settings tab: the mode card and one form for tiers, qualifying items, statuses, behaviour
- * and invoice line text, with an impact preview. Saves the same tbladdonmodules keys the engine
- * reads, so the CLI profile and the WHMCS Configure form stay valid.
+ * and invoice line text, with an impact preview. Saves the tbladdonmodules keys the engine reads
+ * (the ones the CLI profile uses too); this tab is their only home, as the WHMCS Configure form
+ * is the only home of the housekeeping settings.
  *
  * POST actions (all carry the WHMCS admin token, checked by the caller):
  *   action=mode, dry_run=on|''        switch dry-run on or off (its own small form)
@@ -45,7 +46,6 @@ final class SettingsTab
     public const ACTION_PREVIEW = 'settings_preview';
     public const ACTION_SAVE = 'settings_save';
     public const FIELD_COPY_TO = 'copy_to';
-    public const CONFIGURE_LINK = 'configaddonmods.php#agencydiscount';
 
     private const PREVIEW_DAYS = 35;
     private const EXAMPLE_PERCENT = '10';
@@ -543,9 +543,7 @@ final class SettingsTab
     {
         return '<p class="agencydiscount-actions">'
             . '<button type="submit" name="action" value="' . self::ACTION_PREVIEW . '" class="btn btn-default">' . Html::e(Page::lang('preview')) . '</button> '
-            . '<button type="submit" name="action" value="' . self::ACTION_SAVE . '" class="btn btn-primary">' . Html::e(Page::lang('save')) . '</button> '
-            . '<a href="' . self::CONFIGURE_LINK . '">' . Html::e(Page::lang('advanced_json')) . '</a> '
-            . '<span class="text-muted">' . Html::e(Page::lang('advanced_json_help')) . '</span></p>';
+            . '<button type="submit" name="action" value="' . self::ACTION_SAVE . '" class="btn btn-primary">' . Html::e(Page::lang('save')) . '</button></p>';
     }
 
     private static function checkbox(string $name, string $value, bool $checked, string $label, string $note): string

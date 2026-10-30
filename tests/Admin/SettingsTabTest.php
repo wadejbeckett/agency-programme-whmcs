@@ -60,7 +60,6 @@ final class SettingsTabTest extends TestCase
             'addons' => ['12', '15'],
             'statuses' => ['Active'],
             'new_orders' => 'on',
-            'activity_log' => 'on',
             'description' => 'Agency discount {percent}% on {count} qualifying {items}',
         ];
     }
@@ -117,15 +116,16 @@ final class SettingsTabTest extends TestCase
         self::assertStringContainsString('name="statuses[]" value="Completed"> Completed', $html);
         self::assertStringContainsString('name="new_orders" value="on" checked>', $html);
         self::assertStringContainsString('name="stack_with_promotions" value="on">', $html);
-        self::assertStringContainsString('name="activity_log" value="on" checked>', $html);
-        self::assertStringContainsString('name="delete_data" value="on">', $html);
+        self::assertStringNotContainsString('name="activity_log"', $html, 'housekeeping lives on the WHMCS Configure form only');
+        self::assertStringNotContainsString('name="delete_data"', $html);
         self::assertStringContainsString('name="description" class="form-control" value="Agency discount {percent}% on {count} qualifying {items}"', $html);
         self::assertStringContainsString('<code>Agency discount 10% on 3 qualifying items</code>', $html);
 
-        // actions and the advanced link
+        // actions; no link to the raw Configure form
         self::assertStringContainsString('name="action" value="settings_preview" class="btn btn-default">Preview impact</button>', $html);
-        self::assertStringContainsString('name="action" value="settings_save" class="btn btn-primary">Save settings</button>', $html);
-        self::assertStringContainsString('<a href="configaddonmods.php#agencydiscount">Advanced: edit as JSON</a>', $html);
+        self::assertStringContainsString('name="action" value="settings_save" class="btn btn-primary">Save settings</button></p>', $html);
+        self::assertStringNotContainsString('configaddonmods', $html);
+        self::assertStringNotContainsString('Addon Modules', $html);
         self::assertStringNotContainsString(' I ', $html, 'organisation voice');
 
         // a GET changes nothing
@@ -205,12 +205,11 @@ final class SettingsTabTest extends TestCase
         $post['products'] = ['161'];
         $post['addons'] = ['12'];
         $post['statuses'] = ['Active', 'Suspended', 'Weird'];
-        $post['delete_data'] = 'on';
-        unset($post['activity_log']);
+        $post['delete_data'] = 'on'; // not a form key any more: ignored
         $post['description'] = 'Agency discount {percent}% ({count} items)';
         $html = $this->render(['action' => 'settings_save'] + $post);
 
-        self::assertStringContainsString('Settings saved. Changed: tiers, product_groups, products, addons, statuses, activity_log, delete_data, description.', $html);
+        self::assertStringContainsString('Settings saved. Changed: tiers, product_groups, products, addons, statuses, description.', $html);
         self::assertSame([
             'tiers' => '{"ZAR":[{"above":0,"percent":5},{"above":10000,"percent":10.5}]}',
             'product_groups' => '1,23',
@@ -219,8 +218,8 @@ final class SettingsTabTest extends TestCase
             'statuses' => 'Active,Suspended,Weird',
             'dry_run' => '',
             'description' => 'Agency discount {percent}% ({count} items)',
-            'delete_data' => 'on',
-            'activity_log' => '',
+            'delete_data' => '',
+            'activity_log' => 'on',
             'stack_with_promotions' => '',
             'access' => '1,2', // WHMCS's own access list is not the tab's to write
             'new_orders' => 'on',
@@ -230,22 +229,20 @@ final class SettingsTabTest extends TestCase
         self::assertSame('settings_changed', $log['event']);
         self::assertNull($log['clientId']);
         self::assertSame('admin:1', $log['actor']);
-        self::assertSame(['tiers', 'product_groups', 'products', 'addons', 'statuses', 'activity_log', 'delete_data', 'description'], array_keys($log['detail']['changed']));
+        self::assertSame(['tiers', 'product_groups', 'products', 'addons', 'statuses', 'description'], array_keys($log['detail']['changed']));
         self::assertSame(['from' => '', 'to' => '161'], $log['detail']['changed']['products']);
-        self::assertSame(['from' => 'on', 'to' => ''], $log['detail']['changed']['activity_log']);
-        self::assertSame([['message' => 'Agency Discount: settings changed: tiers, product_groups, products, addons, statuses, activity_log, delete_data, description', 'clientId' => 0]], $this->activity->entries);
+        self::assertSame([['message' => 'Agency Discount: settings changed: tiers, product_groups, products, addons, statuses, description', 'clientId' => 0]], $this->activity->entries);
 
         // the page now shows the saved values, and the engine reads them back unchanged
         self::assertStringContainsString('name="tiers[ZAR][0][above]" value="0.00"', $html);
         self::assertStringContainsString('name="tiers[ZAR][1][percent]" value="10.5"', $html);
         self::assertStringContainsString('name="statuses[]" value="Weird" checked> Weird', $html);
-        self::assertStringContainsString('name="delete_data" value="on" checked>', $html);
         self::assertStringContainsString('<code>Agency discount 10% (3 items)</code>', $html);
         $config = Config::fromSettings($this->repo->settings);
         self::assertSame('10.50', $config->tiers->forCurrency('ZAR')[1]->percent);
         self::assertSame([161], $config->productIds);
-        self::assertTrue($config->deleteData);
-        self::assertFalse($config->activityLog);
+        self::assertFalse($config->deleteData, 'housekeeping rows are the Configure form\'s and untouched');
+        self::assertTrue($config->activityLog);
     }
 
     public function testSaveWarnsAboutWhatWhmcsDoesNotHave(): void
@@ -406,7 +403,7 @@ final class SettingsTabTest extends TestCase
         self::assertSame(['Active', 'Suspended'], $form->statuses);
         self::assertSame('Agency {percent}%', $form->description);
         // switches read as Config does: a missing key takes the default, an unexpected value the safe side
-        self::assertSame(['new_orders' => true, 'stack_with_promotions' => true, 'activity_log' => true, 'delete_data' => false], $form->switches);
+        self::assertSame(['new_orders' => true, 'stack_with_promotions' => true], $form->switches);
 
         $unreadable = SettingsForm::fromSettings(['tiers' => '[1,2]'] + Fixtures::settings());
         self::assertSame([], $unreadable->tiers);

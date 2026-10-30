@@ -13,6 +13,19 @@ final class Config
     public const OLD_DEFAULT_DESCRIPTION = 'Agency discount {percent}% on {count} qualifying items';
     public const DEFAULT_DESCRIPTION = 'Agency discount {percent}% on {count} qualifying {items}';
 
+    /**
+     * The rows the engine needs and the Settings tab writes; when one is absent (a fresh install
+     * before the first Settings save, a row removed by hand) its default applies and the Overview
+     * and the daily cron say so, in these words, so a discount never stops silently.
+     */
+    public const DEFAULT_WORDS = [
+        'tiers' => 'no tiers',
+        'dry_run' => 'dry-run on',
+        'product_groups' => 'no product groups count',
+        'products' => 'no products count',
+        'addons' => 'no add-ons count',
+    ];
+
     private const DEFAULTS = [
         'tiers' => '{}',
         'product_groups' => '',
@@ -33,6 +46,7 @@ final class Config
      * @param list<int> $productIds
      * @param list<int> $addonIds
      * @param list<string> $statuses
+     * @param list<string> $missingKeys the DEFAULT_WORDS keys with no stored row, in that order
      */
     private function __construct(
         public readonly Tiers $tiers,
@@ -47,7 +61,21 @@ final class Config
         public readonly bool $deleteData,
         public readonly bool $activityLog,
         public readonly int $logRetentionMonths,
+        public readonly array $missingKeys = [],
     ) {
+    }
+
+    /**
+     * "no stored value for tiers, dry_run; the defaults apply (no tiers, dry-run on)", or null when
+     * every engine row is stored. The Overview item and the daily cron line are built from it.
+     */
+    public function defaultsNote(): ?string
+    {
+        if ($this->missingKeys === []) {
+            return null;
+        }
+        $words = array_map(static fn (string $key): string => self::DEFAULT_WORDS[$key], $this->missingKeys);
+        return 'no stored value for ' . implode(', ', $this->missingKeys) . '; the defaults apply (' . implode(', ', $words) . ')';
     }
 
     /** @return array<string, string> */
@@ -67,6 +95,7 @@ final class Config
             $value = $settings[$key] ?? $default;
             $s[$key] = is_scalar($value) ? (string) $value : $default;
         }
+        $missing = array_values(array_filter(array_keys(self::DEFAULT_WORDS), static fn (string $key): bool => !isset($settings[$key])));
 
         $problems = [];
 
@@ -108,6 +137,7 @@ final class Config
             self::yesNo($s['delete_data'], false),
             self::yesNo($s['activity_log'], true),
             self::retentionMonths($s['log_retention_months']),
+            $missing,
         );
     }
 

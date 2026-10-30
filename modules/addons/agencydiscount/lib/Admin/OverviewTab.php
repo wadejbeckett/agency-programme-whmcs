@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace AgencyDiscount\Admin;
 
 use AgencyDiscount\AgencyStatus;
+use AgencyDiscount\Config;
 use AgencyDiscount\LogEntry;
 use AgencyDiscount\Module;
 use AgencyDiscount\Money;
@@ -288,6 +289,11 @@ final class OverviewTab
                 default => sprintf(Page::lang('attention_dry_run_at_least'), $days['days']),
             };
             $items[] = [$text, Html::link($moduleLink, ['action' => 'settings'])];
+        }
+        $missing = $this->module->config->missingKeys;
+        if ($missing !== []) {
+            $words = array_map(static fn (string $key): string => Config::DEFAULT_WORDS[$key], $missing);
+            $items[] = [sprintf(Page::lang('attention_defaults'), implode(', ', $missing), implode(', ', $words)), Html::link($moduleLink, ['action' => 'settings'])];
         }
         foreach (ConfigWarnings::texts($this->module->repo, $this->module->config) as $text) {
             $items[] = [$text, Html::link($moduleLink, ['action' => 'settings'])];

@@ -187,7 +187,6 @@ final class PageTest extends TestCase
         self::assertStringContainsString('name="product_groups[]" value="1"> Legacy', $settings);
         self::assertStringContainsString('name="addons[]" value="12" checked>', $settings);
         self::assertStringContainsString('name="statuses[]" value="Active" checked>', $settings);
-        self::assertStringContainsString('name="activity_log" value="on" checked>', $settings);
         self::assertStringContainsString('name="description" class="form-control" value="Agency discount {percent}% on {count} qualifying {items}"', $settings);
         self::assertSame('23,premium', $this->repo->settings['product_groups']);
 

@@ -13,6 +13,45 @@ use PHPUnit\Framework\TestCase;
 
 final class ConfigTest extends TestCase
 {
+    public function testASettingsSetWithoutTheConfigureFormKeysBootsOnDocumentedDefaults(): void
+    {
+        // what a fresh install stores before the first Settings save: the housekeeping rows only
+        $config = Config::fromSettings(['activity_log' => 'on', 'log_retention_months' => '24', 'delete_data' => '', 'access' => '1']);
+        self::assertSame([], $config->tiers->currencies());
+        self::assertSame([[], [], []], [$config->productGroupIds, $config->productIds, $config->addonIds]);
+        self::assertSame(['Active'], $config->statuses);
+        self::assertTrue($config->dryRun);
+        self::assertFalse($config->stackWithPromotions);
+        self::assertTrue($config->newOrders);
+        self::assertSame(Config::DEFAULT_DESCRIPTION, $config->descriptionTemplate);
+        self::assertSame(['tiers', 'dry_run', 'product_groups', 'products', 'addons'], $config->missingKeys);
+        self::assertSame('no stored value for tiers, dry_run, product_groups, products, addons; the defaults apply (no tiers, dry-run on, no product groups count, no products count, no add-ons count)', $config->defaultsNote());
+
+        $partial = Config::fromSettings(['tiers' => '{}', 'products' => '', 'addons' => '', 'product_groups' => '']);
+        self::assertSame(['dry_run'], $partial->missingKeys);
+        self::assertSame('no stored value for dry_run; the defaults apply (dry-run on)', $partial->defaultsNote());
+        self::assertNull(Config::fromSettings(['tiers' => '{}', 'dry_run' => '', 'product_groups' => '', 'products' => '', 'addons' => ''])->defaultsNote());
+    }
+
+    public function testAFull02xSettingsSetGivesTheSameConfigAsBefore(): void
+    {
+        $full = [
+            'tiers' => '{"ZAR":[{"above":0,"percent":5},{"above":10000,"percent":10}],"EUR":[{"above":0,"percent":5}]}',
+            'product_groups' => '1,23,6', 'products' => '160,161', 'addons' => '12,15,16', 'statuses' => 'Active,Suspended',
+            'dry_run' => '', 'stack_with_promotions' => 'on', 'new_orders' => '', 'description' => 'Agency {percent}% on {count} {items}',
+            'activity_log' => '', 'log_retention_months' => '12', 'delete_data' => 'on', 'keep_data' => '', 'access' => '1,2', 'version' => '0.2.2',
+        ];
+        $config = Config::fromSettings($full);
+        self::assertSame(['ZAR', 'EUR'], $config->tiers->currencies());
+        self::assertSame('10.00', $config->tiers->forCurrency('ZAR')[1]->percent);
+        self::assertSame([[1, 23, 6], [160, 161], [12, 15, 16]], [$config->productGroupIds, $config->productIds, $config->addonIds]);
+        self::assertSame(['Active', 'Suspended'], $config->statuses);
+        self::assertSame([false, true, false, false, true, 12], [$config->dryRun, $config->stackWithPromotions, $config->newOrders, $config->activityLog, $config->deleteData, $config->logRetentionMonths]);
+        self::assertSame('Agency {percent}% on {count} {items}', $config->descriptionTemplate);
+        self::assertSame([], $config->missingKeys);
+        self::assertNull($config->defaultsNote());
+    }
+
     public function testDefaultsAreSafe(): void
     {
         $c = Config::fromSettings([]);
