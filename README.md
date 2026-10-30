@@ -66,7 +66,7 @@ Defaults are those in `Config::defaults()`. Yes/no settings are stored as `on` w
 | Setting | Key | Default | Where edited | Meaning |
 | --- | --- | --- | --- | --- |
 | Tiers (JSON) | `tiers` | `{}` | Settings tab, Discount tiers | Discount tiers per currency, see below. Must define at least one currency before any discount can apply. |
-| Qualifying product group IDs | `product_groups` | empty | Settings tab, What counts | Comma-separated. Services in these groups count toward spend and receive the discount. |
+| Qualifying product group IDs (whole numbers from 1 to 999999999; anything else is a configuration problem shown on the Settings tab) | `product_groups` | empty | Settings tab, What counts | Comma-separated. Services in these groups count toward spend and receive the discount. |
 | Qualifying product IDs | `products` | empty | Settings tab, What counts | Comma-separated. Adds individual products outside those groups. |
 | Qualifying add-on IDs | `addons` | empty | Settings tab, What counts | Comma-separated product add-on ids. |
 | Counted statuses | `statuses` | `Active` | Settings tab, Counted statuses | Comma-separated service and add-on statuses that count. At least one is required. |
