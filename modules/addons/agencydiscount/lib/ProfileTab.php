@@ -6,7 +6,6 @@ declare(strict_types=1);
 
 namespace AgencyDiscount;
 
-use AgencyDiscount\Admin\ClientSummary;
 use AgencyDiscount\Admin\Html;
 use AgencyDiscount\Admin\Page;
 
@@ -50,11 +49,7 @@ final class ProfileTab
             . Html::e($row['effectiveFrom'] ?? '') . '"><div class="text-muted small">' . Html::e(Page::lang('profile_starts_help')) . '</div></div>'
             . '<div class="text-muted">' . Html::e(self::summary($row)) . '</div>';
 
-        $rightNow = $approved ? ClientSummary::rightNow($this->module, $clientId) : '';
-        if ($rightNow === '') {
-            return [self::LABEL => $fields];
-        }
-        return [self::LABEL => '<div class="row"><div class="col-md-6">' . $fields . '</div><div class="col-md-6">' . $rightNow . '</div></div>'];
+        return [self::LABEL => $fields];
     }
 
     /** @param array<string,mixed> $request the submitted profile form */
