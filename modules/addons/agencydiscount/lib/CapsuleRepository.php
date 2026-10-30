@@ -270,9 +270,14 @@ final class CapsuleRepository implements Repository
         ]);
     }
 
-    public function pruneLog(string $before): int
+    public function pruneLog(string $before, int $limit): int
     {
-        return (int) Capsule::table(self::LOG)->where('created_at', '<', $before)->delete();
+        return (int) Capsule::table(self::LOG)->where('created_at', '<', $before)->where('event', '<>', 'log_pruned')->orderBy('id')->limit($limit)->delete();
+    }
+
+    public function prunePruneRecords(string $before): void
+    {
+        Capsule::table(self::LOG)->where('created_at', '<', $before)->where('event', 'log_pruned')->delete();
     }
 
     public function logEntries(?int $clientId, int $limit, int $offset = 0, ?string $event = null): array
