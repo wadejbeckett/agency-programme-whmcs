@@ -112,15 +112,13 @@ final class HooksTest extends TestCase
         $this->useModule(Fixtures::settings());
         $card = Hooks::clientSummary(['userid' => 131]);
         self::assertStringContainsString('Agency Programme', $card);
-        self::assertStringContainsString('<span class="label label-success">Tier 1 (5%)</span>', $card);
-        self::assertStringContainsString('ZAR 1,012.92', $card);
-        self::assertStringContainsString('2026-10-25: ZAR 42.50 off ZAR 850.00', $card);
-        self::assertStringContainsString('ZAR 987.09 to tier 2 (10%)', $card);
-        self::assertStringContainsString('style="width: 1%"', $card);
-        self::assertStringContainsString('.agencydiscount-summary .agencydiscount-progress', $card, 'the slim bar style comes with the card');
-        self::assertStringContainsString('href="addonmodules.php?module=agencydiscount&amp;action=agency&amp;id=131"', $card);
-        self::assertStringContainsString('href="addonmodules.php?module=agencydiscount&amp;action=log&amp;client=131"', $card);
-        self::assertStringContainsString('href="clientsprofile.php?userid=131"', $card);
+        // exactly: the tier, the spend and one link to the detail page; the rest lives there
+        self::assertStringContainsString('<tr><th>Status</th><td><span class="label label-success">Tier 1 (5%)</span></td></tr><tr><th>Qualifying monthly spend</th><td>ZAR 1,012.92</td></tr></tbody></table><p><a href="addonmodules.php?module=agencydiscount&amp;action=agency&amp;id=131">Agency detail</a></p></div></div>', $card);
+        self::assertStringNotContainsString('2026-10-25', $card);
+        self::assertStringNotContainsString('progress', $card);
+        self::assertStringNotContainsString('action=log', $card);
+        self::assertStringNotContainsString('clientsprofile.php', $card);
+        self::assertStringNotContainsString('<style>', $card);
         self::assertStringNotContainsString('Dry-run', $card);
         self::assertSame('', Hooks::clientSummary(['userid' => 600]));
         self::assertSame('', Hooks::clientSummary(['userid' => 0]));
@@ -145,9 +143,8 @@ final class HooksTest extends TestCase
         $this->repo->agencies[131]['effectiveFrom'] = '2027-01-01';
         $this->useModule(['dry_run' => 'on'] + Fixtures::settings());
         $card = Hooks::clientSummary(['userid' => 131]);
-        self::assertStringContainsString('Dry-run mode is on', $card);
-        self::assertStringContainsString('starts 2027-01-01', $card);
-        self::assertStringContainsString('2026-10-25: no discount on ZAR 850.00', $card);
+        self::assertStringContainsString('<p class="text-warning">Dry-run mode is on: the discount is calculated and logged, but not yet added to invoices.</p><p class="text-warning">Approved; the discount starts on 2027-01-01.</p>', $card);
+        self::assertStringContainsString('<span class="text-warning">starts 2027-01-01</span>', $card);
     }
 
     public function testClientSummaryCardNeverThrows(): void

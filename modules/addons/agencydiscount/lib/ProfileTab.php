@@ -6,15 +6,14 @@ declare(strict_types=1);
 
 namespace AgencyDiscount;
 
-use AgencyDiscount\Admin\ClientSummary;
 use AgencyDiscount\Admin\Html;
 use AgencyDiscount\Admin\Page;
 
 /**
  * The "Agency discount" field on the admin client profile: approval (with who approved and when),
- * note, start date, a one-line summary of the stored spend and tier, and for an approved agency a
- * live "Right now" box beside the fields. The field names are part of the saved form and must not
- * change.
+ * note, start date and a one-line summary of the stored spend and tier. The live figures are on the
+ * summary card of the same client record and on the agency detail page. The field names are part
+ * of the saved form and must not change.
  *
  * @phpstan-import-type AgencyRow from Repository
  */
@@ -50,11 +49,7 @@ final class ProfileTab
             . Html::e($row['effectiveFrom'] ?? '') . '"><div class="text-muted small">' . Html::e(Page::lang('profile_starts_help')) . '</div></div>'
             . '<div class="text-muted">' . Html::e(self::summary($row)) . '</div>';
 
-        $rightNow = $approved ? ClientSummary::rightNow($this->module, $clientId) : '';
-        if ($rightNow === '') {
-            return [self::LABEL => $fields];
-        }
-        return [self::LABEL => '<div class="row"><div class="col-md-6">' . $fields . '</div><div class="col-md-6">' . $rightNow . '</div></div>'];
+        return [self::LABEL => $fields];
     }
 
     /** @param array<string,mixed> $request the submitted profile form */

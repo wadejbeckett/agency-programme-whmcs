@@ -226,21 +226,6 @@ final class Page
         return $html . ($pager === '' ? '' : '<p>' . $pager . '</p>');
     }
 
-    /** "2026-10-25: ABC 42.50 off ABC 850.00", "...: no discount on ...", or "none in 35 days". */
-    public static function nextInvoiceCell(AgencyStatus $status): string
-    {
-        $first = $status->nextInvoice();
-        if ($first === null) {
-            return Html::e(sprintf(self::lang('next_invoice_none'), AgencyStatus::PREVIEW_DAYS));
-        }
-        $currency = $status->report->currency;
-        $base = Html::money($currency, $first['base']);
-        if ($first['percent'] === null) {
-            return Html::e(sprintf(self::lang('next_invoice_no_discount'), $first['date'], $base));
-        }
-        return Html::e(sprintf(self::lang('next_invoice'), $first['date'], Html::money($currency, $first['discount']), $base));
-    }
-
     /** "active", "active since <date>" (a start date already reached) or a flagged "starts <date>". */
     public static function startsCell(AgencyStatus $status): string
     {

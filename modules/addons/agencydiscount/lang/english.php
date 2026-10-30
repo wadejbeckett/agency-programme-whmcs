@@ -129,8 +129,6 @@ $_ADDONLANG['tier_badge'] = 'Tier %1$d (%2$s%%)';
 $_ADDONLANG['top_tier'] = 'top tier';
 $_ADDONLANG['to_next_tier'] = '%1$s to tier %2$d (%3$s%%)';
 $_ADDONLANG['next_invoice_none'] = 'none in %d days';
-$_ADDONLANG['next_invoice_no_discount'] = '%1$s: no discount on %2$s';
-$_ADDONLANG['next_invoice'] = '%1$s: %2$s off %3$s';
 $_ADDONLANG['next_invoice_detail'] = '%1$s off %2$s';
 $_ADDONLANG['next_invoice_detail_no_discount'] = 'no discount on %s';
 $_ADDONLANG['recalculated_at'] = 'recalculated %s';
@@ -224,19 +222,14 @@ $_ADDONLANG['widget_none'] = 'No approved agencies yet.';
 // Admin client summary card and profile tab
 $_ADDONLANG['summary_status'] = 'Status';
 $_ADDONLANG['summary_spend'] = 'Qualifying monthly spend';
-$_ADDONLANG['summary_next_invoice'] = 'Next invoice';
-$_ADDONLANG['summary_to_next'] = 'To the next tier';
 $_ADDONLANG['summary_dry_run'] = 'Dry-run mode is on: the discount is calculated and logged, but not yet added to invoices.';
 $_ADDONLANG['summary_waiting'] = 'Approved; the discount starts on %s.';
-$_ADDONLANG['summary_counted_items'] = 'Counted items';
-$_ADDONLANG['summary_change_log'] = 'Change log';
-$_ADDONLANG['summary_profile'] = 'Approval on the profile tab';
+$_ADDONLANG['summary_detail'] = 'Agency detail';
 $_ADDONLANG['profile_approved'] = 'Approved agency';
 $_ADDONLANG['profile_approved_by'] = 'Approved by %1$s on %2$s';
 $_ADDONLANG['profile_note'] = 'Note';
 $_ADDONLANG['profile_starts'] = 'Discount starts on';
 $_ADDONLANG['profile_starts_help'] = 'Leave empty to start immediately, or set the first day the discount applies: invoices due before it are not discounted, so a date gives notice before the first discounted invoice.';
-$_ADDONLANG['profile_right_now'] = 'Right now';
 $_ADDONLANG['widget_denied'] = 'Agency Programme is not available to your admin role.';
 
 // Client area (keys prefixed ca_ are passed to templates/clientarea.tpl as $text.<key>)
