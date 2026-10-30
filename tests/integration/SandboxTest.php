@@ -473,6 +473,18 @@ final class SandboxTest extends TestCase
         $repo->saveCalculation($other, ['currency' => $currency, 'spend' => '1.00', 'tierIndex' => null, 'tierPercent' => null, 'countedServices' => 0, 'countedAddons' => 0, 'calculatedAt' => '2026-01-02 03:04:05', 'updatedAt' => '2026-01-02 03:04:05']);
         self::assertNull($repo->agency($other), 'no row is created for an unknown client');
 
+        // i4c'. saveApproval writes the approval columns only: the figures saveCalculation wrote stay
+        $repo->saveApproval($clientId, ['approved' => true, 'note' => 'approval only', 'approvedBy' => 'admin:7', 'approvedAt' => '2026-01-03 00:00:00', 'effectiveFrom' => '2026-02-01', 'updatedAt' => '2026-01-03 00:00:00']);
+        $afterApproval = $repo->agency($clientId);
+        self::assertNotNull($afterApproval);
+        self::assertSame(['approval only', 'admin:7', '2026-02-01', '123.45', 7, '2026-01-02 03:04:05'], [$afterApproval['note'], $afterApproval['approvedBy'], $afterApproval['effectiveFrom'], $afterApproval['spend'], $afterApproval['countedServices'], $afterApproval['calculatedAt']]);
+        $fresh = $other + 2;
+        $repo->saveApproval($fresh, ['approved' => true, 'note' => '', 'approvedBy' => 'admin:7', 'approvedAt' => '2026-01-03 00:00:00', 'effectiveFrom' => null, 'updatedAt' => '2026-01-03 00:00:00']);
+        $inserted = $repo->agency($fresh);
+        self::assertNotNull($inserted);
+        self::assertSame([true, '0.00', null, 0], [$inserted['approved'], $inserted['spend'], $inserted['calculatedAt'], $inserted['countedServices']], 'an insert takes the table defaults for the figures');
+        Manager::table('mod_agencydiscount_clients')->where('client_id', $fresh)->delete();
+
         // i4d. pruneLog deletes only entries created before the cut-off
         $event = ['clientId' => $other, 'invoiceId' => null, 'event' => 'tier_changed', 'detail' => [], 'actor' => 'sandbox'];
         $repo->log($event + ['createdAt' => '2000-12-31 23:59:59']);
