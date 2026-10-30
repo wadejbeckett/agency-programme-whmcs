@@ -148,16 +148,20 @@ final class Scenarios
         $log('2026-10-15 03:00:00', 102, null, 'tier_changed', ['from' => 1, 'fromPercent' => '5.00', 'to' => 2, 'toPercent' => '10.00', 'spend' => '6000.00'], 'cron:daily');
         $log('2026-10-20 03:00:00', 101, 90003, 'applied', ['amount' => '1200.00', 'percent' => '10.00'], 'system');
         $log('2026-10-25 03:00:00', 104, 90004, 'applied', ['amount' => '50.00', 'percent' => '5.00'], 'system');
+        $log('2026-10-26 03:00:00', 101, 90005, 'applied', ['amount' => '1200.00', 'percent' => '10.00'], 'system');
+        $log('2026-10-27 03:00:00', 101, 90006, 'applied', ['amount' => '1200.00', 'percent' => '10.00'], 'system');
         // The records behind those entries, with the paid invoices and the discount lines still on them (so "Saved in <year>" counts them).
-        foreach ([[90001, 101, 2, '10.00', '12000.00', '1200.00', true, '2026-10-03 03:00:00'], [90002, 102, 1, '5.00', '4000.00', '200.00', false, '2026-10-07 03:00:00'], [90003, 101, 2, '10.00', '12000.00', '1200.00', false, '2026-10-20 03:00:00'], [90004, 104, 1, '5.00', '1000.00', '50.00', false, '2026-10-25 03:00:00']] as [$invoice, $client, $tier, $percent, $base, $amount, $dryRun, $at]) {
+        // 90005 was cancelled afterwards and 90006 had its discount line removed by hand: shown on the detail page, left out of the total.
+        foreach ([[90001, 101, 2, '10.00', '12000.00', '1200.00', true, '2026-10-03 03:00:00'], [90002, 102, 1, '5.00', '4000.00', '200.00', false, '2026-10-07 03:00:00'], [90003, 101, 2, '10.00', '12000.00', '1200.00', false, '2026-10-20 03:00:00'], [90004, 104, 1, '5.00', '1000.00', '50.00', false, '2026-10-25 03:00:00'], [90005, 101, 2, '10.00', '12000.00', '1200.00', false, '2026-10-26 03:00:00'], [90006, 101, 2, '10.00', '12000.00', '1200.00', false, '2026-10-27 03:00:00']] as [$invoice, $client, $tier, $percent, $base, $amount, $dryRun, $at]) {
             $itemId = $dryRun ? null : $invoice * 10;
             $repo->saveInvoiceRecord(['invoiceId' => $invoice, 'line' => 0, 'clientId' => $client, 'itemId' => $itemId, 'taxed' => false, 'tierIndex' => $tier, 'percent' => $percent, 'base' => $base, 'amount' => $amount, 'dryRun' => $dryRun, 'createdAt' => $at]);
             $repo->invoices[$invoice] = ['id' => $invoice, 'clientId' => $client, 'status' => 'Paid', 'dueDate' => substr($at, 0, 10), 'paymentMethod' => 'banktransfer'];
             $repo->invoiceItems[$invoice] = [['id' => $invoice * 10 - 1, 'type' => 'Hosting', 'relId' => $client * 10, 'description' => 'sPremium-1 - site' . $client . '.example', 'amount' => $base, 'taxed' => 0]];
-            if ($itemId !== null) {
+            if ($itemId !== null && $invoice !== 90006) {
                 $repo->invoiceItems[$invoice][] = ['id' => $itemId, 'type' => 'AgencyDiscount', 'relId' => $client, 'description' => 'Agency discount ' . Money::formatPercent($percent) . '% on 1 qualifying item', 'amount' => '-' . $amount, 'taxed' => 0];
             }
         }
+        $repo->invoices[90005]['status'] = 'Cancelled';
     }
 
     private static function agency(ArrayRepository $repo, int $id, string $name, string $currency, int $currencyId, string $spend, string $nextInvoice): void

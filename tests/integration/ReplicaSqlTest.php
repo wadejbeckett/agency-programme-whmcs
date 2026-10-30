@@ -81,7 +81,7 @@ final class ReplicaSqlTest extends TestCase
             self::assertSame($columns, explode("\t", $header), 'Sql::' . $name . ' columns');
             $checked[] = $name;
         }
-        self::assertSame(2, $skipped, 'CLAIM_INVOICE and APPLIED_DISCOUNT_TOTAL are on module tables');
+        self::assertSame(3, $skipped, 'CLAIM_INVOICE, APPLIED_DISCOUNT_TOTAL and CLIENT_INVOICE_RECORDS are on module tables');
         self::assertCount(count(Sql::expectedColumns()) - $skipped, $checked);
     }
 

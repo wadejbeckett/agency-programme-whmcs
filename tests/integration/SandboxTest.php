@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace AgencyDiscount\Tests\Integration;
 
+use AgencyDiscount\Admin\AgencyTab;
 use AgencyDiscount\Admin\Html;
 use AgencyDiscount\CapsuleRepository;
 use AgencyDiscount\Config;
@@ -410,6 +411,31 @@ final class SandboxTest extends TestCase
         $dry = $this->insertTaggedInvoice($other, 'Paid');
         $record($dry, 0, $this->insertDiscountLine($dry, $other, '-99.00', 0), '99.00', 0, true);
         self::assertSame('22.00', $repo->appliedDiscountTotal($other, date('Y') . '-01-01'));
+        // i4a'. the detail page's records query sees the same rows with the invoice status and whether the line is
+        //       still there, newest first, and its per-record state agrees with the total: the counted rows sum to it
+        $records = $repo->clientInvoiceRecords($other);
+        self::assertSame([[$dry, 0], [$mixed, 0], [$mixed, 1], [$removed, 0], [$refunded, 0], [$cancelled, 0], [$paid, 0]], array_map(static fn (array $r): array => [$r['invoiceId'], $r['line']], $records), 'newest first, then by invoice id, then line');
+        $states = [];
+        $counted = '0.00';
+        foreach ($records as $r) {
+            $states[$r['invoiceId'] . '/' . $r['line']] = [$r['invoiceStatus'], $r['lineOnInvoice'], AgencyTab::state($r, (int) date('Y'))];
+            if (AgencyTab::state($r, (int) date('Y')) === 'counted') {
+                $counted = bcadd($counted, $r['amount'], 2);
+            }
+        }
+        self::assertSame([
+            $dry . '/0' => ['Paid', true, 'dry_run'],
+            $mixed . '/0' => ['Paid', true, 'counted'],
+            $mixed . '/1' => ['Paid', true, 'counted'],
+            $removed . '/0' => ['Paid', false, 'line_removed'],
+            $refunded . '/0' => ['Refunded', true, 'invoice_status'],
+            $cancelled . '/0' => ['Cancelled', true, 'invoice_status'],
+            $paid . '/0' => ['Paid', true, 'counted'],
+        ], $states);
+        self::assertSame('22.00', $counted, 'the rows marked counted sum to the saved total');
+        Manager::table('tblinvoices')->where('id', $paid)->delete();
+        self::assertSame([null, true, 'invoice_gone'], array_values(array_filter(array_map(static fn (array $r): array => [$r['invoiceStatus'], $r['lineOnInvoice'], AgencyTab::state($r, (int) date('Y'))], $repo->clientInvoiceRecords($other)), static fn (array $s): bool => $s[0] === null))[0]);
+        self::assertSame('12.00', $repo->appliedDiscountTotal($other, date('Y') . '-01-01'), 'a deleted invoice leaves the total too');
 
         // i4b. a throw inside the transaction after the claim and a discount line leaves neither behind
         $rolledBack = $this->insertTaggedInvoice($other, 'Unpaid');

@@ -186,6 +186,16 @@ final class OverviewTest extends TestCase
         self::assertStringNotContainsString('Nothing needs attention', $html);
     }
 
+    public function testTheRecalculatedLineDescribesTheRowsShown(): void
+    {
+        $this->repo->agencies[131]['calculatedAt'] = '2026-10-12 03:00:00';
+        $this->repo->agencies[404]['calculatedAt'] = '2026-10-11 03:00:00';
+        $this->repo->agencies[500]['calculatedAt'] = '2026-10-10 03:00:00';
+        self::assertStringContainsString('Figures recalculated between 2026-10-10 03:00:00 and 2026-10-12 03:00:00.', $this->render());
+        self::assertStringContainsString('Figures recalculated 2026-10-10 03:00:00.', $this->render(['filter' => 'no_tiers']), 'only the Euro agency is shown');
+        self::assertStringContainsString('Figures recalculated 2026-10-12 03:00:00.', $this->render(['q' => 'Agency One']));
+    }
+
     public function testNeedsAttentionNamesEngineRowsWithNoStoredValue(): void
     {
         $this->repo->settings = ['statuses' => 'Active', 'description' => 'x {percent}', 'product_groups' => '23', 'activity_log' => 'on'];

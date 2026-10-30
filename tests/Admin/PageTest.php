@@ -58,7 +58,7 @@ final class PageTest extends TestCase
         $html = $this->page()->render('m', [], [], 'admin:1', '');
         self::assertStringContainsString('<span class="agencydiscount-nowrap">2026-10-25</span><br><small class="agencydiscount-nowrap">no discount on ZAR 850.00</small>', $html);
         $detail = $this->page()->render('m', ['action' => 'agency', 'id' => '131'], [], 'admin:1', '');
-        self::assertStringContainsString('<td>2026-10-25</td><td>5</td><td>ZAR 850.00</td><td>ZAR 0.00</td>', $detail);
+        self::assertStringContainsString('<td>2026-10-25</td><td>5</td><td>ZAR 850.00</td><td><span class="text-muted">not yet (before the start date)</span></td>', $detail);
         self::assertStringContainsString('<td>2026-11-03</td><td>2</td><td>ZAR 1,955.00</td><td>ZAR 97.75</td>', $detail);
     }
 
@@ -87,7 +87,8 @@ final class PageTest extends TestCase
         self::assertStringNotContainsString('e.example', $html);
         self::assertStringContainsString('<a href="m&amp;action=log&amp;client=131">Change log for this client</a>', $html);
         $bad = $this->page()->render('m', ['action' => 'agency', 'id' => '600'], [], 'admin:1', '');
-        self::assertStringContainsString('Client 600 is not an approved agency', $bad);
+        self::assertStringContainsString('Client 600 is not an approved agency.', $bad);
+        self::assertStringContainsString('<li class="active"><a href="m">Overview</a></li>', $bad, 'the detail view sits under the Overview tab');
     }
 
     public function testLogViewEscapesAndPaginates(): void

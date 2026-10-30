@@ -292,6 +292,29 @@ final class CapsuleRepository implements Repository
         return $this->invoiceRecordLines($invoiceId)[0] ?? null;
     }
 
+    public function clientInvoiceRecords(int $clientId): array
+    {
+        $records = [];
+        foreach (self::select(Sql::CLIENT_INVOICE_RECORDS, [$clientId]) as $row) {
+            $records[] = [
+                'invoiceId' => (int) $row->invoice_id,
+                'line' => (int) $row->line,
+                'clientId' => (int) $row->client_id,
+                'itemId' => $row->item_id === null ? null : (int) $row->item_id,
+                'taxed' => (int) $row->taxed === 1,
+                'tierIndex' => (int) $row->tier_index,
+                'percent' => self::money($row->percent),
+                'base' => self::money($row->base),
+                'amount' => self::money($row->amount),
+                'dryRun' => (int) $row->dry_run === 1,
+                'createdAt' => (string) $row->created_at,
+                'invoiceStatus' => $row->invoice_status === null ? null : (string) $row->invoice_status,
+                'lineOnInvoice' => $row->item_present !== null,
+            ];
+        }
+        return $records;
+    }
+
     public function invoiceRecordLines(int $invoiceId): array
     {
         $records = [];

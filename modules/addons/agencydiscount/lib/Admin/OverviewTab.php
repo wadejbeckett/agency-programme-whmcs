@@ -120,11 +120,13 @@ final class OverviewTab
         }
 
         $rows = '';
+        $shown = [];
         foreach ($statuses as $status) {
             if (!self::matches($status, $filter) || ($query !== '' && stripos($status->report->clientName, $query) === false)) {
                 continue;
             }
             $rows .= $this->row($moduleLink, $status);
+            $shown[] = $status;
         }
         if ($rows === '') {
             return $html . '<p>' . Html::e(Page::lang('no_matches')) . '</p>';
@@ -134,7 +136,7 @@ final class OverviewTab
             $head .= '<th>' . Html::e(Page::lang($key)) . '</th>';
         }
         return $html . '<div class="table-responsive"><table class="table table-striped" id="agencydiscount-overview"><thead><tr>' . $head . '</tr></thead><tbody>' . $rows . '</tbody></table></div>'
-            . self::recalculatedNote($statuses);
+            . self::recalculatedNote($shown);
     }
 
     private static function matches(AgencyStatus $status, string $filter): bool
@@ -197,8 +199,9 @@ final class OverviewTab
     }
 
     /**
-     * One line under the table: when the figures were recalculated (the oldest and newest time when
-     * the agencies differ), so the rows do not each carry a timestamp.
+     * One line under the table: when the figures of the rows shown were recalculated (the oldest and
+     * newest time when they differ), so the rows do not each carry a timestamp; each agency's own
+     * time is on its detail page.
      *
      * @param list<AgencyStatus> $statuses
      */
