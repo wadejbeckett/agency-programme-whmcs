@@ -1,6 +1,6 @@
 # Offline render preview
 
-Renders the admin surfaces of the addon and its client-area page into complete HTML pages wrapped in a WHMCS theme, so they can be looked at and screenshotted without a WHMCS install, a session or a database. The figures come from fixture data in `Scenarios.php` (generic agency names, round invented figures, `ArrayRepository`, a frozen clock); the `demo` scenario (the same six agencies as `live`) is the screenshot set.
+Renders the admin surfaces of the addon and its client-area page into complete HTML pages wrapped in a WHMCS theme, so they can be looked at and screenshotted without a WHMCS install, a session or a database. The figures come from fixture data in `Scenarios.php` (generic agency names, round invented figures, `ArrayRepository`, a frozen clock). The Overview and Settings pages come from the `edge` scenario (the edge states); the agency detail, Change log and client-area pages from `demo` (the live six agencies with a short history), which is the screenshot set.
 
 What it renders, for each theme found:
 
@@ -10,7 +10,7 @@ What it renders, for each theme found:
 - `<prefix>-agency-<theme>.html`: the agency detail view for Agency One, and `<prefix>-log-<theme>.html`: the Change log tab with the demo history (approvals, a settings save, the switch to live, applied discounts, a tier change).
 - `<prefix>-overview-broken-<theme>.html` and `<prefix>-settings-broken-<theme>.html`: the repair page, when the stored settings do not parse (a tier threshold and a product group id that are not numbers): the banner alone on the Overview, and the Settings tab filled from the stored values with the problems beside their sections.
 - `<prefix>-clientsummary-<theme>.html`: the client summary card, for an agency at a tier and one waiting for its start date.
-- `<prefix>-clientarea-twenty-one.html` and `<prefix>-clientarea-notmember-twenty-one.html` (when the theme directory has a `twenty-one/` folder): the client-area module page in the Twenty-One client theme, for Agency One and for a client outside the programme. The template is rendered by Smarty 4 (`smarty/smarty` in `require-dev`, the major version WHMCS 9 bundles) through `bin/lib/ClientAreaTemplate.php`, whose security policy allows only the `escape` modifier and the `if` and `foreach` tags, narrower than WHMCS's own; the page frame is the theme's body class and main-body container, without the header bar and sidebars.
+- `<prefix>-clientarea-twenty-one.html` and `<prefix>-clientarea-notmember-twenty-one.html` (when the theme directory has a `twenty-one/` folder): the client-area module page in the Twenty-One client theme, for Agency One and for a client outside the programme. The template is rendered by Smarty 4.5.x (`smarty/smarty` in `require-dev`; WHMCS 9.1 bundles 4.5.3) through `bin/lib/ClientAreaTemplate.php`, whose security policy allows, of Smarty's plugin tags and modifiers, only `escape`, `if` and `foreach`, and no PHP function, static class, super-global or constant (WHMCS's own policy is not published here; the template is also scanned by `tests/ClientArea/TemplateTest.php`); the page frame is the theme's body class and main-body container, without the header bar and sidebars.
 
 ## Theme files
 

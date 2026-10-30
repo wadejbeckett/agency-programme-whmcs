@@ -12,10 +12,14 @@ declare(strict_types=1);
  *
  *   php tools/preview/render.php --theme-dir=<dir holding iris/, blend/ and twenty-one/> --out=<dir> [--prefix=after]
  *
+ * The Overview and Settings pages come from the edge scenario (dry-run, a start date, missing
+ * tiers and ids); the agency detail, Change log and client-area pages from the demo scenario (live,
+ * with history), which is the screenshot set.
+ *
  * The theme directory holds copies of <whmcs>/admin/templates/<theme>/css (and fonts) and of
  * <whmcs>/templates/twenty-one/css; those files are WHMCS's and are referenced by path, never
  * copied into this repository. See README.md. The client-area page is rendered through Smarty
- * (ClientAreaTemplate, a dev dependency) with a policy narrower than WHMCS's.
+ * (ClientAreaTemplate, a dev dependency) under a restrictive security policy.
  */
 
 use AgencyDiscount\Admin\ClientSummary;
@@ -38,7 +42,7 @@ $themeDir = is_string($options['theme-dir'] ?? null) ? rtrim($options['theme-dir
 $out = is_string($options['out'] ?? null) ? rtrim($options['out'], '/') : '';
 $prefix = is_string($options['prefix'] ?? null) ? $options['prefix'] : 'preview';
 if ($themeDir === '' || $out === '' || !is_dir($themeDir)) {
-    fwrite(STDERR, "usage: php tools/preview/render.php --theme-dir=<dir with iris/ and blend/> --out=<dir> [--prefix=name]\n");
+    fwrite(STDERR, "usage: php tools/preview/render.php --theme-dir=<dir with iris/, blend/ and twenty-one/> --out=<dir> [--prefix=name]\n");
     exit(2);
 }
 $themeDir = (string) realpath($themeDir);
@@ -163,8 +167,9 @@ foreach (['iris', 'blend'] as $theme) {
     $token = '<input type="hidden" name="token" value="preview">';
     $put($prefix . '-overview-' . $theme . '.html', frame($themeDir, $theme, $title, $page->render(WidgetData::MODULE_LINK, [], [], 'admin:1', $token)));
     $put($prefix . '-settings-' . $theme . '.html', frame($themeDir, $theme, $title, $page->render(WidgetData::MODULE_LINK, ['action' => 'settings'], [], 'admin:1', $token)));
-    $put($prefix . '-agency-' . $theme . '.html', frame($themeDir, $theme, $title, $page->render(WidgetData::MODULE_LINK, ['action' => 'agency', 'id' => (string) Scenarios::DETAIL_CLIENT], [], 'admin:1', $token)));
-    $put($prefix . '-log-' . $theme . '.html', frame($themeDir, $theme, $title, $page->render(WidgetData::MODULE_LINK, ['action' => 'log'], [], 'admin:1', $token)));
+    $demo = Scenarios::page(Scenarios::DEMO);
+    $put($prefix . '-agency-' . $theme . '.html', frame($themeDir, $theme, $title, $demo->render(WidgetData::MODULE_LINK, ['action' => 'agency', 'id' => (string) Scenarios::DETAIL_CLIENT], [], 'admin:1', $token)));
+    $put($prefix . '-log-' . $theme . '.html', frame($themeDir, $theme, $title, $demo->render(WidgetData::MODULE_LINK, ['action' => 'log'], [], 'admin:1', $token)));
 
     // The repair page: stored settings that do not parse (Scenarios::brokenSettings()).
     $broken = Scenarios::page('broken');
@@ -177,12 +182,14 @@ foreach (['iris', 'blend'] as $theme) {
     $put($prefix . '-clientsummary-' . $theme . '.html', frame($themeDir, $theme, 'Client Profile', $summary));
 }
 
-if (is_dir($themeDir . '/twenty-one') && !class_exists(\Smarty::class)) {
+if (!is_dir($themeDir . '/twenty-one')) {
+    fwrite(STDERR, "twenty-one: skipped, no twenty-one/ folder in the theme directory\n");
+} elseif (!class_exists(\Smarty::class)) {
     fwrite(STDERR, "twenty-one: skipped, Smarty is not installed (run composer install)\n");
-} elseif (is_dir($themeDir . '/twenty-one')) {
-    $vars = PageData::build(Scenarios::module(Scenarios::PAGES), Scenarios::DETAIL_CLIENT);
+} else {
+    $vars = PageData::build(Scenarios::module(Scenarios::DEMO), Scenarios::DETAIL_CLIENT);
     $put($prefix . '-clientarea-twenty-one.html', clientFrame($themeDir, $vars['text']['title'], ClientAreaTemplate::render($vars)));
-    $none = PageData::build(Scenarios::module(Scenarios::PAGES), null);
+    $none = PageData::build(Scenarios::module(Scenarios::DEMO), null);
     $put($prefix . '-clientarea-notmember-twenty-one.html', clientFrame($themeDir, $none['text']['title'], ClientAreaTemplate::render($none)));
 }
 

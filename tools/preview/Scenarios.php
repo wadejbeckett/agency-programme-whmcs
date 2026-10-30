@@ -23,6 +23,12 @@ final class Scenarios
 {
     public const NOW = '2026-10-27 13:00:00';
     public const RECALCULATED = '2026-10-27 12:45:41';
+    /** The scenario the Overview and Settings renders come from: the edge states. */
+    public const PAGES = 'edge';
+    /** The scenario the agency detail, Change log and client-area renders (the screenshot set) come from: live, with history. */
+    public const DEMO = 'demo';
+    /** The client whose agency detail and client-area page are rendered: Agency One, at the top tier. */
+    public const DETAIL_CLIENT = 101;
 
     /** Monthly qualifying spend per agency, in the order the widget lists them. */
     private const SPENDS = ['12000.00', '6000.00', '2500.00', '1000.00', '500.00', '0.00'];
@@ -33,11 +39,6 @@ final class Scenarios
     {
         return ['live', 'edge', 'long', 'empty', 'denied', 'unavailable'];
     }
-
-    /** The scenario the page renders (Overview, Settings, agency detail, Change log, client area) are made from. */
-    public const PAGES = 'edge';
-    /** The client whose agency detail and client-area page are rendered: Agency One, at the top tier. */
-    public const DETAIL_CLIENT = 101;
 
     /** @return array<string,string> */
     public static function settings(bool $dryRun = false): array
@@ -72,10 +73,10 @@ final class Scenarios
     }
 
     /**
-     * live (also "demo", the screenshot set): the six-agency install. edge: dry-run, a start date,
-     * a currency without tiers, a product id and a tier currency WHMCS does not have. long: twenty
-     * agencies, to see the list scroll. empty: no agencies. Every scenario but "empty" carries a
-     * handful of change-log entries and the discount records behind them.
+     * live and demo (the screenshot set): the six-agency install, live, with a short history. edge:
+     * dry-run, a start date, a currency without tiers, a product id and a tier currency WHMCS does
+     * not have, no history (dry-run and applied discounts would contradict). long: twenty agencies,
+     * to see the list scroll. empty: no agencies.
      */
     public static function module(string $scenario): Module
     {
@@ -121,7 +122,7 @@ final class Scenarios
             $repo->agencies[103]['effectiveFrom'] = '2026-12-01';
             self::agency($repo, 201, 'Euro Agency', 'EUR', 3, '300.00', '2026-11-05');
         }
-        if ($scenario !== 'empty') {
+        if (in_array($scenario, ['live', 'demo', 'long'], true)) {
             self::history($repo);
         }
         return $repo;
@@ -129,8 +130,9 @@ final class Scenarios
 
     /**
      * A plausible change log for the demo install, newest last: approvals, a settings save, the
-     * switch to live, discounts applied and a tier change; with the invoice records the applied
-     * entries describe. Invoice numbers and amounts are invented round figures.
+     * switch to live, discounts applied and a tier change (Agency Two was invoiced at tier 1 on a
+     * 4,000 base before its spend grew to 6,000); with the invoice records the applied entries
+     * describe. Invoice numbers and amounts are invented round figures.
      */
     private static function history(ArrayRepository $repo): void
     {
@@ -142,12 +144,12 @@ final class Scenarios
         $log('2026-10-01 09:30:00', null, null, 'settings_changed', ['changed' => ['tiers' => ['from' => '{}', 'to' => '{"ZAR":[{"above":0,"percent":5},{"above":5000,"percent":10}]}'], 'product_groups' => ['from' => '', 'to' => '23']]], 'admin:1');
         $log('2026-10-03 03:00:00', 101, 90001, 'dry_run', ['amount' => '1200.00', 'percent' => '10.00'], 'system');
         $log('2026-10-06 10:00:00', null, null, 'mode_changed', ['from' => 'dry-run', 'to' => 'live'], 'admin:1');
-        $log('2026-10-07 03:00:00', 102, 90002, 'applied', ['amount' => '300.00', 'percent' => '5.00'], 'system');
+        $log('2026-10-07 03:00:00', 102, 90002, 'applied', ['amount' => '200.00', 'percent' => '5.00'], 'system');
         $log('2026-10-15 03:00:00', 102, null, 'tier_changed', ['from' => 1, 'fromPercent' => '5.00', 'to' => 2, 'toPercent' => '10.00', 'spend' => '6000.00'], 'cron:daily');
         $log('2026-10-20 03:00:00', 101, 90003, 'applied', ['amount' => '1200.00', 'percent' => '10.00'], 'system');
         $log('2026-10-25 03:00:00', 104, 90004, 'applied', ['amount' => '50.00', 'percent' => '5.00'], 'system');
         // The records behind those entries, with the paid invoices and the discount lines still on them (so "Saved in <year>" counts them).
-        foreach ([[90001, 101, 2, '10.00', '12000.00', '1200.00', true, '2026-10-03 03:00:00'], [90002, 102, 1, '5.00', '6000.00', '300.00', false, '2026-10-07 03:00:00'], [90003, 101, 2, '10.00', '12000.00', '1200.00', false, '2026-10-20 03:00:00'], [90004, 104, 1, '5.00', '1000.00', '50.00', false, '2026-10-25 03:00:00']] as [$invoice, $client, $tier, $percent, $base, $amount, $dryRun, $at]) {
+        foreach ([[90001, 101, 2, '10.00', '12000.00', '1200.00', true, '2026-10-03 03:00:00'], [90002, 102, 1, '5.00', '4000.00', '200.00', false, '2026-10-07 03:00:00'], [90003, 101, 2, '10.00', '12000.00', '1200.00', false, '2026-10-20 03:00:00'], [90004, 104, 1, '5.00', '1000.00', '50.00', false, '2026-10-25 03:00:00']] as [$invoice, $client, $tier, $percent, $base, $amount, $dryRun, $at]) {
             $itemId = $dryRun ? null : $invoice * 10;
             $repo->saveInvoiceRecord(['invoiceId' => $invoice, 'line' => 0, 'clientId' => $client, 'itemId' => $itemId, 'taxed' => false, 'tierIndex' => $tier, 'percent' => $percent, 'base' => $base, 'amount' => $amount, 'dryRun' => $dryRun, 'createdAt' => $at]);
             $repo->invoices[$invoice] = ['id' => $invoice, 'clientId' => $client, 'status' => 'Paid', 'dueDate' => substr($at, 0, 10), 'paymentMethod' => 'banktransfer'];

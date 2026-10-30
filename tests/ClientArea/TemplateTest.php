@@ -51,14 +51,45 @@ final class TemplateTest extends TestCase
         self::assertStringNotContainsString('<table', $html);
     }
 
+    /**
+     * Smarty's policy covers plugin tags and modifiers, PHP functions and static classes; its own
+     * syntax (assignment, literal and strip blocks, nofilter, object calls) it does not. So every
+     * {...} block of the template is checked here: a tag must be if/foreach (or their else and
+     * closing forms), a modifier must be escape, and no block may call or assign anything.
+     */
     public function testTheTemplateUsesOnlyTheAllowedTagsAndModifiers(): void
     {
         $template = (string) file_get_contents(ClientAreaTemplate::templateDir() . '/clientarea.tpl');
-        $source = (string) preg_replace('/\\{\\*.*?\\*\\}/s', '', $template);
-        preg_match_all('/\\{(\\/?)([a-z]+)\\b/', $source, $tags);
-        $used = array_values(array_unique($tags[2]));
+        $source = (string) preg_replace('/\{\*.*?\*\}/s', '', $template);
+        preg_match_all('/\{[^{}]*\}/', $source, $blocks);
+        self::assertNotSame([], $blocks[0]);
+        $tags = [];
+        $modifiers = [];
+        foreach ($blocks[0] as $block) {
+            if (preg_match('/^\{\/?([a-z_]+)\b/', $block, $m) === 1) {
+                $tags[] = $m[1];
+            } elseif (preg_match('/^\{\$[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*(?:\|escape)?\}$/', $block) !== 1) {
+                self::fail('not a plain variable output: ' . $block);
+            }
+            preg_match_all('/\|([a-z_]+)/', $block, $m);
+            array_push($modifiers, ...$m[1]);
+            self::assertDoesNotMatchRegularExpression(self::CALL_OR_ASSIGNMENT, $block, 'a call, assignment or filter switch in ' . $block);
+        }
+        $used = array_values(array_unique($tags));
         self::assertSame([], array_diff($used, ClientAreaTemplate::ALLOWED_TAGS), 'tags used by the template: ' . implode(', ', $used));
-        preg_match_all('/\\|([a-z_]+)/', $source, $modifiers);
-        self::assertSame([], array_diff(array_unique($modifiers[1]), ClientAreaTemplate::ALLOWED_MODIFIERS));
+        self::assertSame(['escape'], array_values(array_unique($modifiers)));
+    }
+
+    /** What the scan above rejects inside a block: a call, a static or object access, an assignment or a filter switch. */
+    private const CALL_OR_ASSIGNMENT = '/::|->|\(|\bnofilter\b|(?<![=!<>])=(?!=)/';
+
+    public function testTheScanCatchesWhatThePolicyWouldNot(): void
+    {
+        foreach (['{$z=5}', '{$x|escape nofilter}', '{if count($a) > 1}', '{Foo::bar()}', '{$o->m()}', '{assign var=x value=1}'] as $block) {
+            self::assertMatchesRegularExpression(self::CALL_OR_ASSIGNMENT, $block, $block);
+        }
+        foreach (['{if $itemCount == 0}', '{if $a != $b}', '{if $a >= 1}', '{$text.tier|escape}', '{foreach $tiers as $row}'] as $block) {
+            self::assertDoesNotMatchRegularExpression(self::CALL_OR_ASSIGNMENT, $block, $block);
+        }
     }
 }
