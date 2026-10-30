@@ -44,7 +44,7 @@ All amounts are handled as decimal strings with `bcmath`, never as floats. Month
 6. Check the Overview while dry-run is on: each agency's spend, tier, next invoice and discount, and the "Needs attention" panel for anything the configuration refers to that WHMCS does not have.
 7. When the numbers are right, press "Switch to live" on the Settings tab.
 
-To rehearse tiers and qualifying items against a copy of the data before activating, see the rehearsal CLI under [Development and operations](#development-and-operations).
+To rehearse tiers and qualifying items against a copy of the data before switching to live, see the rehearsal CLI under [Development and operations](#development-and-operations).
 
 Upgrading: replace the whole `modules/addons/agencydiscount` directory with the new one (move the old directory aside, then put the new one in place; do not copy the new folder over the old one, which leaves files that later versions removed). WHMCS then calls `agencydiscount_upgrade`, which records each change in the activity log and skips a step whose column or index is already there, so a re-run after a failure is safe. To 0.3.0 it adds the `idx_client` index to `mod_agencydiscount_invoices`, deletes the unread `keep_data` row and notes that nine settings are now edited on the Settings tab (their stored rows are kept). From 0.2.1 to 0.2.2 nothing changes in the database. From 0.1.0 or 0.2.0 to 0.2.1 it changes `mod_agencydiscount_invoices` so an invoice can hold one record per discount line (columns `id`, `line` and `taxed`; existing records keep their data and take the taxed flag of their invoice line), and replaces the invoice line text with the new default when the old default (`Agency discount {percent}% on {count} qualifying items`) is still stored unchanged. A customised text is left as it is. Back up `mod_agencydiscount_invoices` before upgrading.
 
@@ -216,7 +216,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the toolchain requirements and conven
 
 ### Rehearsal CLI
 
-The command-line tool replays the module against a copy of the data without writing anything, so tiers and qualifying items can be tuned before activation.
+The command-line tool replays the module against a copy of the data without writing anything, so tiers and qualifying items can be tuned before switching to live.
 
 1. Export a snapshot from a copy of the WHMCS database (read-only `SELECT`s, needs the `mariadb` client):
 
