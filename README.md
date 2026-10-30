@@ -130,8 +130,8 @@ The `AdminHomeWidgets` hook adds an "Agency Programme" widget to the admin dashb
 
 Two places on an agency's client record show the programme:
 
-- **Summary tab card** (`AdminAreaClientSummaryPage` hook). For an approved agency only: a tier badge (or "No tier", or the warning that its currency has no tiers), a start-date note while the discount has not started, the qualifying monthly spend, the next invoice and its saving, a progress bar with the amount to the next tier, a note while dry-run is on, and links to the counted items (the agency detail), the change log for the client and the approval on the profile tab. It is shown only to admin roles on the addon's access list; any other client, role or failure gives nothing.
-- **Profile tab section** (`AdminClientProfileTabFields` and `AdminClientProfileTabFieldsSave` hooks). The "Agency discount" field: the "Approved agency" checkbox with who approved the client and when, the note, the "Discount starts on" date with an explanation, the stored summary line and, beside them for an approved agency, a live "Right now" box with the same figures as the summary card. Because an approval grants a recurring discount, the field is shown only to admin roles on the addon's access list; a save from any other role is ignored (nothing is stored) and noted in the WHMCS activity log. The form field names (`agencydiscount_present`, `agencydiscount_approved`, `agencydiscount_note`, `agencydiscount_effective_from`) are unchanged from 0.1.0.
+- **Summary tab card** (`AdminAreaClientSummaryPage` hook). For an approved agency only: a tier badge (or "No tier", or the warning that its currency has no tiers) with the start state, a start-date note while the discount has not started, the qualifying monthly spend, a note while dry-run is on, and one link to the agency detail page, which carries the next invoice, the progress to the next tier, the discount records and the change log. It is shown only to admin roles on the addon's access list; any other client, role or failure gives nothing.
+- **Profile tab section** (`AdminClientProfileTabFields` and `AdminClientProfileTabFieldsSave` hooks). The "Agency discount" field: the "Approved agency" checkbox with who approved the client and when, the note, the "Discount starts on" date with an explanation, and the stored summary line. Because an approval grants a recurring discount, the field is shown only to admin roles on the addon's access list; a save from any other role is ignored (nothing is stored) and noted in the WHMCS activity log. The form field names (`agencydiscount_present`, `agencydiscount_approved`, `agencydiscount_note`, `agencydiscount_effective_from`) are unchanged from 0.1.0.
 
 ## Client area
 
@@ -149,7 +149,7 @@ The template uses the client theme's Bootstrap 4 classes (WHMCS's "twenty-one" t
 | `InvoiceCreation` | Adds the discount line to a new invoice of an approved agency. |
 | `PreInvoicingGenerateInvoiceItems` | Recalculates every agency before the cron invoicing run. |
 | `DailyCronJob` | Recalculates every agency daily. |
-| `AdminClientProfileTabFields` | Renders the "Agency discount" profile field with the "Right now" box. |
+| `AdminClientProfileTabFields` | Renders the "Agency discount" profile field (approval, note, start date). |
 | `AdminClientProfileTabFieldsSave` | Saves the approval, note and start date (admin roles on the addon's access list only). |
 | `AdminAreaClientSummaryPage` | Renders the summary card for an approved agency. |
 | `AdminHomeWidgets` | Returns the admin home widget (only when WHMCS's widget base class exists). |

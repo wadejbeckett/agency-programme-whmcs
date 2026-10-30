@@ -11,9 +11,9 @@ use AgencyDiscount\Admin\Page;
 
 /**
  * The "Agency discount" field on the admin client profile: approval (with who approved and when),
- * note, start date, a one-line summary of the stored spend and tier, and for an approved agency a
- * live "Right now" box beside the fields. The field names are part of the saved form and must not
- * change.
+ * note, start date and a one-line summary of the stored spend and tier. The live figures are on the
+ * summary card of the same client record and on the agency detail page. The field names are part
+ * of the saved form and must not change.
  *
  * @phpstan-import-type AgencyRow from Repository
  */

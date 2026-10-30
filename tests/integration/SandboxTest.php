@@ -254,11 +254,12 @@ final class SandboxTest extends TestCase
         $this->assertNoHookError();
         self::assertStringContainsString('Agency Programme', $card);
         self::assertStringContainsString('Tier 1 (10%)', $card);
-        self::assertStringContainsString('href="clientsprofile.php?userid=' . $clientId . '"', $card);
-        self::assertStringContainsString('href="addonmodules.php?module=agencydiscount&amp;action=log&amp;client=' . $clientId . '"', $card);
+        self::assertStringContainsString('href="addonmodules.php?module=agencydiscount&amp;action=agency&amp;id=' . $clientId . '">Agency detail</a>', $card);
+        self::assertStringNotContainsString('clientsprofile.php', $card, 'the card carries one link: the detail page');
+        self::assertStringNotContainsString('action=log', $card);
         self::assertSame('', Hooks::clientSummary(['userid' => $clientId + 1000000]), 'not an agency');
         $profile = Hooks::profileFields(['userid' => $clientId]);
-        self::assertStringContainsString('Right now', $profile['Agency discount']);
+        self::assertStringNotContainsString('Right now', $profile['Agency discount'], 'the profile field holds the approval only');
         self::assertStringContainsString('Approved by admin:' . $adminId . ' on', $profile['Agency discount']);
         \WHMCS\Session::$values['adminid'] = null;
 
