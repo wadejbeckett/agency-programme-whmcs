@@ -199,6 +199,15 @@ class ArrayRepository implements Repository
         $this->agencies[$normalised['clientId']] = $normalised;
     }
 
+    public function saveApproval(int $clientId, array $approval): void
+    {
+        if (!isset($this->agencies[$clientId])) {
+            $this->saveAgency(['clientId' => $clientId] + $approval);
+            return;
+        }
+        $this->agencies[$clientId] = $approval + $this->agencies[$clientId];
+    }
+
     public function saveCalculation(int $clientId, array $calculation): void
     {
         if (isset($this->agencies[$clientId])) {

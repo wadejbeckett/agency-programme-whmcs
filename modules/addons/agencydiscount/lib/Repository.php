@@ -43,8 +43,23 @@ interface Repository
     /** @return list<AgencyRow> approved rows only, ascending clientId */
     public function approvedAgencies(): array;
 
-    /** @param AgencyRow $row  upsert by clientId */
+    /**
+     * Writes the whole row (an upsert by clientId). Development and rehearsal only (the CLI and the
+     * tests build rows with it): production code writes the approval columns with saveApproval()
+     * and the figures with saveCalculation(), so neither write can undo the other.
+     *
+     * @param AgencyRow $row
+     */
     public function saveAgency(array $row): void;
+
+    /**
+     * Writes the approval columns only (approved, note, approved_by, approved_at, effective_from,
+     * updated_at), inserting the row when it does not exist, so a recalculation saved while the
+     * profile form was open is not written over (the mirror image of saveCalculation()).
+     *
+     * @param array{approved:bool, note:string, approvedBy:string, approvedAt:?string, effectiveFrom:?string, updatedAt:string} $approval
+     */
+    public function saveApproval(int $clientId, array $approval): void;
 
     /**
      * Writes only the computed columns of an existing agency row (currency, spend, tier, counts,

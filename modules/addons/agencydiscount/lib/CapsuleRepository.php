@@ -229,6 +229,21 @@ final class CapsuleRepository implements Repository
         );
     }
 
+    public function saveApproval(int $clientId, array $approval): void
+    {
+        Capsule::table(self::CLIENTS)->updateOrInsert(
+            ['client_id' => $clientId],
+            [
+                'approved' => $approval['approved'] ? 1 : 0,
+                'note' => $approval['note'],
+                'approved_by' => self::truncate($approval['approvedBy']),
+                'approved_at' => $approval['approvedAt'],
+                'effective_from' => $approval['effectiveFrom'],
+                'updated_at' => $approval['updatedAt'],
+            ],
+        );
+    }
+
     public function saveCalculation(int $clientId, array $calculation): void
     {
         Capsule::table(self::CLIENTS)->where('client_id', $clientId)->update([
