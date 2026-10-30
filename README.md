@@ -251,6 +251,10 @@ composer stan    # PHPStan, analysing at the PHP 8.1 floor
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the toolchain requirements and conventions. The integration environment variables are listed above.
 
+### Release archive
+
+`tools/release.sh VERSION` builds `dist/agency-programme-whmcs-VERSION.zip` from the tag `vVERSION` (not from the working tree) with `modules/addons/agencydiscount/`, `LICENSE`, `README.md` and `CHANGELOG.md` only, checks the archive's file list against the files tracked at the tag, and writes a `.sha256` beside it. It refuses to run when the tag does not exist, the working tree has uncommitted changes, or `Module::VERSION` at the tag differs from `VERSION`. Pushing a `v*` tag runs the same script in GitHub Actions (`.github/workflows/release.yml`) and publishes the archive and checksum as a GitHub release.
+
 ## Support this project
 
 Agency Programme for WHMCS is free software from Noiz. If it is useful to you, the main way to support its development is a donation in Monero (XMR):

@@ -1,0 +1,27 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    name: Build and publish the archive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build the archive from the tag and check its contents
+        run: tools/release.sh "${GITHUB_REF_NAME#v}" dist
+
+      - name: Create the GitHub release with the archive and its checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" --title "$version" --notes "See CHANGELOG.md for $version." dist/agency-programme-whmcs-"$version".zip dist/agency-programme-whmcs-"$version".zip.sha256
