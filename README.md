@@ -48,7 +48,7 @@ Upgrading: replace the whole `modules/addons/agencydiscount` directory with the 
 
 ## Configuration
 
-Addons > Agency Programme > **Settings** is where the module is configured. It saves into the same addon settings the engine reads (the keys below), so the raw form under System Settings > Addon Modules > Agency Programme > Configure and the CLI profile stay valid; that raw form is the advanced route and its fields say so.
+Addons > Agency Programme > **Settings** is where the programme is configured: tiers, what counts, statuses, the mode, the behaviour switches and the invoice line text. It saves into the addon settings the engine reads (the keys below; the CLI profile uses the same). The WHMCS Configure form under System Settings > Addon Modules > Agency Programme holds only the access list and the three housekeeping settings (activity log, change log retention, delete data on deactivate). No setting has two homes, so a Configure form left open cannot write old values over a Settings save.
 
 The Settings tab has:
 
@@ -56,7 +56,7 @@ The Settings tab has:
 - **Discount tiers.** One editable table per WHMCS currency: the monthly spend each tier is above (0.00 allowed) and its percentage, "+ Add tier", "Remove", a band preview with a worked example per band, and "Copy <default> tiers to <code> at the WHMCS rate", which fills a currency's rows from the default currency's at WHMCS's exchange rate, rounded to two places, without saving.
 - **What counts.** Product groups as checkboxes with the number of active services in each (hidden groups last), products by group and add-ons as filterable checkbox lists. An id the configuration names but WHMCS no longer has stays ticked and flagged so it can be removed.
 - **Counted statuses.** Checkboxes; Pending is normally left to "Discount new orders".
-- **Behaviour.** The four switches with one-line explanations and the invoice line text with a rendered example.
+- **Behaviour.** The two switches (discount new orders, stack with promotions) with one-line explanations and the invoice line text with a rendered example.
 - **Preview impact** validates the form and shows each approved agency's qualifying spend, tier and next-invoice discount under the saved settings and under the unsaved values, without saving. **Save settings** validates, reports problems inline (nothing is saved while there are any) and logs `settings_changed` with the keys that changed, in the module change log and the WHMCS activity log. Every POST carries the WHMCS admin token.
 
 Defaults are those in `Config::defaults()`. Yes/no settings are stored as `on` when ticked. The module reads `on`, `yes`, `1` and `true` as yes and empty, `off`, `0` and `no` as no; any other value is read as the safe choice: dry-run and activity log on; stacking, new-order discounts and deleting data off.
@@ -72,9 +72,11 @@ Defaults are those in `Config::defaults()`. Yes/no settings are stored as `on` w
 | Stack with promotions | `stack_with_promotions` | off | Also discount a service's invoice line when the same invoice carries that service's promotion discount. |
 | Discount new orders | `new_orders` | on | Also discount an approved agency's new-order invoice, whose items are still Pending. The tier for that invoice is chosen on the counted spend plus the ordered items' monthly equivalent. |
 | Invoice line text | `description` | `Agency discount {percent}% on {count} qualifying {items}` | Text of the discount line. Placeholders: `{percent}`, `{count}`, and `{items}`, which reads "item" for a count of 1 and "items" otherwise. Must not be empty. |
-| Write to activity log | `activity_log` | on | Also record applied discounts and tier changes in the WHMCS activity log. Settings and mode changes are always recorded there. |
+| Write to activity log | `activity_log` | on | Also record applied discounts and tier changes in the WHMCS activity log. Settings and mode changes are always recorded there. Set on the Configure form. |
 | Change log retention (months) | `log_retention_months` | 24 | The daily cron removes change log entries older than this. 0 keeps the log forever, and so does any value that is not a whole number from 0 to 600. Approvals and invoice records are never removed by it. Set under System Settings > Addon Modules > Agency Programme > Configure. |
-| Delete module data on deactivate | `delete_data` | off | The tables with the agency approvals, the change log and the invoice records are removed on deactivate only when this is on. Off, a missing setting or an unrecognised value keeps them. |
+| Delete module data on deactivate | `delete_data` | off | The tables with the agency approvals, the change log and the invoice records are removed on deactivate only when this is on. Off, a missing setting or an unrecognised value keeps them. Set on the Configure form. |
+
+A row the engine needs (`tiers`, `dry_run`, `product_groups`, `products`, `addons`) that has no stored value, as on a fresh install before the first Settings save, takes its default; the Overview's "Needs attention" panel names it and each daily cron run writes one activity-log line until the Settings tab is saved (a save stores every engine row, the mode included; activation stores the mode row as dry-run).
 
 An invalid configuration (bad JSON, a non-numeric id, no statuses) is reported at the top of the addon page and, once per request, in the WHMCS activity log. While it is invalid, no discount is applied and invoicing carries on as normal.
 
@@ -90,13 +92,12 @@ With this setting a client in USD with qualifying monthly spend of 500.00 gets n
 
 ## Admin page
 
-Addons > Agency Programme has four tabs (Overview, Settings, Change log, Configuration check) plus a Detail link per agency.
+Addons > Agency Programme has three tabs (Overview, Settings, Change log) plus a Detail link per agency.
 
-- **Overview.** Four tiles: approved agencies (how many sit at a tier and how many wait for a start date), qualifying spend per month and the discount expected in the next 35 days, each summed per currency, and the mode. Below them one row per approved agency in five columns: client; qualifying monthly spend (the time it was last recalculated shows on hover); a tier badge with, under it, whether the discount is active or starts on a date and a link to the detail; a progress bar through the current tier band with the amount still needed for the next tier; and the next invoice's date with its discount under it. A line under the table gives when the figures were recalculated. Rows waiting for a start date are highlighted in yellow and rows in a currency without tiers in red. The table can be filtered (all, at a tier, not yet started, no tiers for currency) and searched by client name; both are plain links and a GET form, so they work without scripts. A side column lists what needs attention (how long dry-run has been on, currencies with approved agencies but no tiers, agencies within 5% of the next threshold, each linking to where it is fixed) and the six most recent change-log entries as sentences. "Recalculate now" refreshes every agency. Viewing the page changes nothing.
+- **Overview.** Four tiles: approved agencies (how many sit at a tier and how many wait for a start date), qualifying spend per month and the discount expected in the next 35 days, each summed per currency, and the mode. Below them one row per approved agency in five columns: client; qualifying monthly spend (the time it was last recalculated shows on hover); a tier badge with, under it, whether the discount is active or starts on a date and a link to the detail; a progress bar through the current tier band with the amount still needed for the next tier; and the next invoice's date with its discount under it. A line under the table gives when the figures were recalculated. Rows waiting for a start date are highlighted in yellow and rows in a currency without tiers in red. The table can be filtered (all, at a tier, not yet started, no tiers for currency) and searched by client name; both are plain links and a GET form, so they work without scripts. A side column lists what needs attention (how long dry-run has been on, engine settings with no stored value, configured ids and tier currencies WHMCS does not have, currencies with approved agencies but no tiers, agencies within 5% of the next threshold, each linking to where it is fixed) and the six most recent change-log entries as sentences. "Recalculate now" refreshes every agency. Viewing the page changes nothing.
 - **Agency detail.** The counted services and add-ons with their cycle, amount, monthly equivalent, next invoice date and promotion flag, the upcoming invoices in the next 35 days with the base and the discount each would receive, and a link to that client's change log. The upcoming invoices are an estimate from the next invoice dates: they include services on a promotion, because whether a promotion still reduces an invoice is only known from that invoice's lines, and dates before the agency's start date show no discount. Pending new-order items are not listed and not estimated; they are only discounted on the order invoice itself.
 - **Settings.** The configuration, described under [Configuration](#configuration).
 - **Change log.** Every event, newest first, filterable by client, with its actor, a one-sentence summary and the raw detail.
-- **Configuration check.** Shows that each configured group, product and add-on id exists, which currencies WHMCS has and whether tiers are configured for each, and the tier table.
 
 Change log events:
 
@@ -204,7 +205,8 @@ The hooks were exercised against a MariaDB copy of a WHMCS 9.0.8 database throug
 
 - WHMCS recalculates invoice totals after the `InvoiceCreation` hook returns. On each of five invoices from the automatic invoice run of 25 October 2026, the subtotal and total equalled the sum of the lines, including the discount line.
 - The `InvoiceCreation` hook runs on invoices from the automatic invoice run, and an invoice without qualifying lines is skipped and logged.
-- The addon settings saved through WHMCS's Configure form, notably the tiers JSON, are decoded correctly: a changed tier table gave the expected tiers on recalculation.
+- The addon settings saved through WHMCS's Configure form, notably the tiers JSON, are decoded correctly: a changed tier table gave the expected tiers on recalculation (up to 0.2.2, when the form still carried those fields).
+- WHMCS's Configure save writes the fields `agencydiscount_config()` declares and leaves the module's other `tbladdonmodules` rows alone: the `keep_data` row, which 0.2.1 stopped declaring, was still stored after the Configure form was saved on 28 October 2026 under 0.2.1. This is what lets the Configure form carry only the housekeeping fields from 0.3.0 while the Settings tab's keys stay stored.
 - `generate_token()` output: the overview's "Recalculate now" form and the Settings tab's mode switch were accepted.
 - Approving an agency on the client's Profile tab (a note without a start date) stores the approval.
 - The admin pages (Overview, Settings, Change log, Configuration check, agency detail, client summary card) render inside the WHMCS admin template, and the admin home widget renders on the real dashboard in the Iris admin theme (in Blend it has been seen in offline renders only); the widget and the profile field honour the admin role checks.
@@ -215,7 +217,7 @@ These points remain to be confirmed on a real install:
 - How WHMCS's input sanitiser encodes a profile note containing quotes or ampersands, and the start date field; both are decoded before storing.
 - That the Settings tab's inline script (currency sub-tabs, add and remove tier rows, name filters) runs unchanged inside the WHMCS admin template; the server accepts any number of rows, so the page works without it.
 - How the yes/no `Default` values render in the addon settings screen.
-- That `agencydiscount_deactivate()` runs before WHMCS deletes the module's settings rows; this decides whether "Delete module data on deactivate" is honoured. If WHMCS deletes the settings first, the module finds no setting and keeps its tables.
+- That `agencydiscount_deactivate()` runs before WHMCS deletes the module's settings rows; this decides whether "Delete module data on deactivate" is honoured. If WHMCS deletes the settings first, the module finds no setting and keeps its tables. Whether activation creates rows only for the declared housekeeping fields is also unconfirmed; either way a missing engine row takes its default and is reported (see Configuration).
 - That the discount line, which copies the invoice's `paymentmethod`, displays correctly in WHMCS invoice views and the invoice PDF.
 - The client-area home panel's `addChild` attributes (`label`, `icon`, `extras` with `btn-link` and `btn-text`, `bodyHtml`) against WHMCS's `\WHMCS\View\Menu\Item`, which is stubbed here, and that the module page's template passes WHMCS's Smarty security policy (it uses only `escape`, `if` and `foreach`). The template was rendered with Smarty 3.1 outside WHMCS.
 - That `\WHMCS\Session::get('uid')` gives the logged-in client as the client area expects.
@@ -227,7 +229,7 @@ This is why the module ships with dry-run on. Run it in dry-run on the real inst
 
 ## Uninstall
 
-Deactivating the module under System Settings > Addon Modules keeps its three tables, so the agency approvals, the change log and the invoice records are still there when it is activated again. To remove them, tick "Delete module data on deactivate" on the Settings tab (or in the module's Configure form) first; deactivating then drops the tables. Back up `mod_agencydiscount_clients`, `mod_agencydiscount_log` and `mod_agencydiscount_invoices` first (for example with `mysqldump`). Discount lines on invoices already issued stay as they are. No service price was ever altered, so there is nothing to restore.
+Deactivating the module under System Settings > Addon Modules keeps its three tables, so the agency approvals, the change log and the invoice records are still there when it is activated again. To remove them, tick "Delete module data on deactivate" in the module's Configure form first; deactivating then drops the tables. Back up `mod_agencydiscount_clients`, `mod_agencydiscount_log` and `mod_agencydiscount_invoices` first (for example with `mysqldump`). Discount lines on invoices already issued stay as they are. No service price was ever altered, so there is nothing to restore.
 
 ## Limitations
 

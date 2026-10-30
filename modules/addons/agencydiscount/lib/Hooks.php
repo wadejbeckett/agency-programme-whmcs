@@ -56,6 +56,23 @@ final class Hooks
         }
     }
 
+    /**
+     * DailyCronJob: one activity-log line a day while an engine row (tiers, the mode, the qualifying
+     * ids) has no stored value and its default applies, so a fresh install or a row removed by hand
+     * never runs on defaults unnoticed. The Overview's attention panel says the same.
+     */
+    public static function reportDefaults(): void
+    {
+        try {
+            $note = self::module()?->config->defaultsNote();
+            if ($note !== null) {
+                self::activity('Agency Discount: ' . $note . ' until the Settings tab is saved');
+            }
+        } catch (\Throwable $e) {
+            self::report($e);
+        }
+    }
+
     /** DailyCronJob: change log retention. A failure goes to the activity log and stops nothing else. */
     public static function pruneLog(): void
     {

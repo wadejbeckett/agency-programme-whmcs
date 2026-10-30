@@ -73,10 +73,6 @@ $_ADDONLANG['switch_new_orders'] = 'Discount new orders';
 $_ADDONLANG['switch_new_orders_help'] = 'Also discount an approved agency\'s order invoice while its items are still Pending; the tier is chosen on the counted spend plus the ordered items.';
 $_ADDONLANG['switch_stack_with_promotions'] = 'Stack with promotions';
 $_ADDONLANG['switch_stack_with_promotions_help'] = 'Also discount a service\'s line when the same invoice carries that service\'s promotion discount.';
-$_ADDONLANG['switch_activity_log'] = 'Write to activity log';
-$_ADDONLANG['switch_activity_log_help'] = 'Also record applied discounts and tier changes in the WHMCS activity log. Settings and mode changes are always recorded.';
-$_ADDONLANG['switch_delete_data'] = 'Delete module data on deactivate';
-$_ADDONLANG['switch_delete_data_help'] = 'The tables with the agency approvals, the change log and the invoice records are removed when the module is deactivated only when this is on. Off keeps them.';
 $_ADDONLANG['description'] = 'Invoice line text';
 $_ADDONLANG['description_help'] = 'Placeholders: {percent}, {count} and {items} ("item" for a count of 1, "items" otherwise).';
 $_ADDONLANG['description_example'] = 'Example';
@@ -101,8 +97,6 @@ $_ADDONLANG['warn_missing_products'] = 'Product ids not found in WHMCS: %s.';
 $_ADDONLANG['warn_missing_addons'] = 'Add-on ids not found in WHMCS: %s.';
 $_ADDONLANG['warn_unknown_currency'] = 'Tiers are configured for %s, which is not a WHMCS currency.';
 $_ADDONLANG['problems'] = 'The settings were not saved. Fix these and try again:';
-$_ADDONLANG['advanced_json'] = 'Advanced: edit as JSON';
-$_ADDONLANG['advanced_json_help'] = 'The raw settings form under System Settings > Addon Modules stores the same keys.';
 
 // Overview tab
 $_ADDONLANG['recalculate'] = 'Recalculate now';
@@ -148,6 +142,7 @@ $_ADDONLANG['active'] = 'active';
 $_ADDONLANG['active_since'] = 'active since %s';
 $_ADDONLANG['attention'] = 'Needs attention';
 $_ADDONLANG['attention_none'] = 'Nothing needs attention.';
+$_ADDONLANG['attention_defaults'] = 'No stored value for %1$s: the defaults apply (%2$s) until the Settings tab is saved.';
 $_ADDONLANG['attention_dry_run'] = 'Dry-run mode is on.';
 $_ADDONLANG['attention_dry_run_days'] = 'Dry-run mode has been on for %d days.';
 $_ADDONLANG['attention_dry_run_at_least'] = 'Dry-run mode has been on for at least %d days.';

@@ -16,7 +16,9 @@ use AgencyDiscount\Tiers;
  * comma-separated strings the module stores. Built from the current Config (a GET), from the
  * stored settings as they are (the repair page, when they do not parse) or from a POST (preview,
  * save, copy), and turned back into the stored setting keys so validation and saving go through
- * Config::fromSettings and the same keys the CLI profile uses.
+ * Config::fromSettings and the same keys the CLI profile uses. The housekeeping keys (activity
+ * log, change log retention, delete data on deactivate) are the WHMCS Configure form's and are
+ * not on this form.
  *
  * Values are kept as typed: an invalid threshold stays in its row so the admin sees what was
  * rejected. Nothing here is a float; thresholds are converted with bcmath.
@@ -28,9 +30,9 @@ final class SettingsForm
     /** The WHMCS service and add-on statuses offered as checkboxes, in the order shown. */
     public const STATUSES = ['Active', 'Suspended', 'Pending', 'Cancelled', 'Terminated', 'Fraud', 'Completed'];
     /** The yes/no settings on the form; dry_run is the mode card's, not the form's. */
-    public const SWITCHES = ['new_orders', 'stack_with_promotions', 'activity_log', 'delete_data'];
+    public const SWITCHES = ['new_orders', 'stack_with_promotions'];
     /** The stored keys this form writes. */
-    public const KEYS = ['tiers', 'product_groups', 'products', 'addons', 'statuses', 'new_orders', 'stack_with_promotions', 'activity_log', 'delete_data', 'description'];
+    public const KEYS = ['tiers', 'product_groups', 'products', 'addons', 'statuses', 'new_orders', 'stack_with_promotions', 'description'];
     /**
      * The currency keys given a pane: letters and digits only, so a key is safe in a field name and in
      * the row template's attributes. Any other key (a stored value from SQL or an import, a crafted
@@ -73,12 +75,7 @@ final class SettingsForm
             $config->productIds,
             $config->addonIds,
             $config->statuses,
-            [
-                'new_orders' => $config->newOrders,
-                'stack_with_promotions' => $config->stackWithPromotions,
-                'activity_log' => $config->activityLog,
-                'delete_data' => $config->deleteData,
-            ],
+            ['new_orders' => $config->newOrders, 'stack_with_promotions' => $config->stackWithPromotions],
             $config->descriptionTemplate,
         );
     }
@@ -124,7 +121,7 @@ final class SettingsForm
 
         $switches = [];
         foreach (self::SWITCHES as $key) {
-            $switches[$key] = Config::yesNo($s[$key], $key === 'activity_log');
+            $switches[$key] = Config::yesNo($s[$key], false);
         }
 
         return new self(
@@ -219,13 +216,17 @@ final class SettingsForm
     }
 
     /**
-     * Validates the form as the module would read it; dry_run is the mode card's and is passed in.
+     * Validates the form as the module would read it; dry_run is the mode card's and is passed in,
+     * and the stored settings supply the housekeeping keys (the Configure form's), so the Config a
+     * save or a mode switch runs the rest of the request on carries the stored activity-log and
+     * delete-data flags.
      *
+     * @param array<string, mixed> $stored the stored settings
      * @throws ConfigException listing every problem
      */
-    public function validate(bool $dryRun): Config
+    public function validate(bool $dryRun, array $stored = []): Config
     {
-        return Config::fromSettings($this->toSettings() + ['dry_run' => $dryRun ? 'on' : '']);
+        return Config::fromSettings($this->toSettings() + ['dry_run' => $dryRun ? 'on' : ''] + $stored);
     }
 
     /**

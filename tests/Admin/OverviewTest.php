@@ -186,6 +186,15 @@ final class OverviewTest extends TestCase
         self::assertStringNotContainsString('Nothing needs attention', $html);
     }
 
+    public function testNeedsAttentionNamesEngineRowsWithNoStoredValue(): void
+    {
+        $this->repo->settings = ['statuses' => 'Active', 'description' => 'x {percent}', 'product_groups' => '23', 'activity_log' => 'on'];
+        $html = $this->page()->render(self::LINK, [], [], 'admin:1', self::TOKEN);
+        self::assertStringContainsString('<a class="list-group-item" href="addonmodules.php?module=agencydiscount&amp;action=settings">No stored value for tiers, dry_run, products, addons: the defaults apply (no tiers, dry-run on, no products count, no add-ons count) until the Settings tab is saved.</a>', $html);
+        $this->repo->settings = Fixtures::settings();
+        self::assertStringNotContainsString('No stored value', $this->render());
+    }
+
     public function testNeedsAttentionListsWhatWhmcsDoesNotHave(): void
     {
         $html = $this->render([], ['product_groups' => '23,999', 'products' => '113,777,778', 'addons' => '12,888', 'tiers' => '{"ZAR":[{"above":1000,"percent":5}],"USD":[{"above":0,"percent":5}]}']);

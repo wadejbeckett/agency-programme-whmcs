@@ -1,11 +1,11 @@
 # Profiles
 
-A profile is the set of Agency Programme addon settings written as a JSON object. The keys are the setting names from the module configuration (`tiers`, `product_groups`, `products`, `addons`, `statuses`, `dry_run`, `stack_with_promotions`, `new_orders`, `description`, `activity_log`, `delete_data`). Checkbox settings use `"on"` for yes and `""` for no, as WHMCS stores them.
+A profile is the set of Agency Programme addon settings written as a JSON object. The keys are the module's stored setting names (`tiers`, `product_groups`, `products`, `addons`, `statuses`, `dry_run`, `stack_with_promotions`, `new_orders`, `description`, `activity_log`, `log_retention_months`, `delete_data`). Checkbox settings use `"on"` for yes and `""` for no, as WHMCS stores them.
 
 A profile has two uses:
 
 - `bin/agency-discount rehearse --settings profiles/example.json ...` runs a rehearsal against a database snapshot with those settings, without touching the WHMCS configuration.
-- It is a reference when filling in the addon configuration under System Settings > Addon Modules: copy each value into the matching field.
+- It is a reference when filling in the addon's Settings tab (Addons > Agency Programme > Settings), where every key but the three housekeeping ones (`activity_log`, `log_retention_months`, `delete_data`, on the WHMCS Configure form) is edited.
 
 Every profile in this directory must parse, use only known keys, ship with dry-run on and define at least one currency's tiers. `tests/ProfilesTest.php` enforces this.
 

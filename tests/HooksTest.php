@@ -48,6 +48,21 @@ final class HooksTest extends TestCase
         self::assertSame(['InvoiceCreation', 'PreInvoicingGenerateInvoiceItems', 'DailyCronJob', 'AdminClientProfileTabFields', 'AdminClientProfileTabFieldsSave', 'AdminAreaClientSummaryPage', 'ClientAreaHomepagePanels'], array_column(WhmcsCalls::$hooks, 'hook'));
     }
 
+    public function testDailyCronReportsEngineRowsWithNoStoredValueOnce(): void
+    {
+        $settings = Fixtures::settings();
+        unset($settings['tiers'], $settings['dry_run']);
+        $this->useModule($settings);
+        Hooks::reportDefaults();
+        self::assertSame([['message' => 'Agency Discount: no stored value for tiers, dry_run; the defaults apply (no tiers, dry-run on) until the Settings tab is saved', 'clientId' => 0]], WhmcsCalls::$activity);
+
+        WhmcsCalls::reset();
+        Hooks::reset();
+        $this->useModule(Fixtures::settings());
+        Hooks::reportDefaults();
+        self::assertSame([], WhmcsCalls::$activity);
+    }
+
     public function testClientHomePanelForLoggedInApprovedAgency(): void
     {
         $this->useModule(Fixtures::settings());
