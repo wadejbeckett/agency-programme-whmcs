@@ -9,6 +9,11 @@ $_ADDONLANG['log'] = 'Change log';
 $_ADDONLANG['check'] = 'Configuration check';
 $_ADDONLANG['dry_run_banner'] = 'Dry-run mode is on: discounts are calculated and logged but no invoice is changed.';
 
+// Repair page: the stored settings do not parse
+$_ADDONLANG['config_problems'] = 'The stored settings have problems, so no discount is applied until they are fixed.';
+$_ADDONLANG['config_problems_link'] = 'Fix them on the Settings tab';
+$_ADDONLANG['config_problems_here'] = 'The stored settings have problems, so no discount is applied until they are fixed and saved below.';
+
 // Settings tab: mode card
 $_ADDONLANG['mode'] = 'Mode';
 $_ADDONLANG['mode_dry_run'] = 'Dry-run';
@@ -30,6 +35,7 @@ $_ADDONLANG['tiers_help'] = 'Per currency. An agency gets the highest tier whose
 $_ADDONLANG['tiers_default_currency'] = 'default currency';
 $_ADDONLANG['tiers_not_in_whmcs'] = 'not a WHMCS currency';
 $_ADDONLANG['tiers_none'] = 'No tiers: agencies in this currency get no discount.';
+$_ADDONLANG['tiers_unreadable'] = 'The stored tiers are not a JSON object, so no tier is shown; saving replaces them. Stored value:';
 $_ADDONLANG['tier'] = 'Tier';
 $_ADDONLANG['tier_above'] = 'Monthly spend above';
 $_ADDONLANG['tier_percent'] = 'Discount %';

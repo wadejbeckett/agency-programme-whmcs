@@ -6,17 +6,28 @@ declare(strict_types=1);
 
 namespace AgencyDiscount\Admin;
 
+use AgencyDiscount\ActivityLog;
 use AgencyDiscount\AgencyStatus;
 use AgencyDiscount\ClientNotFound;
+use AgencyDiscount\Clock;
+use AgencyDiscount\Config;
+use AgencyDiscount\ConfigException;
 use AgencyDiscount\LogEntry;
 use AgencyDiscount\Module;
 use AgencyDiscount\Money;
+use AgencyDiscount\Repository;
 use AgencyDiscount\SpendReport;
 
 /**
  * The addon's admin page (Addons > Agency Programme). Views: overview (default), agency, settings,
  * log, check. Every dynamic string passes through Html::e(); table cells are built as
  * already-escaped HTML.
+ *
+ * When the stored settings do not parse (Page::forStoredSettings), the page is the repair page:
+ * a banner listing the problems on every view, the Settings tab filled from the stored values so
+ * they can be fixed, the Change log tab (it needs only the repository), and nothing else, since
+ * the Overview, the agency view and the configuration check are all computed from a valid Config.
+ * A Settings save that validates repairs the configuration and the same request renders the normal page.
  */
 final class Page
 {
@@ -25,12 +36,41 @@ final class Page
     /** @var array<string,string>|null */
     private static ?array $strings = null;
 
-    /** Replaced when the Settings tab saves, so the rest of the page reflects the new configuration. */
-    private Module $module;
+    /** The module on a valid configuration, replaced when the Settings tab saves; null on the repair page. */
+    private ?Module $module;
 
-    public function __construct(Module $module)
-    {
+    /**
+     * @param list<string> $problems the problems with the stored settings; empty when $module is set
+     */
+    private function __construct(
+        private readonly Repository $repo,
+        private readonly Clock $clock,
+        private readonly ActivityLog $activity,
+        ?Module $module,
+        private array $problems,
+    ) {
         $this->module = $module;
+    }
+
+    public static function of(Module $module): self
+    {
+        return new self($module->repo, $module->clock, $module->activity, $module, []);
+    }
+
+    /** The page for the stored settings: the normal page when they parse, otherwise the repair page. */
+    public static function forStoredSettings(Repository $repo, Clock $clock, ActivityLog $activity): self
+    {
+        try {
+            return self::of(new Module($repo, Config::fromSettings($repo->settings()), $clock, $activity));
+        } catch (ConfigException $e) {
+            return new self($repo, $clock, $activity, null, $e->problems());
+        }
+    }
+
+    /** The module on a valid configuration; the views that need one are only reached when it is set. */
+    private function module(): Module
+    {
+        return $this->module ?? throw new \LogicException('no valid configuration');
     }
 
     /**
@@ -52,15 +92,22 @@ final class Page
         return $input;
     }
 
-    /** @param list<string> $problems */
-    public static function configProblems(string $moduleLink, array $problems): string
+    /**
+     * The repair page's banner: the problems with the stored settings and where to fix them, the
+     * Settings tab (linked) or, on that tab, the form below.
+     *
+     * @param list<string> $problems
+     */
+    public static function configProblems(string $moduleLink, array $problems, bool $onSettings = false): string
     {
         $items = '';
         foreach ($problems as $problem) {
             $items .= '<li>' . Html::e($problem) . '</li>';
         }
-        return '<div class="alert alert-danger"><p>The Agency Programme configuration has problems, so no discount is applied until they are fixed in System Settings &gt; Addon Modules:</p><ul>'
-            . $items . '</ul></div>';
+        $lead = $onSettings
+            ? Html::e(self::lang('config_problems_here'))
+            : Html::e(self::lang('config_problems')) . ' <a href="' . Html::link($moduleLink, ['action' => 'settings']) . '">' . Html::e(self::lang('config_problems_link')) . '</a>.';
+        return '<div class="alert alert-danger"><p>' . $lead . '</p><ul>' . $items . '</ul></div>';
     }
 
     /**
@@ -73,15 +120,28 @@ final class Page
         $view = self::text($get['action'] ?? null);
         $view = in_array($view, ['agency', 'settings', 'log', 'check'], true) ? $view : 'overview';
 
-        // The Settings tab handles its POST first: a save or a mode switch changes what the banner says.
+        // The Settings tab handles its POST first: a save or a mode switch changes what the banner says, and a save can repair the configuration.
         $settings = '';
         if ($view === 'settings') {
-            $tab = new SettingsTab($this->module, $tokenField);
+            $tab = $this->module === null
+                ? SettingsTab::repair($this->repo, $this->clock, $this->activity, $this->problems, $tokenField)
+                : SettingsTab::of($this->module, $tokenField);
             $settings = $tab->handle($post, $actor);
             $this->module = $tab->module;
+            if ($this->module !== null) {
+                $this->problems = [];
+            }
         }
 
         $html = $this->nav($moduleLink, $view);
+        if ($this->module === null) {
+            $html .= self::configProblems($moduleLink, $this->problems, $view === 'settings');
+            return $html . match ($view) {
+                'settings' => $settings,
+                'log' => $this->logView($moduleLink, $get),
+                default => '',
+            };
+        }
         if ($this->module->config->dryRun) {
             $html .= '<div class="alert alert-warning">' . Html::e(self::lang('dry_run_banner')) . '</div>';
         }
@@ -117,7 +177,7 @@ final class Page
      */
     private function overviewView(string $moduleLink, array $get, array $post, string $actor, string $tokenField): string
     {
-        return (new OverviewTab($this->module, $tokenField))->render($moduleLink, $get, $post, $actor);
+        return (new OverviewTab($this->module(), $tokenField))->render($moduleLink, $get, $post, $actor);
     }
 
     /** @param array<string,mixed> $get */
@@ -125,7 +185,7 @@ final class Page
     {
         $clientId = self::intParam($get['id'] ?? null) ?? 0;
         try {
-            $status = AgencyStatus::of($this->module, $clientId);
+            $status = AgencyStatus::of($this->module(), $clientId);
         } catch (ClientNotFound) {
             $status = null;
         }
@@ -158,7 +218,7 @@ final class Page
                 ]);
             }
             $html .= self::table(['Domain', 'Product', 'Cycle', 'Amount', 'Monthly', 'Next invoice', 'Promotion'], $rows);
-            if (!$this->module->config->stackWithPromotions) {
+            if (!$this->module()->config->stackWithPromotions) {
                 $html .= '<p class="text-muted">Services on a promotion count towards the tier. Their invoice line is left out of the discount while the invoice also carries the promotion\'s own discount line.</p>';
             }
         }
@@ -207,7 +267,7 @@ final class Page
     {
         $clientId = self::intParam($get['client'] ?? null);
         $page = max(1, self::intParam($get['page'] ?? null) ?? 1);
-        $entries = $this->module->repo->logEntries($clientId, self::LOG_PAGE_SIZE + 1, ($page - 1) * self::LOG_PAGE_SIZE);
+        $entries = $this->repo->logEntries($clientId, self::LOG_PAGE_SIZE + 1, ($page - 1) * self::LOG_PAGE_SIZE);
         $hasOlder = count($entries) > self::LOG_PAGE_SIZE;
         $entries = array_slice($entries, 0, self::LOG_PAGE_SIZE);
 
@@ -219,7 +279,7 @@ final class Page
             return $html . '<p>No log entries.</p>';
         }
 
-        $clients = (new OverviewTab($this->module, ''))->clientsFor($entries);
+        $clients = OverviewTab::clientsFor($this->repo, $entries);
         $rows = '';
         foreach ($entries as $entry) {
             $detail = json_encode($entry['detail'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
@@ -247,8 +307,8 @@ final class Page
 
     private function checkView(): string
     {
-        $repo = $this->module->repo;
-        $config = $this->module->config;
+        $repo = $this->repo;
+        $config = $this->module()->config;
 
         $html = '<h3>Configuration check</h3>';
         $html .= $this->idTable('Product groups', 'group', $config->productGroupIds);
@@ -300,7 +360,7 @@ final class Page
         if ($ids === []) {
             return $html . '<p>None configured.</p>';
         }
-        $names = $this->module->repo->lookupNames($kind, $ids);
+        $names = $this->repo->lookupNames($kind, $ids);
         $rows = '';
         foreach ($ids as $id) {
             $rows .= self::row([

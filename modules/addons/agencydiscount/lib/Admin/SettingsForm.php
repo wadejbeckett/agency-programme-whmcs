@@ -13,9 +13,10 @@ use AgencyDiscount\Tiers;
 
 /**
  * The Settings tab's form state: tier rows per currency and id lists instead of the JSON and
- * comma-separated strings the module stores. Built from the current Config (a GET) or from a
- * POST (preview, save, copy), and turned back into the stored setting keys so validation and
- * saving go through Config::fromSettings and the same keys the CLI profile uses.
+ * comma-separated strings the module stores. Built from the current Config (a GET), from the
+ * stored settings as they are (the repair page, when they do not parse) or from a POST (preview,
+ * save, copy), and turned back into the stored setting keys so validation and saving go through
+ * Config::fromSettings and the same keys the CLI profile uses.
  *
  * Values are kept as typed: an invalid threshold stays in its row so the admin sees what was
  * rejected. Nothing here is a float; thresholds are converted with bcmath.
@@ -38,6 +39,7 @@ final class SettingsForm
      * @param list<int> $addonIds
      * @param list<string> $statuses
      * @param array<string, bool> $switches one of SWITCHES => on
+     * @param string|null $unreadableTiers the stored tiers value when it is not a JSON object at all (fromSettings only), shown so the admin sees what a save replaces
      */
     public function __construct(
         public readonly array $tiers,
@@ -47,6 +49,7 @@ final class SettingsForm
         public readonly array $statuses,
         public readonly array $switches,
         public readonly string $description,
+        public readonly ?string $unreadableTiers = null,
     ) {
     }
 
@@ -75,6 +78,58 @@ final class SettingsForm
     }
 
     /**
+     * The form from the stored settings as they are, for the repair page (the settings do not
+     * parse, so there is no Config to build from). The tiers JSON is read as far as it goes: each
+     * row's cells as stored, so a bad cell is shown in its row; a value that is not a JSON object
+     * gives no rows and is kept in $unreadableTiers. Ids that are not numbers are dropped (the
+     * problem list names them), statuses are split on commas, and a missing key takes the
+     * module's default, as Config::fromSettings does.
+     *
+     * @param array<string, mixed> $settings raw addon settings
+     */
+    public static function fromSettings(array $settings): self
+    {
+        $s = [];
+        foreach (Config::defaults() as $key => $default) {
+            $value = $settings[$key] ?? $default;
+            $s[$key] = is_scalar($value) ? (string) $value : $default;
+        }
+
+        $tiers = [];
+        $unreadable = null;
+        // Decoded twice, as Tiers::fromJson does: the object form tells a JSON object from a list.
+        $decoded = json_decode($s['tiers'], true);
+        if (!json_decode($s['tiers']) instanceof \stdClass || !is_array($decoded)) {
+            $unreadable = $s['tiers'];
+        } else {
+            foreach ($decoded as $code => $rows) {
+                $list = [];
+                foreach (self::arr($rows) as $row) {
+                    $row = is_array($row) ? $row : ['above' => $row];
+                    $list[] = ['above' => self::str($row['above'] ?? null), 'percent' => self::str($row['percent'] ?? null)];
+                }
+                $tiers[(string) $code] = $list;
+            }
+        }
+
+        $switches = [];
+        foreach (self::SWITCHES as $key) {
+            $switches[$key] = Config::yesNo($s[$key], $key === 'activity_log');
+        }
+
+        return new self(
+            $tiers,
+            self::ids(explode(',', $s['product_groups'])),
+            self::ids(explode(',', $s['products'])),
+            self::ids(explode(',', $s['addons'])),
+            self::statuses(explode(',', $s['statuses'])),
+            $switches,
+            trim($s['description']),
+            $unreadable,
+        );
+    }
+
+    /**
      * Field names: tiers[CODE][n][above], tiers[CODE][n][percent] (any n; a row with both blank is
      * dropped), product_groups[], products[], addons[], statuses[], the SWITCHES as "on" when ticked,
      * and description. Anything that is not a string where one is expected is ignored.
@@ -98,14 +153,6 @@ final class SettingsForm
             $tiers[(string) $code] = $list;
         }
 
-        $statuses = [];
-        foreach (self::arr($post['statuses'] ?? null) as $status) {
-            $status = trim(self::str($status));
-            if ($status !== '' && !str_contains($status, ',') && !in_array($status, $statuses, true)) {
-                $statuses[] = $status;
-            }
-        }
-
         $switches = [];
         foreach (self::SWITCHES as $key) {
             $switches[$key] = Config::yesNo($post[$key] ?? '', false);
@@ -116,7 +163,7 @@ final class SettingsForm
             self::ids($post['product_groups'] ?? null),
             self::ids($post['products'] ?? null),
             self::ids($post['addons'] ?? null),
-            $statuses,
+            self::statuses($post['statuses'] ?? null),
             $switches,
             trim(self::str($post['description'] ?? null)),
         );
@@ -131,7 +178,7 @@ final class SettingsForm
     {
         $tiers = $this->tiers;
         $tiers[$code] = $rows;
-        return new self($tiers, $this->groupIds, $this->productIds, $this->addonIds, $this->statuses, $this->switches, $this->description);
+        return new self($tiers, $this->groupIds, $this->productIds, $this->addonIds, $this->statuses, $this->switches, $this->description, $this->unreadableTiers);
     }
 
     /**
@@ -228,6 +275,19 @@ final class SettingsForm
     private static function str(mixed $value): string
     {
         return is_scalar($value) ? (string) $value : '';
+    }
+
+    /** @return list<string> the distinct non-empty statuses among the values, in the order given; a value with a comma cannot be stored and is dropped */
+    private static function statuses(mixed $values): array
+    {
+        $statuses = [];
+        foreach (self::arr($values) as $status) {
+            $status = trim(self::str($status));
+            if ($status !== '' && !str_contains($status, ',') && !in_array($status, $statuses, true)) {
+                $statuses[] = $status;
+            }
+        }
+        return $statuses;
     }
 
     /** @return list<int> the distinct positive integers among the values, in the order given */

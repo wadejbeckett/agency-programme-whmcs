@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace AgencyDiscount\PreviewHarness;
 
+use AgencyDiscount\Admin\Page;
 use AgencyDiscount\ArrayRepository;
 use AgencyDiscount\Config;
 use AgencyDiscount\FrozenClock;
@@ -51,17 +52,48 @@ final class Scenarios
     }
 
     /**
+     * Stored settings that do not parse, for the repair page: a tier threshold that is not a number
+     * and a product group id that is not a number (as an import or a hand edit in SQL could leave them).
+     *
+     * @return array<string,string>
+     */
+    public static function brokenSettings(): array
+    {
+        return [
+            'tiers' => '{"ZAR":[{"above":0,"percent":5},{"above":"5k","percent":10}]}',
+            'product_groups' => '23,premium',
+        ] + self::settings(true);
+    }
+
+    /**
      * live: the six-agency install. edge: dry-run, a start date, a currency without tiers.
      * long: twenty agencies, to see the list scroll. empty: no agencies.
      */
     public static function module(string $scenario): Module
+    {
+        $repo = self::repository($scenario);
+        return new Module($repo, Config::fromSettings($repo->settings), self::clock(), new RecordingActivityLog());
+    }
+
+    /** The addon page for a scenario; 'broken' (the six agencies with brokenSettings()) gives the repair page. */
+    public static function page(string $scenario): Page
+    {
+        return Page::forStoredSettings(self::repository($scenario), self::clock(), new RecordingActivityLog());
+    }
+
+    public static function clock(): FrozenClock
+    {
+        return new FrozenClock(new \DateTimeImmutable(self::NOW));
+    }
+
+    public static function repository(string $scenario): ArrayRepository
     {
         $repo = new ArrayRepository([
             'currencies' => [1 => ['code' => 'ZAR', 'rate' => '1.00000', 'isDefault' => true], 3 => ['code' => 'EUR', 'rate' => '0.05389', 'isDefault' => false]],
             'groups' => [23 => 'Premium Shared'],
             'products' => [113 => ['gid' => 23, 'name' => 'sPremium-1']],
             'admins' => [1 => 1, 2 => 3],
-            'settings' => self::settings($scenario === 'edge'),
+            'settings' => $scenario === 'broken' ? self::brokenSettings() : self::settings($scenario === 'edge'),
         ]);
         $spends = match ($scenario) {
             'empty' => [],
@@ -76,7 +108,7 @@ final class Scenarios
             $repo->agencies[103]['effectiveFrom'] = '2026-12-01';
             self::agency($repo, 201, 'Euro Agency', 'EUR', 3, '300.00', '2026-11-05');
         }
-        return new Module($repo, Config::fromSettings($repo->settings), new FrozenClock(new \DateTimeImmutable(self::NOW)), new RecordingActivityLog());
+        return $repo;
     }
 
     private static function agency(ArrayRepository $repo, int $id, string $name, string $currency, int $currencyId, string $spend, string $nextInvoice): void

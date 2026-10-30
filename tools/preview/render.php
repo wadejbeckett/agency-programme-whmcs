@@ -129,10 +129,15 @@ foreach (['iris', 'blend'] as $theme) {
     }
     $put($prefix . '-states-' . $theme . '.html', frame($themeDir, $theme, 'Dashboard', $states));
 
-    $page = new Page(Scenarios::module('edge'));
+    $page = Scenarios::page('edge');
     $token = '<input type="hidden" name="token" value="preview">';
     $put($prefix . '-overview-' . $theme . '.html', frame($themeDir, $theme, $title, $page->render(WidgetData::MODULE_LINK, [], [], 'admin:1', $token)));
     $put($prefix . '-settings-' . $theme . '.html', frame($themeDir, $theme, $title, $page->render(WidgetData::MODULE_LINK, ['action' => 'settings'], [], 'admin:1', $token)));
+
+    // The repair page: stored settings that do not parse (Scenarios::brokenSettings()).
+    $broken = Scenarios::page('broken');
+    $put($prefix . '-overview-broken-' . $theme . '.html', frame($themeDir, $theme, $title, $broken->render(WidgetData::MODULE_LINK, [], [], 'admin:1', $token)));
+    $put($prefix . '-settings-broken-' . $theme . '.html', frame($themeDir, $theme, $title, $broken->render(WidgetData::MODULE_LINK, ['action' => 'settings'], [], 'admin:1', $token)));
 
     $edge = Scenarios::module('edge');
     $summary = '<div class="row"><div class="col-xs-12"><div class="addon-html-output-container">' . ClientSummary::render($edge, 101) . '</div>'

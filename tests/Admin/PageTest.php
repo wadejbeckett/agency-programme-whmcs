@@ -30,7 +30,7 @@ final class PageTest extends TestCase
     /** @param array<string,string> $override */
     private function page(array $override = []): Page
     {
-        return new Page(new Module($this->repo, Config::fromSettings($override + Fixtures::settings()), new FrozenClock(new \DateTimeImmutable('2026-10-12 09:00:00')), new RecordingActivityLog()));
+        return Page::of(new Module($this->repo, Config::fromSettings($override + Fixtures::settings()), new FrozenClock(new \DateTimeImmutable('2026-10-12 09:00:00')), new RecordingActivityLog()));
     }
 
     public function testOverviewListsAgenciesWithLiveFigures(): void
@@ -123,11 +123,133 @@ final class PageTest extends TestCase
         self::assertStringNotContainsString('&amp;amp;', $detail);
     }
 
-    public function testConfigProblemsPage(): void
+    public function testConfigProblemsBannerPointsToTheSettingsTab(): void
     {
-        $html = Page::configProblems('m', ['tiers: invalid JSON']);
-        self::assertStringContainsString('tiers: invalid JSON', $html);
-        self::assertStringContainsString('alert-danger', $html);
+        $html = Page::configProblems('m', ['tiers: invalid JSON', 'statuses: <b>']);
+        self::assertStringContainsString('<div class="alert alert-danger"><p>The stored settings have problems, so no discount is applied until they are fixed. <a href="m&amp;action=settings">Fix them on the Settings tab</a>.</p><ul><li>tiers: invalid JSON</li><li>statuses: &lt;b&gt;</li></ul></div>', $html);
+        self::assertStringNotContainsString('Addon Modules', $html);
+        self::assertStringContainsString('<p>The stored settings have problems, so no discount is applied until they are fixed and saved below.</p>', Page::configProblems('m', ['tiers: invalid JSON'], true));
+    }
+
+    /** @return array<string,mixed> a valid, complete Settings form post */
+    private static function validSettingsPost(): array
+    {
+        return [
+            'action' => 'settings_save',
+            'tiers' => ['ZAR' => [['above' => '1000.00', 'percent' => '5'], ['above' => '2000.00', 'percent' => '10'], ['above' => '3000.00', 'percent' => '15']]],
+            'product_groups' => ['1', '23', '3', '6'],
+            'products' => [],
+            'addons' => ['12', '15'],
+            'statuses' => ['Active'],
+            'new_orders' => 'on',
+            'activity_log' => 'on',
+            'description' => 'Agency discount {percent}% on {count} qualifying {items}',
+        ];
+    }
+
+    /** @param array<string,string> $stored the stored settings, as SQL or an import could leave them */
+    private function repairPage(array $stored): Page
+    {
+        $this->repo->settings = $stored;
+        return Page::forStoredSettings($this->repo, new FrozenClock(new \DateTimeImmutable('2026-10-12 09:00:00')), new RecordingActivityLog());
+    }
+
+    public function testStoredSettingsThatDoNotParseGiveTheRepairPage(): void
+    {
+        $token = '<input type="hidden" name="token" value="t">';
+        $page = $this->repairPage(['tiers' => '{"ZAR":[', 'product_groups' => '23,premium'] + Fixtures::settings());
+        $this->repo->log(['clientId' => 131, 'invoiceId' => null, 'event' => 'note_changed', 'detail' => ['to' => 'hello'], 'actor' => 'admin:1', 'createdAt' => '2026-10-12 08:00:00']);
+
+        // Overview, agency detail and the configuration check: the banner alone, linking to Settings; nothing is computed
+        foreach ([[], ['action' => 'agency', 'id' => '131'], ['action' => 'check']] as $get) {
+            $html = $page->render('m', $get, [], 'admin:1', $token);
+            self::assertStringStartsWith('<ul class="nav nav-tabs"><li', $html);
+            self::assertStringContainsString('no discount is applied until they are fixed. <a href="m&amp;action=settings">Fix them on the Settings tab</a>.</p><ul><li>tiers: invalid JSON</li><li>product_groups: &quot;premium&quot; is not a number</li></ul></div>', $html);
+            self::assertStringEndsWith('</ul></div>', $html, 'the banner is the whole view');
+            self::assertStringNotContainsString('Agency One', $html);
+            self::assertStringNotContainsString('Addon Modules', $html);
+        }
+
+        // Change log: works, with client names, under the banner
+        $log = $page->render('m', ['action' => 'log'], [], 'admin:1', $token);
+        self::assertStringContainsString('<li>tiers: invalid JSON</li>', $log);
+        self::assertStringContainsString('<h3>Change log</h3>', $log);
+        self::assertStringContainsString('<td>note_changed</td>', $log);
+        self::assertStringContainsString('Agency One', $log);
+
+        // Settings: the form from the stored values, each problem beside its section, nothing saved by a GET
+        $settings = $page->render('m', ['action' => 'settings'], [], 'admin:1', $token);
+        self::assertStringContainsString('<p>The stored settings have problems, so no discount is applied until they are fixed and saved below.</p><ul><li>tiers: invalid JSON</li><li>product_groups: &quot;premium&quot; is not a number</li></ul>', $settings);
+        self::assertStringNotContainsString('The settings were not saved', $settings);
+        self::assertStringContainsString('<span class="label label-success">Live</span>', $settings);
+        self::assertSame(1, preg_match('#<h4>Discount tiers</h4>.*?<ul><li>tiers: invalid JSON</li></ul></div><p class="text-danger">The stored tiers are not a JSON object, so no tier is shown; saving replaces them. Stored value: <code>\{&quot;ZAR&quot;:\[</code></p>.*?<h4>What counts</h4>.*?<h5>Product groups</h5><div class="alert alert-danger"><ul><li>product_groups: &quot;premium&quot; is not a number</li></ul></div>#s', $settings));
+        self::assertStringContainsString('data-agencydiscount-tab="ZAR">ZAR (default currency)</a>', $settings);
+        self::assertStringNotContainsString('name="tiers[ZAR][0][above]"', $settings);
+        self::assertStringContainsString('name="product_groups[]" value="23" checked>', $settings);
+        self::assertStringContainsString('name="product_groups[]" value="1"> Legacy', $settings);
+        self::assertStringContainsString('name="addons[]" value="12" checked>', $settings);
+        self::assertStringContainsString('name="statuses[]" value="Active" checked>', $settings);
+        self::assertStringContainsString('name="activity_log" value="on" checked>', $settings);
+        self::assertStringContainsString('name="description" class="form-control" value="Agency discount {percent}% on {count} qualifying {items}"', $settings);
+        self::assertSame('23,premium', $this->repo->settings['product_groups']);
+
+        // Saving valid values repairs the configuration: the same request renders the normal page, and so does the next
+        $saved = $page->render('m', ['action' => 'settings'], self::validSettingsPost(), 'admin:1', $token);
+        self::assertStringContainsString('Settings saved. Changed: tiers, product_groups.', $saved);
+        self::assertStringNotContainsString('no discount is applied', $saved);
+        self::assertStringContainsString('name="tiers[ZAR][0][above]" value="1000.00"', $saved);
+        self::assertSame(Fixtures::settings()['tiers'], $this->repo->settings['tiers']);
+        self::assertSame('1,23,3,6', $this->repo->settings['product_groups']);
+        $entry = $this->repo->logEntries(null, 1)[0];
+        self::assertSame('settings_changed', $entry['event']);
+        self::assertSame(['tiers', 'product_groups'], array_keys($entry['detail']['changed']));
+        self::assertSame(['tiers: invalid JSON', 'product_groups: "premium" is not a number'], $entry['detail']['repaired']);
+        $overview = Page::forStoredSettings($this->repo, new FrozenClock(new \DateTimeImmutable('2026-10-12 09:00:00')), new RecordingActivityLog())->render('m', [], [], 'admin:1', $token);
+        self::assertStringContainsString('Agency One', $overview);
+        self::assertStringNotContainsString('alert-danger', $overview);
+    }
+
+    public function testRepairPageShowsABadTierCellInItsRowAndRejectsAnInvalidSave(): void
+    {
+        $token = '<input type="hidden" name="token" value="t">';
+        $page = $this->repairPage(['tiers' => '{"ZAR":[{"above":0,"percent":5},{"above":"5k","percent":10}],"EUR":[]}', 'statuses' => ''] + Fixtures::settings());
+        $settings = $page->render('m', ['action' => 'settings'], [], 'admin:1', $token);
+        self::assertStringContainsString('name="tiers[ZAR][1][above]" value="5k"', $settings);
+        self::assertStringContainsString('name="tiers[ZAR][1][percent]" value="10"', $settings);
+        self::assertStringContainsString('<li>tiers: ZAR tier 2 &quot;above&quot; must be a number</li>', $settings);
+        self::assertStringContainsString('<li>tiers: EUR must list at least one tier</li>', $settings);
+        self::assertStringNotContainsString('The stored tiers are not a JSON object', $settings);
+        self::assertSame(1, preg_match('#<h4>Counted statuses</h4>.*?<li>statuses: at least one status is required</li>#s', $settings));
+        self::assertStringNotContainsString('name="statuses[]" value="Active" checked', $settings);
+
+        // a save that still has a problem keeps what was typed, saves nothing, and stays on the repair page
+        $post = self::validSettingsPost();
+        $post['tiers']['ZAR'][1]['above'] = 'x';
+        $html = $page->render('m', ['action' => 'settings'], $post, 'admin:1', $token);
+        self::assertStringContainsString('fixed and saved below.', $html);
+        self::assertStringContainsString('The settings were not saved. Fix these and try again:', $html);
+        self::assertStringContainsString('name="tiers[ZAR][1][above]" value="x"', $html);
+        self::assertSame('', $this->repo->settings['statuses']);
+
+        // a mode switch works on the repair page and the page stays in repair
+        $html = $page->render('m', ['action' => 'settings'], ['action' => 'mode', 'dry_run' => 'on'], 'admin:1', $token);
+        self::assertStringContainsString('Switched to Dry-run mode.', $html);
+        self::assertStringContainsString('<span class="label label-warning">Dry-run</span>', $html);
+        self::assertStringContainsString('fixed and saved below.', $html);
+        self::assertSame('on', $this->repo->settings['dry_run']);
+        self::assertStringContainsString('name="tiers[ZAR][1][above]" value="5k"', $html);
+
+        // a preview on the repair page compares with nothing: the "now" cells are empty
+        $preview = $page->render('m', ['action' => 'settings'], ['action' => 'settings_preview'] + self::validSettingsPost(), 'admin:1', $token);
+        self::assertStringContainsString('<td>&mdash;</td><td>1 (5%)</td><td>&mdash;</td><td>2026-10-25: ZAR 42.50</td>', $preview);
+        self::assertStringContainsString('<tr class="warning">', $preview);
+    }
+
+    public function testStoredSettingsThatParseGiveTheNormalPage(): void
+    {
+        $html = $this->repairPage(Fixtures::settings())->render('m', [], [], 'admin:1', '');
+        self::assertStringContainsString('Agency One', $html);
+        self::assertStringNotContainsString('alert-danger', $html);
     }
 
     public function testOverviewShowsStartDate(): void

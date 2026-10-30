@@ -10,6 +10,7 @@ use AgencyDiscount\AgencyStatus;
 use AgencyDiscount\LogEntry;
 use AgencyDiscount\Module;
 use AgencyDiscount\Money;
+use AgencyDiscount\Repository;
 
 /**
  * The Overview tab: four tiles, the agencies table with filters and flags, and a side column with
@@ -363,7 +364,7 @@ final class OverviewTab
             $clients[$status->report->clientId] = ['name' => $status->report->clientName, 'currency' => $status->report->currency];
         }
         $entries = $this->module->repo->logEntries(null, self::RECENT_ENTRIES);
-        $clients = $this->clientsFor($entries, $clients);
+        $clients = self::clientsFor($this->module->repo, $entries, $clients);
         $list = '';
         foreach ($entries as $entry) {
             $list .= '<div class="list-group-item"><small class="text-muted">' . Html::e($entry['createdAt']) . '</small><br>' . Html::e(LogEntry::sentence($entry, $clients)) . '</div>';
@@ -383,14 +384,14 @@ final class OverviewTab
      * @param array<int, array{name:string, currency:string}> $clients
      * @return array<int, array{name:string, currency:string}>
      */
-    public function clientsFor(array $entries, array $clients = []): array
+    public static function clientsFor(Repository $repo, array $entries, array $clients = []): array
     {
         foreach ($entries as $entry) {
             $id = $entry['clientId'];
             if ($id === null || isset($clients[$id])) {
                 continue;
             }
-            $client = $this->module->repo->client($id);
+            $client = $repo->client($id);
             if ($client !== null) {
                 $clients[$id] = ['name' => $client['name'], 'currency' => $client['currency']];
             }
