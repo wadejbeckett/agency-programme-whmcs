@@ -273,10 +273,16 @@ final class SettingsForm
         return '{' . implode(',', $parts) . '}';
     }
 
+    /**
+     * A cell that is a plain decimal becomes a JSON number exactly as typed (so Tiers sees a third
+     * decimal and can reject it; nothing is rounded here); anything else becomes a JSON string, which
+     * Tiers reports as "must be a number". A leading-zero form such as 007.5 is not a JSON number and
+     * goes through as a string, which Tiers::decimal() still reads as 7.50.
+     */
     private static function jsonNumber(string $value): string
     {
-        if (preg_match('/^\d+(?:\.\d+)?$/', $value) === 1) {
-            return Money::formatPercent($value);
+        if (preg_match('/^(?:0|[1-9]\d*)(?:\.\d+)?$/', $value) === 1) {
+            return $value;
         }
         return json_encode($value, JSON_THROW_ON_ERROR);
     }
