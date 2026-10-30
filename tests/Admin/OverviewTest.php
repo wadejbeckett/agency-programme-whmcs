@@ -36,7 +36,7 @@ final class OverviewTest extends TestCase
     /** @param array<string,string> $override */
     private function page(array $override = []): Page
     {
-        return new Page(new Module($this->repo, Config::fromSettings($override + $this->repo->settings), new FrozenClock(new \DateTimeImmutable('2026-10-12 09:00:00')), new RecordingActivityLog()));
+        return Page::of(new Module($this->repo, Config::fromSettings($override + $this->repo->settings), new FrozenClock(new \DateTimeImmutable('2026-10-12 09:00:00')), new RecordingActivityLog()));
     }
 
     /**

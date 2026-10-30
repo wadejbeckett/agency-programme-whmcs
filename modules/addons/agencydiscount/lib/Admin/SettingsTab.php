@@ -6,11 +6,14 @@ declare(strict_types=1);
 
 namespace AgencyDiscount\Admin;
 
+use AgencyDiscount\ActivityLog;
 use AgencyDiscount\ClientNotFound;
+use AgencyDiscount\Clock;
 use AgencyDiscount\Config;
 use AgencyDiscount\ConfigException;
 use AgencyDiscount\Module;
 use AgencyDiscount\Money;
+use AgencyDiscount\Repository;
 use AgencyDiscount\SpendCalculator;
 use AgencyDiscount\SpendReport;
 use AgencyDiscount\Tiers;
@@ -29,6 +32,11 @@ use AgencyDiscount\Tiers;
  * After a save or a mode switch $module is rebuilt on the new configuration; the caller renders
  * the rest of the page from it.
  *
+ * Repair: when the stored settings do not parse (SettingsTab::repair), the form is filled from
+ * the raw values (SettingsForm::fromSettings), the stored problems are listed beside their
+ * sections, the mode card still switches dry-run, and a save that validates repairs the
+ * configuration ($module is set from then on).
+ *
  * @phpstan-import-type TierRow from SettingsForm
  */
 final class SettingsTab
@@ -43,10 +51,39 @@ final class SettingsTab
     private const EXAMPLE_PERCENT = '10';
     private const EXAMPLE_COUNT = 3;
 
-    public function __construct(
-        public Module $module,
+    /** The module on the current configuration; null while the stored settings do not parse (repair). */
+    public ?Module $module;
+    private bool $dryRun;
+
+    /**
+     * @param list<string> $storedProblems the problems with the stored settings; empty when $module is set
+     */
+    private function __construct(
+        private readonly Repository $repo,
+        private readonly Clock $clock,
+        private readonly ActivityLog $activity,
+        ?Module $module,
+        bool $dryRun,
+        private array $storedProblems,
         private readonly string $tokenField,
     ) {
+        $this->module = $module;
+        $this->dryRun = $dryRun;
+    }
+
+    public static function of(Module $module, string $tokenField): self
+    {
+        return new self($module->repo, $module->clock, $module->activity, $module, $module->config->dryRun, [], $tokenField);
+    }
+
+    /**
+     * The tab for stored settings that do not parse.
+     *
+     * @param list<string> $problems from Config::fromSettings on the stored settings
+     */
+    public static function repair(Repository $repo, Clock $clock, ActivityLog $activity, array $problems, string $tokenField): self
+    {
+        return new self($repo, $clock, $activity, null, Config::yesNo($repo->settings()['dry_run'] ?? 'on', true), $problems, $tokenField);
     }
 
     /** @param array<string, mixed> $post */
@@ -66,7 +103,7 @@ final class SettingsTab
         } elseif ($action === self::ACTION_PREVIEW || $action === self::ACTION_SAVE) {
             $form = SettingsForm::fromPost($post);
             try {
-                $config = $form->validate($this->module->config->dryRun);
+                $config = $form->validate($this->dryRun);
                 if ($action === self::ACTION_SAVE) {
                     $notice = $this->save($form, $config, $actor);
                     $form = null;
@@ -77,61 +114,75 @@ final class SettingsTab
                 $problems = $e->problems();
             }
         }
-        $form ??= SettingsForm::fromConfig($this->module->config);
+        $top = self::problemList($problems, null);
+        if ($form === null) {
+            if ($this->module === null) {
+                // Repair: the stored values as they are, their problems beside their sections (the page's banner lists them).
+                $form = SettingsForm::fromSettings($this->repo->settings());
+                $problems = $this->storedProblems;
+            } else {
+                $form = SettingsForm::fromConfig($this->module->config);
+            }
+        }
 
-        return $notice . self::problemList($problems, null) . $this->modeCard() . $this->form($form, $impact, $problems) . self::assets();
+        return $notice . $top . $this->modeCard() . $this->form($form, $impact, $problems) . self::assets();
     }
 
     private function switchMode(bool $dryRun, string $actor): string
     {
         $label = Page::lang($dryRun ? 'mode_dry_run' : 'mode_live');
-        if ($this->module->config->dryRun === $dryRun) {
+        if ($this->dryRun === $dryRun) {
             return self::alert('info', sprintf(Page::lang('mode_unchanged'), $label));
         }
-        $repo = $this->module->repo;
-        $repo->saveSettings(['dry_run' => $dryRun ? 'on' : '']);
-        $repo->log([
+        $this->repo->saveSettings(['dry_run' => $dryRun ? 'on' : '']);
+        $this->repo->log([
             'clientId' => null,
             'invoiceId' => null,
             'event' => 'mode_changed',
             'detail' => ['from' => $dryRun ? 'live' : 'dry-run', 'to' => $dryRun ? 'dry-run' : 'live'],
             'actor' => $actor,
-            'createdAt' => $this->module->clock->now()->format('Y-m-d H:i:s'),
+            'createdAt' => $this->clock->now()->format('Y-m-d H:i:s'),
         ]);
-        $this->module->activity->log('Agency Discount: switched to ' . ($dryRun ? 'dry-run' : 'live') . ' mode');
-        $this->module = new Module($repo, SettingsForm::fromConfig($this->module->config)->validate($dryRun), $this->module->clock, $this->module->activity);
+        $this->activity->log('Agency Discount: switched to ' . ($dryRun ? 'dry-run' : 'live') . ' mode');
+        $this->dryRun = $dryRun;
+        if ($this->module !== null) {
+            $this->module = new Module($this->repo, SettingsForm::fromConfig($this->module->config)->validate($dryRun), $this->clock, $this->activity);
+        }
         return self::alert('success', sprintf(Page::lang('mode_switched'), $label));
     }
 
-    /** Writes the form's keys when any differs from what is stored, and logs the keys that changed. */
+    /**
+     * Writes the form's keys when any differs from what is stored, and logs the keys that changed.
+     * A repair (the stored settings did not parse) is always written, so the stored values are valid from here on.
+     */
     private function save(SettingsForm $form, Config $config, string $actor): string
     {
         $settings = $form->toSettings();
         $settings['tiers'] = $config->tiers->toJson();
-        $repo = $this->module->repo;
-        $current = $repo->settings() + Config::defaults();
+        $current = $this->repo->settings() + Config::defaults();
         $changed = [];
         foreach ($settings as $key => $value) {
             if (($current[$key] ?? '') !== $value) {
                 $changed[$key] = ['from' => $current[$key] ?? '', 'to' => $value];
             }
         }
-        if ($changed === []) {
+        if ($changed === [] && $this->module !== null) {
             return self::alert('info', Page::lang('saved_nothing'));
         }
-        $repo->saveSettings($settings);
-        $repo->log([
+        $this->repo->saveSettings($settings);
+        $this->repo->log([
             'clientId' => null,
             'invoiceId' => null,
             'event' => 'settings_changed',
-            'detail' => ['changed' => $changed],
+            'detail' => ['changed' => $changed] + ($this->module === null ? ['repaired' => $this->storedProblems] : []),
             'actor' => $actor,
-            'createdAt' => $this->module->clock->now()->format('Y-m-d H:i:s'),
+            'createdAt' => $this->clock->now()->format('Y-m-d H:i:s'),
         ]);
         $keys = implode(', ', array_keys($changed));
-        $this->module->activity->log('Agency Discount: settings changed: ' . $keys);
-        $this->module = new Module($repo, $config, $this->module->clock, $this->module->activity);
-        return self::alert('success', sprintf(Page::lang('saved'), $keys));
+        $this->activity->log('Agency Discount: settings changed: ' . ($keys === '' ? 'none' : $keys) . ($this->module === null ? ' (configuration repaired)' : ''));
+        $this->module = new Module($this->repo, $config, $this->clock, $this->activity);
+        $this->storedProblems = [];
+        return self::alert('success', $keys === '' ? Page::lang('saved_repaired') : sprintf(Page::lang('saved'), $keys));
     }
 
     /** @return array{SettingsForm, string, list<string>} the form (target rows replaced on success), a notice, problems */
@@ -139,7 +190,7 @@ final class SettingsTab
     {
         $default = null;
         $to = null;
-        foreach ($this->module->repo->currencies() as $currency) {
+        foreach ($this->repo->currencies() as $currency) {
             if ($currency['isDefault']) {
                 $default = $currency;
             }
@@ -168,9 +219,9 @@ final class SettingsTab
 
     private function modeCard(): string
     {
-        $dryRun = $this->module->config->dryRun;
+        $dryRun = $this->dryRun;
         $last = null;
-        foreach ($this->module->repo->approvedAgencies() as $agency) {
+        foreach ($this->repo->approvedAgencies() as $agency) {
             if ($agency['calculatedAt'] !== null && ($last === null || $agency['calculatedAt'] > $last)) {
                 $last = $agency['calculatedAt'];
             }
@@ -180,7 +231,7 @@ final class SettingsTab
             . '<h4>' . Html::e(Page::lang('mode')) . ': <span class="label label-' . ($dryRun ? 'warning' : 'success') . '">' . Html::e(Page::lang($dryRun ? 'mode_dry_run' : 'mode_live')) . '</span></h4>'
             . '<p>' . Html::e(Page::lang($dryRun ? 'mode_dry_run_help' : 'mode_live_help')) . '</p>'
             . '<p class="text-muted">' . Html::e(Page::lang('mode_last_recalculation')) . ': ' . Html::e($last ?? Page::lang('never'))
-            . ' &middot; ' . Html::e(Page::lang('mode_invoices_checked')) . ': ' . $this->module->repo->invoicesChecked() . '</p>'
+            . ' &middot; ' . Html::e(Page::lang('mode_invoices_checked')) . ': ' . $this->repo->invoicesChecked() . '</p>'
             . '<form method="post" class="form-inline">' . $this->tokenField
             . '<input type="hidden" name="action" value="' . self::ACTION_MODE . '">'
             . '<input type="hidden" name="dry_run" value="' . ($dryRun ? '' : 'on') . '">'
@@ -196,7 +247,7 @@ final class SettingsTab
         return '<form method="post" id="agencydiscount-settings">' . $this->tokenField
             . '<button type="submit" name="action" value="' . self::ACTION_PREVIEW . '" class="agencydiscount-default-submit" tabindex="-1" aria-hidden="true"></button>'
             . $this->tiersSection($form, $problems)
-            . $this->countsSection($form)
+            . $this->countsSection($form, $problems)
             . $this->statusesSection($form, $problems)
             . $this->behaviourSection($form, $problems)
             . $this->impactSection($impact)
@@ -209,7 +260,7 @@ final class SettingsTab
     {
         $currencies = [];
         $default = null;
-        foreach ($this->module->repo->currencies() as $currency) {
+        foreach ($this->repo->currencies() as $currency) {
             if (preg_match('/^[A-Z]{3}$/', $currency['code']) !== 1) {
                 continue; // the tiers setting only accepts three-letter codes
             }
@@ -220,17 +271,47 @@ final class SettingsTab
         }
         $codes = array_keys($currencies);
         foreach (array_keys($form->tiers) as $code) {
+            $code = (string) $code; // PHP turns a key like "123" into an int
             if (!isset($currencies[$code])) {
-                $codes[] = $code; // tiers for a currency WHMCS no longer has: shown so they can be removed
+                $codes[] = $code; // tiers for a currency WHMCS no longer has (or a stored key that is not a currency): shown so they can be removed
             }
         }
+        // Problems about the setting as a whole (not a currency's rows) sit under the heading; a pane shows its own.
+        $general = array_values(array_filter($problems, static function (string $problem) use ($codes): bool {
+            if (!str_starts_with($problem, 'tiers:')) {
+                return false;
+            }
+            foreach ($codes as $code) {
+                if (str_starts_with($problem, 'tiers: ' . $code . ' ')) {
+                    return false;
+                }
+            }
+            return true;
+        }));
+        $unreadable = '';
+        if ($form->unreadableTiers !== null) {
+            $unreadable = '<p class="text-danger">' . Html::e(Page::lang('tiers_unreadable')) . ' <code>' . Html::e(mb_strimwidth($form->unreadableTiers, 0, 200, '…')) . '</code></p>';
+        }
+        $head = '<h4>' . Html::e(Page::lang('tiers')) . '</h4>'
+            . '<p class="text-muted">' . Html::e(Page::lang('tiers_help')) . '</p>'
+            . self::problemList($general, 'tiers:') . $unreadable;
         if ($codes === []) {
-            return '<h4>' . Html::e(Page::lang('tiers')) . '</h4><p>' . Html::e(Page::lang('tiers_none')) . '</p>';
+            return $head . '<p>' . Html::e(Page::lang('tiers_none')) . '</p>';
         }
 
+        // The open pane is the first with a problem, so a problem on a non-default currency is not hidden behind its pill.
+        $active = $codes[0];
+        foreach ($codes as $code) {
+            foreach ($problems as $problem) {
+                if (str_starts_with($problem, 'tiers: ' . $code . ' ')) {
+                    $active = $code;
+                    break 2;
+                }
+            }
+        }
         $tabs = '';
         $panes = '';
-        foreach ($codes as $i => $code) {
+        foreach ($codes as $code) {
             $known = isset($currencies[$code]);
             $label = $code;
             if ($default !== null && $code === $default['code']) {
@@ -238,12 +319,11 @@ final class SettingsTab
             } elseif (!$known) {
                 $label .= ' (' . Page::lang('tiers_not_in_whmcs') . ')';
             }
-            $tabs .= '<li' . ($i === 0 ? ' class="active"' : '') . '><a href="#agencydiscount-tiers-' . Html::e($code) . '" data-agencydiscount-tab="' . Html::e($code) . '">' . Html::e($label) . '</a></li>';
-            $panes .= $this->tierPane($code, $form->tiers[$code] ?? [], $i === 0, $known && $default !== null && $code !== $default['code'] ? $default['code'] : null, $currencies[$code]['rate'] ?? null, $problems);
+            $tabs .= '<li' . ($code === $active ? ' class="active"' : '') . '><a href="#agencydiscount-tiers-' . Html::e($code) . '" data-agencydiscount-tab="' . Html::e($code) . '">' . Html::e($label) . '</a></li>';
+            $panes .= $this->tierPane($code, $form->tiers[$code] ?? [], $code === $active, $known && $default !== null && $code !== $default['code'] ? $default['code'] : null, $currencies[$code]['rate'] ?? null, $problems);
         }
 
-        return '<h4>' . Html::e(Page::lang('tiers')) . '</h4>'
-            . '<p class="text-muted">' . Html::e(Page::lang('tiers_help')) . '</p>'
+        return $head
             . '<ul class="nav nav-pills" id="agencydiscount-currencies">' . $tabs . '</ul>'
             . '<div class="tab-content">' . $panes . '</div>'
             . '<template id="agencydiscount-tier-row">' . self::tierRow('__CODE__', '__N__', ['above' => '', 'percent' => ''], true) . '</template>';
@@ -319,9 +399,10 @@ final class SettingsTab
             . '<tbody>' . $body . '</tbody></table></div>';
     }
 
-    private function countsSection(SettingsForm $form): string
+    /** @param list<string> $problems */
+    private function countsSection(SettingsForm $form, array $problems): string
     {
-        $repo = $this->module->repo;
+        $repo = $this->repo;
         $groups = $repo->productGroups();
         usort($groups, static fn (array $a, array $b): int => ($a['hidden'] ? 1 : 0) <=> ($b['hidden'] ? 1 : 0)); // stable: hidden last, order kept
         $groupNames = [];
@@ -360,10 +441,10 @@ final class SettingsTab
         return '<h4>' . Html::e(Page::lang('counts')) . '</h4>'
             . '<p class="text-muted">' . Html::e(Page::lang('counts_help')) . '</p>'
             . '<div class="row">'
-            . '<div class="col-md-4"><h5>' . Html::e(Page::lang('groups')) . '</h5><div class="agencydiscount-picker">' . $boxes . '</div></div>'
-            . '<div class="col-md-4"><h5>' . Html::e(Page::lang('products')) . '</h5><p class="text-muted">' . Html::e(Page::lang('products_help')) . '</p>'
+            . '<div class="col-md-4"><h5>' . Html::e(Page::lang('groups')) . '</h5>' . self::problemList($problems, 'product_groups:') . '<div class="agencydiscount-picker">' . $boxes . '</div></div>'
+            . '<div class="col-md-4"><h5>' . Html::e(Page::lang('products')) . '</h5><p class="text-muted">' . Html::e(Page::lang('products_help')) . '</p>' . self::problemList($problems, 'products:')
             . self::filter('products') . '<div class="agencydiscount-picker" data-agencydiscount-list="products">' . $products . '</div></div>'
-            . '<div class="col-md-4"><h5>' . Html::e(Page::lang('addons')) . '</h5>'
+            . '<div class="col-md-4"><h5>' . Html::e(Page::lang('addons')) . '</h5>' . self::problemList($problems, 'addons:')
             . self::filter('addons') . '<div class="agencydiscount-picker" data-agencydiscount-list="addons">' . $addons . '</div></div>'
             . '</div>';
     }
@@ -405,34 +486,38 @@ final class SettingsTab
             . $impact;
     }
 
-    /** Each approved agency under the saved configuration and under $new. */
+    /**
+     * Each approved agency under the saved configuration and under $new. On the repair page there
+     * is no saved configuration to compare with, so the "now" cells are empty and every row counts as a change.
+     */
     private function impact(Config $new): string
     {
-        $repo = $this->module->repo;
+        $repo = $this->repo;
         $after = new SpendCalculator($repo, $new);
-        $now = $this->module->clock->now();
+        $now = $this->clock->now();
         $rows = '';
         $changes = 0;
         foreach ($repo->approvedAgencies() as $agency) {
             try {
-                $before = $this->module->spend()->forClient($agency['clientId']);
+                $before = $this->module?->spend()->forClient($agency['clientId']);
                 $then = $after->forClient($agency['clientId']);
             } catch (ClientNotFound) {
                 continue;
             }
-            $changed = $before->tier?->index !== $then->tier?->index
+            $changed = $before === null
+                || $before->tier?->index !== $then->tier?->index
                 || $before->tier?->percent !== $then->tier?->percent
                 || $before->currencyHasTiers !== $then->currencyHasTiers
                 || $before->monthlySpend !== $then->monthlySpend;
             $changes += $changed ? 1 : 0;
-            $spend = Html::e(Html::money($before->currency, $before->monthlySpend));
-            if ($before->monthlySpend !== $then->monthlySpend) {
-                $spend .= ' &rarr; ' . Html::e(Html::money($then->currency, $then->monthlySpend));
+            $spend = Html::e(Html::money($then->currency, $then->monthlySpend));
+            if ($before !== null && $before->monthlySpend !== $then->monthlySpend) {
+                $spend = Html::e(Html::money($before->currency, $before->monthlySpend)) . ' &rarr; ' . $spend;
             }
-            $rows .= '<tr' . ($changed ? ' class="warning"' : '') . '><td><a href="clientssummary.php?userid=' . $before->clientId . '">' . Html::e($before->clientName) . '</a></td>'
-                . '<td>' . Html::e($before->currency) . '</td><td>' . $spend . '</td>'
-                . '<td>' . Page::tierCell($before) . '</td><td>' . Page::tierCell($then) . '</td>'
-                . '<td>' . $this->nextDiscount($before, $agency['effectiveFrom'], $now) . '</td><td>' . $this->nextDiscount($then, $agency['effectiveFrom'], $now) . '</td></tr>';
+            $rows .= '<tr' . ($changed ? ' class="warning"' : '') . '><td><a href="clientssummary.php?userid=' . $then->clientId . '">' . Html::e($then->clientName) . '</a></td>'
+                . '<td>' . Html::e($then->currency) . '</td><td>' . $spend . '</td>'
+                . '<td>' . ($before === null ? '&mdash;' : Page::tierCell($before)) . '</td><td>' . Page::tierCell($then) . '</td>'
+                . '<td>' . ($before === null ? '&mdash;' : $this->nextDiscount($before, $agency['effectiveFrom'], $now)) . '</td><td>' . $this->nextDiscount($then, $agency['effectiveFrom'], $now) . '</td></tr>';
         }
         if ($rows === '') {
             return '<p>' . Html::e(Page::lang('impact_none')) . '</p>';

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased (0.3.0)
+
+- Stored settings that do not parse (a tiers value or an id left malformed by SQL or an import) no longer lock the addon page behind a message pointing at the Configure form. The page becomes a repair page: a banner lists the problems on every tab, the Settings tab is filled from the stored values with each problem beside its section (a bad tier cell in its row; a tiers value that is not a JSON object shown as stored), the Change log tab works, and the Overview, agency detail and configuration check show the banner alone. A Settings save that validates repairs the configuration (logged as a `settings_changed` entry with a `repaired` list) and the same request renders the normal page. Hooks are unchanged: with an invalid configuration no discount is applied and the problem is logged once per request. The preview harness renders the repair page as `-overview-broken-` and `-settings-broken-` (#7).
+
 ## 0.2.2 — 2026-10-30
 
 Audit should-fix items S1, S2, S3, S5, S8, S9 and S10 (retention), the Overview table, and the release tooling. No schema change: see "Upgrade" below.

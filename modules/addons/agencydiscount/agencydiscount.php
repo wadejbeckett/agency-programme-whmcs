@@ -9,11 +9,12 @@ use AgencyDiscount\Admin\Page;
 use AgencyDiscount\CapsuleRepository;
 use AgencyDiscount\ClientArea\PageData;
 use AgencyDiscount\Config;
-use AgencyDiscount\ConfigException;
 use AgencyDiscount\Hooks;
 use AgencyDiscount\Module;
 use AgencyDiscount\Schema;
+use AgencyDiscount\SystemClock;
 use AgencyDiscount\Upgrade;
+use AgencyDiscount\WhmcsActivityLog;
 
 if (!defined('WHMCS')) {
     die('This file cannot be accessed directly');
@@ -100,7 +101,12 @@ function agencydiscount_upgrade(array $vars): array
     }
 }
 
-/** @param array<string, mixed> $vars */
+/**
+ * The addon page. When the stored settings do not parse, Page::forStoredSettings gives the repair
+ * page: the problems in a banner, the Settings tab filled from the stored values, the Change log.
+ *
+ * @param array<string, mixed> $vars
+ */
 function agencydiscount_output(array $vars): void
 {
     $moduleLink = (string) ($vars['modulelink'] ?? '');
@@ -108,12 +114,10 @@ function agencydiscount_output(array $vars): void
         check_token('WHMCS.admin.default');
     }
     try {
-        $module = Module::boot();
+        $page = Page::forStoredSettings(new CapsuleRepository(), new SystemClock(), new WhmcsActivityLog());
         $adminId = \WHMCS\Session::get('adminid');
         $actor = is_numeric($adminId) ? 'admin:' . (int) $adminId : 'admin';
-        echo (new Page($module))->render($moduleLink, $_GET, Page::decodeInput($_POST), $actor, generate_token());
-    } catch (ConfigException $e) {
-        echo Page::configProblems($moduleLink, $e->problems());
+        echo $page->render($moduleLink, $_GET, Page::decodeInput($_POST), $actor, generate_token());
     } catch (\Throwable $e) {
         echo '<div class="alert alert-danger">Agency Programme could not show this page: ' . Html::e(get_class($e) . ': ' . $e->getMessage()) . '</div>';
     }

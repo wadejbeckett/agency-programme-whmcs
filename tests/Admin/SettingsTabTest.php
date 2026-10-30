@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace AgencyDiscount\Tests\Admin;
 
 use AgencyDiscount\Admin\Page;
+use AgencyDiscount\Admin\SettingsForm;
 use AgencyDiscount\ArrayRepository;
 use AgencyDiscount\Config;
 use AgencyDiscount\FrozenClock;
@@ -36,7 +37,7 @@ final class SettingsTabTest extends TestCase
     /** @param array<string,string> $override */
     private function page(array $override = []): Page
     {
-        return new Page(new Module($this->repo, Config::fromSettings($override + $this->repo->settings), new FrozenClock(new \DateTimeImmutable('2026-10-12 09:00:00')), $this->activity));
+        return Page::of(new Module($this->repo, Config::fromSettings($override + $this->repo->settings), new FrozenClock(new \DateTimeImmutable('2026-10-12 09:00:00')), $this->activity));
     }
 
     /** @param array<string,mixed> $post */
@@ -362,6 +363,39 @@ final class SettingsTabTest extends TestCase
         self::assertStringNotContainsString('<img>', $html);
         self::assertStringNotContainsString('<b>Evil', $html);
         self::assertStringContainsString('value="&lt;img&gt;"', $html);
+    }
+
+    public function testFormFromStoredSettingsReadsThemAsFarAsTheyParse(): void
+    {
+        $form = SettingsForm::fromSettings([
+            'tiers' => '{"ZAR":[{"above":0,"percent":5},{"above":"5k"},"junk",null],"usd":7}',
+            'product_groups' => ' 23, premium ,23,0',
+            'products' => '',
+            'addons' => '12,15',
+            'statuses' => 'Active, ,Suspended',
+            'description' => ' Agency {percent}% ',
+            'delete_data' => 'maybe',
+            'stack_with_promotions' => 'on',
+        ]);
+        self::assertSame(['ZAR' => [['above' => '0', 'percent' => '5'], ['above' => '5k', 'percent' => ''], ['above' => 'junk', 'percent' => ''], ['above' => '', 'percent' => '']], 'usd' => []], $form->tiers);
+        self::assertNull($form->unreadableTiers);
+        self::assertSame([23], $form->groupIds);
+        self::assertSame([], $form->productIds);
+        self::assertSame([12, 15], $form->addonIds);
+        self::assertSame(['Active', 'Suspended'], $form->statuses);
+        self::assertSame('Agency {percent}%', $form->description);
+        // switches read as Config does: a missing key takes the default, an unexpected value the safe side
+        self::assertSame(['new_orders' => true, 'stack_with_promotions' => true, 'activity_log' => true, 'delete_data' => false], $form->switches);
+
+        $unreadable = SettingsForm::fromSettings(['tiers' => '[1,2]'] + Fixtures::settings());
+        self::assertSame([], $unreadable->tiers);
+        self::assertSame('[1,2]', $unreadable->unreadableTiers);
+        self::assertSame('[1,2]', $unreadable->withTiers('ZAR', [['above' => '0', 'percent' => '5']])->unreadableTiers);
+        self::assertSame('not json', SettingsForm::fromSettings(['tiers' => 'not json'])->unreadableTiers);
+
+        // a valid stored set gives the same stored keys back as the form built from its Config
+        $fromConfig = SettingsForm::fromConfig(Config::fromSettings(Fixtures::settings()))->toSettings();
+        self::assertSame($fromConfig, SettingsForm::fromSettings(Fixtures::settings())->toSettings());
     }
 
     public function testDecodeInputDecodesEveryStringOnce(): void
