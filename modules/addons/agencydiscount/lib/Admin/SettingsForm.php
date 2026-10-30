@@ -311,7 +311,7 @@ final class SettingsForm
         return $statuses;
     }
 
-    /** @return list<int> the distinct positive integers among the values, in the order given */
+    /** @return list<int> the distinct positive integers of up to nine digits among the values, in the order given (the rule Config::ids() enforces) */
     private static function ids(mixed $values): array
     {
         $ids = [];

@@ -218,6 +218,10 @@ final class Config
     }
 
     /**
+     * WHMCS ids are positive integers well under ten digits; the Settings form accepts the same, so
+     * what the engine reads and what the form shows never differ (an id the engine took but the form
+     * dropped would vanish on the next save without a word).
+     *
      * @param list<string> $problems
      * @return list<int>
      */
@@ -225,8 +229,12 @@ final class Config
     {
         $ids = [];
         foreach (self::split($value) as $item) {
-            if (preg_match('/^\d+$/', $item) !== 1) {
+            if (preg_match('/^\d{1,9}$/', $item) !== 1) {
                 $problems[] = $key . ': "' . $item . '" is not a number';
+                continue;
+            }
+            if ((int) $item === 0) {
+                $problems[] = $key . ': "' . $item . '" is not a WHMCS id (ids start at 1)';
                 continue;
             }
             $ids[] = (int) $item;

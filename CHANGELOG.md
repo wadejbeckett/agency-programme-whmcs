@@ -2,6 +2,8 @@
 
 ## Unreleased (0.3.0)
 
+- A product group, product or add-on id of `0` or of more than nine digits in the stored settings is now a configuration problem (shown on the repair page) instead of an id the engine accepted but the Settings form dropped on its next save without a word; the engine and the form follow the same rule, positive integers of up to nine digits, as WHMCS ids are (#34).
+
 - README: "What has and has not been verified" is a section of its own; the rehearsal CLI and the real-database sandbox sit under "Development and operations" after Limitations, with a one-line pointer from Install; the opening paragraph no longer lists the CLI among the product's features (#17).
 
 - Change log: `client_missing` is logged once per state change (while the client's newest entry is already `client_missing`, a recalculation adds nothing), not twice a day for ever; and the Change log tab has an event filter (a select and a Filter button, a plain GET form) that combines with the client filter and the pager. Its strings moved to the language file (#15).

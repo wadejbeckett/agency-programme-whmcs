@@ -97,6 +97,21 @@ final class ConfigTest extends TestCase
         self::assertFalse(Config::fromSettings(['new_orders' => ''])->newOrders);
     }
 
+    public function testIdsOutsideWhmcsRangeAreProblemsNotSilentDrops(): void
+    {
+        try {
+            Config::fromSettings(['tiers' => '{}', 'products' => '0,113,12345678901,007', 'addons' => '0'] + ['statuses' => 'Active', 'description' => 'x']);
+            self::fail('expected ConfigException');
+        } catch (ConfigException $e) {
+            self::assertSame([
+                'products: "0" is not a WHMCS id (ids start at 1)',
+                'products: "12345678901" is not a number',
+                'addons: "0" is not a WHMCS id (ids start at 1)',
+            ], $e->problems());
+        }
+        self::assertSame([7, 113], Config::fromSettings(['tiers' => '{}', 'products' => '007,113', 'statuses' => 'Active', 'description' => 'x'])->productIds, 'leading zeros are a number');
+    }
+
     public function testParsesLists(): void
     {
         $c = Config::fromSettings([
