@@ -8,7 +8,6 @@ namespace AgencyDiscount\Admin;
 
 use AgencyDiscount\ActivityLog;
 use AgencyDiscount\AgencyStatus;
-use AgencyDiscount\ClientNotFound;
 use AgencyDiscount\Clock;
 use AgencyDiscount\Config;
 use AgencyDiscount\ConfigException;
@@ -181,83 +180,7 @@ final class Page
     /** @param array<string,mixed> $get */
     private function agencyView(string $moduleLink, array $get): string
     {
-        $clientId = self::intParam($get['id'] ?? null) ?? 0;
-        try {
-            $status = AgencyStatus::of($this->module(), $clientId);
-        } catch (ClientNotFound) {
-            $status = null;
-        }
-        if ($status === null) {
-            return '<div class="alert alert-danger">Client ' . $clientId . ' is not an approved agency.</div>';
-        }
-        $report = $status->report;
-
-        $currency = $report->currency;
-        $html = '<h3>' . Html::e($report->clientName) . '</h3>'
-            . '<p>' . Html::e($currency) . ' &middot; qualifying monthly spend ' . Html::e(Html::money($currency, $report->monthlySpend))
-            . ' &middot; tier ' . self::tierCell($report)
-            . ' &middot; ' . $report->countedItems() . ' counted items'
-            . ' &middot; ' . self::startsCell($status) . '</p>';
-
-        $html .= '<h4>Counted services</h4>';
-        if ($report->services === []) {
-            $html .= '<p>None.</p>';
-        } else {
-            $rows = '';
-            foreach ($report->services as $service) {
-                $rows .= self::row([
-                    Html::e($service['domain']),
-                    Html::e($service['name']),
-                    Html::e($service['billingCycle']),
-                    Html::e(Html::money($currency, $service['amount'])),
-                    Html::e(Html::money($currency, $service['monthly'])),
-                    Html::e($service['nextInvoiceDate'] ?? 'none'),
-                    $service['promoId'] !== 0 ? 'yes' : 'no',
-                ]);
-            }
-            $html .= self::table(['Domain', 'Product', 'Cycle', 'Amount', 'Monthly', 'Next invoice', 'Promotion'], $rows);
-            if (!$this->module()->config->stackWithPromotions) {
-                $html .= '<p class="text-muted">Services on a promotion count towards the tier. Their invoice line is left out of the discount while the invoice also carries the promotion\'s own discount line.</p>';
-            }
-        }
-
-        $html .= '<h4>Counted add-ons</h4>';
-        if ($report->addons === []) {
-            $html .= '<p>None.</p>';
-        } else {
-            $rows = '';
-            foreach ($report->addons as $addon) {
-                $rows .= self::row([
-                    Html::e($addon['domain']),
-                    Html::e($addon['name']),
-                    Html::e($addon['billingCycle']),
-                    Html::e(Html::money($currency, $addon['amount'])),
-                    Html::e(Html::money($currency, $addon['monthly'])),
-                    Html::e($addon['nextInvoiceDate'] ?? 'none'),
-                ]);
-            }
-            $html .= self::table(['Domain', 'Add-on', 'Cycle', 'Amount', 'Monthly', 'Next invoice'], $rows);
-        }
-
-        $html .= '<h4>Upcoming invoices (next ' . AgencyStatus::PREVIEW_DAYS . ' days)</h4>';
-        if ($status->upcoming === []) {
-            $html .= '<p>None in ' . AgencyStatus::PREVIEW_DAYS . ' days.</p>';
-        } else {
-            $rows = '';
-            foreach ($status->upcoming as $row) {
-                $rows .= self::row([
-                    Html::e($row['date']),
-                    (string) $row['items'],
-                    Html::e(Html::money($currency, $row['base'])),
-                    Html::e(Html::money($currency, $row['discount'])),
-                ]);
-            }
-            $html .= self::table(['Date', 'Items', 'Base', 'Discount'], $rows);
-            $html .= '<p class="text-muted">An estimate from the next invoice dates: services on a promotion are included here, but the invoice itself is checked line by line.</p>';
-        }
-
-        return $html . '<p><a href="' . Html::link($moduleLink, ['action' => 'log', 'client' => $clientId]) . '">Change log for this client</a>'
-            . ' &middot; <a href="' . Html::e($moduleLink) . '">Back to overview</a></p>';
+        return (new AgencyTab($this->module()))->render($moduleLink, self::intParam($get['id'] ?? null) ?? 0);
     }
 
     /** @param array<string,mixed> $get */

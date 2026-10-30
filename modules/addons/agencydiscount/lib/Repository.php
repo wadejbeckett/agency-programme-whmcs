@@ -14,6 +14,7 @@ namespace AgencyDiscount;
  *
  * @phpstan-type AgencyRow array{clientId:int, approved:bool, note:string, approvedBy:string, approvedAt:?string, effectiveFrom:?string, currency:string, spend:string, tierIndex:?int, tierPercent:?string, countedServices:int, countedAddons:int, calculatedAt:?string, updatedAt:string}
  * @phpstan-type InvoiceRecordRow array{invoiceId:int, line:int, clientId:int, itemId:?int, taxed:bool, tierIndex:int, percent:string, base:string, amount:string, dryRun:bool, createdAt:string}
+ * @phpstan-type ClientRecordRow array{invoiceId:int, line:int, clientId:int, itemId:?int, taxed:bool, tierIndex:int, percent:string, base:string, amount:string, dryRun:bool, createdAt:string, invoiceStatus:?string, lineOnInvoice:bool}
  * @phpstan-type LogEvent array{clientId:?int, invoiceId:?int, event:string, detail:array<string,mixed>, actor:string, createdAt:string}
  */
 interface Repository
@@ -126,6 +127,15 @@ interface Repository
 
     /** Whether the table has a column of that name (an upgrade step that adds columns runs only once). */
     public function hasColumn(string $table, string $column): bool;
+
+    /**
+     * Every discount record of a client, newest first, with the invoice's current status (null when
+     * the invoice is gone) and whether the discount line is still on it; the agency detail view
+     * lists them and marks the ones appliedDiscountTotal() leaves out.
+     *
+     * @return list<ClientRecordRow>
+     */
+    public function clientInvoiceRecords(int $clientId): array;
 
     /** @return int how many distinct invoices the module log has an entry for */
     public function invoicesChecked(): int;

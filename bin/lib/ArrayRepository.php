@@ -235,6 +235,24 @@ class ArrayRepository implements Repository
         return $this->invoiceRecordLines($invoiceId)[0] ?? null;
     }
 
+    public function clientInvoiceRecords(int $clientId): array
+    {
+        $records = [];
+        foreach ($this->invoiceRecords as $lines) {
+            foreach ($lines as $record) {
+                if ($record['clientId'] !== $clientId) {
+                    continue;
+                }
+                $records[] = $record + [
+                    'invoiceStatus' => $this->invoices[$record['invoiceId']]['status'] ?? null,
+                    'lineOnInvoice' => $this->lineStillOnInvoice($record['invoiceId'], $record['itemId']),
+                ];
+            }
+        }
+        usort($records, static fn (array $a, array $b): int => [$b['createdAt'], $b['invoiceId'], $a['line']] <=> [$a['createdAt'], $a['invoiceId'], $b['line']]);
+        return $records;
+    }
+
     public function invoiceRecordLines(int $invoiceId): array
     {
         $lines = $this->invoiceRecords[$invoiceId] ?? [];

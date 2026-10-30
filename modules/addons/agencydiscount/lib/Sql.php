@@ -33,6 +33,7 @@ final class Sql
     public const ADMIN_ROLE = 'SELECT roleid FROM tbladmins WHERE id = ?';
     /** Only records whose discount line is still on the invoice, on an invoice that is not cancelled or refunded. */
     public const APPLIED_DISCOUNT_TOTAL = 'SELECT COALESCE(SUM(r.amount), 0) AS total FROM mod_agencydiscount_invoices r JOIN tblinvoiceitems ii ON ii.id = r.item_id AND ii.invoiceid = r.invoice_id JOIN tblinvoices i ON i.id = r.invoice_id WHERE r.client_id = ? AND r.dry_run = 0 AND r.created_at >= ? AND i.status NOT IN (\'Cancelled\', \'Refunded\')';
+    public const CLIENT_INVOICE_RECORDS = 'SELECT r.invoice_id, r.line, r.client_id, r.item_id, r.taxed, r.tier_index, r.percent, r.base, r.amount, r.dry_run, r.created_at, i.status AS invoice_status, ii.id AS item_present FROM mod_agencydiscount_invoices r LEFT JOIN tblinvoices i ON i.id = r.invoice_id LEFT JOIN tblinvoiceitems ii ON ii.id = r.item_id AND ii.invoiceid = r.invoice_id WHERE r.client_id = ? ORDER BY r.created_at DESC, r.invoice_id DESC, r.line';
     public const CLAIM_INVOICE = 'INSERT IGNORE INTO mod_agencydiscount_invoices (invoice_id, line, client_id, item_id, taxed, tier_index, percent, base, amount, dry_run, created_at) VALUES (?, 0, ?, NULL, 0, 0, 0.00, 0.00, 0.00, 0, ?)';
 
     /**
@@ -75,6 +76,7 @@ final class Sql
             'COLUMN_EXISTS' => ['1'],
             'ADMIN_ROLE' => ['roleid'],
             'APPLIED_DISCOUNT_TOTAL' => ['total'],
+            'CLIENT_INVOICE_RECORDS' => ['invoice_id', 'line', 'client_id', 'item_id', 'taxed', 'tier_index', 'percent', 'base', 'amount', 'dry_run', 'created_at', 'invoice_status', 'item_present'],
             'CLAIM_INVOICE' => [],
         ];
     }
