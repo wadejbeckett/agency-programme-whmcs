@@ -8,7 +8,8 @@
   "require-dev": {
     "illuminate/database": "^10.0 || ^11.0 || ^12.0 || ^13.0",
     "phpstan/phpstan": "^1.11",
-    "phpunit/phpunit": "^10.5 || ^11.0"
+    "phpunit/phpunit": "^10.5 || ^11.0",
+    "smarty/smarty": "^4.5"
   },
   "autoload-dev": { "psr-4": { "AgencyDiscount\\Tests\\": "tests/" } },
   "scripts": { "test": "phpunit", "stan": "phpstan analyse --no-progress" },

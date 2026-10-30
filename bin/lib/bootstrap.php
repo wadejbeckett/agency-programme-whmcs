@@ -16,3 +16,4 @@ require_once __DIR__ . '/FrozenClock.php';
 require_once __DIR__ . '/RecordingActivityLog.php';
 require_once __DIR__ . '/SnapshotLoader.php';
 require_once __DIR__ . '/Cli.php';
+require_once __DIR__ . '/ClientAreaTemplate.php';
