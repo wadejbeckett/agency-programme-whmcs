@@ -20,13 +20,13 @@ use AgencyDiscount\SpendReport;
 
 /**
  * The addon's admin page (Addons > Agency Programme). Views: overview (default), agency, settings,
- * log, check. Every dynamic string passes through Html::e(); table cells are built as
- * already-escaped HTML.
+ * log; any other action (an old "check" link, say) is the overview. Every dynamic string passes
+ * through Html::e(); table cells are built as already-escaped HTML.
  *
  * When the stored settings do not parse (Page::forStoredSettings), the page is the repair page:
  * a banner listing the problems on every view, the Settings tab filled from the stored values so
  * they can be fixed, the Change log tab (it needs only the repository), and nothing else, since
- * the Overview, the agency view and the configuration check are all computed from a valid Config.
+ * the Overview and the agency view are computed from a valid Config.
  * A Settings save that validates repairs the configuration and the same request renders the normal page.
  */
 final class Page
@@ -118,7 +118,7 @@ final class Page
     public function render(string $moduleLink, array $get, array $post, string $actor, string $tokenField): string
     {
         $view = self::text($get['action'] ?? null);
-        $view = in_array($view, ['agency', 'settings', 'log', 'check'], true) ? $view : 'overview';
+        $view = in_array($view, ['agency', 'settings', 'log'], true) ? $view : 'overview';
 
         // The Settings tab handles its POST first: a save or a mode switch changes what the banner says, and a save can repair the configuration.
         $settings = '';
@@ -150,7 +150,6 @@ final class Page
             'agency' => $this->agencyView($moduleLink, $get),
             'settings' => $settings,
             'log' => $this->logView($moduleLink, $get),
-            'check' => $this->checkView(),
             default => $this->overviewView($moduleLink, $get, $post, $actor, $tokenField),
         };
     }
@@ -161,7 +160,6 @@ final class Page
             'overview' => [Html::e($moduleLink), self::lang('overview')],
             'settings' => [Html::link($moduleLink, ['action' => 'settings']), self::lang('settings')],
             'log' => [Html::link($moduleLink, ['action' => 'log']), self::lang('log')],
-            'check' => [Html::link($moduleLink, ['action' => 'check']), self::lang('check')],
         ];
         $active = $view === 'agency' ? 'overview' : $view;
         $items = '';
@@ -303,72 +301,6 @@ final class Page
             $pager .= '<a class="btn btn-default" href="' . Html::link($moduleLink, ['action' => 'log', 'client' => $clientId, 'page' => $page - 1]) . '">Newer</a>';
         }
         return $html . ($pager === '' ? '' : '<p>' . $pager . '</p>');
-    }
-
-    private function checkView(): string
-    {
-        $repo = $this->repo;
-        $config = $this->module()->config;
-
-        $html = '<h3>Configuration check</h3>';
-        $html .= $this->idTable('Product groups', 'group', $config->productGroupIds);
-        $html .= $this->idTable('Products', 'product', $config->productIds);
-        $html .= $this->idTable('Add-ons', 'addon', $config->addonIds);
-
-        $html .= '<h4>Currencies</h4>';
-        $rows = '';
-        $known = $repo->currencyCodes();
-        foreach ($known as $code) {
-            $rows .= self::row([
-                Html::e($code),
-                $config->tiers->hasCurrency($code) ? 'tiers configured' : '<span class="text-danger">no tiers: agencies in this currency get no discount</span>',
-            ]);
-        }
-        foreach ($config->tiers->currencies() as $code) {
-            if (!in_array($code, $known, true)) {
-                $rows .= self::row([Html::e($code), '<span class="text-danger">tiers configured, but WHMCS has no such currency</span>']);
-            }
-        }
-        $html .= $rows === '' ? '<p>No currencies found.</p>' : self::table(['Currency', 'Status'], $rows);
-
-        $html .= '<h4>Tiers</h4>';
-        $currencies = $config->tiers->currencies();
-        if ($currencies === []) {
-            return $html . '<p><span class="text-danger">No tiers configured.</span></p>';
-        }
-        foreach ($currencies as $code) {
-            $rows = '';
-            foreach ($config->tiers->forCurrency($code) as $tier) {
-                $rows .= self::row([
-                    (string) $tier->index,
-                    'above ' . Html::e(Html::money($code, $tier->above)) . ' a month',
-                    Html::e(Money::formatPercent($tier->percent)) . '%',
-                ]);
-            }
-            $html .= '<h5>' . Html::e($code) . '</h5>' . self::table(['Tier', 'Qualifying monthly spend', 'Discount'], $rows);
-        }
-        return $html;
-    }
-
-    /**
-     * @param 'group'|'product'|'addon' $kind
-     * @param list<int> $ids
-     */
-    private function idTable(string $title, string $kind, array $ids): string
-    {
-        $html = '<h4>' . Html::e($title) . '</h4>';
-        if ($ids === []) {
-            return $html . '<p>None configured.</p>';
-        }
-        $names = $this->repo->lookupNames($kind, $ids);
-        $rows = '';
-        foreach ($ids as $id) {
-            $rows .= self::row([
-                (string) $id,
-                isset($names[$id]) ? Html::e($names[$id]) : '<span class="text-danger">not found</span>',
-            ]);
-        }
-        return $html . self::table(['Id', 'Name'], $rows);
     }
 
     /** "2026-10-25: ABC 42.50 off ABC 850.00", "...: no discount on ...", or "none in 35 days". */

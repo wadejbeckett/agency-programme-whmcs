@@ -182,7 +182,7 @@ final class SettingsTab
         $this->activity->log('Agency Discount: settings changed: ' . ($keys === '' ? 'none' : $keys) . ($this->module === null ? ' (configuration repaired)' : ''));
         $this->module = new Module($this->repo, $config, $this->clock, $this->activity);
         $this->storedProblems = [];
-        return self::alert('success', $keys === '' ? Page::lang('saved_repaired') : sprintf(Page::lang('saved'), $keys));
+        return self::alert('success', $keys === '' ? Page::lang('saved_repaired') : sprintf(Page::lang('saved'), $keys)) . self::warningList(ConfigWarnings::texts($this->repo, $config));
     }
 
     /** @return array{SettingsForm, string, list<string>} the form (target rows replaced on success), a notice, problems */
@@ -593,6 +593,23 @@ final class SettingsTab
             return '';
         }
         return '<div class="alert alert-danger">' . ($prefix === null ? '<p>' . Html::e(Page::lang('problems')) . '</p>' : '') . '<ul>' . $items . '</ul></div>';
+    }
+
+    /**
+     * The saved configuration's references WHMCS does not have, as a warning (the discount runs without them).
+     *
+     * @param list<string> $warnings
+     */
+    private static function warningList(array $warnings): string
+    {
+        if ($warnings === []) {
+            return '';
+        }
+        $items = '';
+        foreach ($warnings as $warning) {
+            $items .= '<li>' . Html::e($warning) . '</li>';
+        }
+        return '<div class="alert alert-warning"><p>' . Html::e(Page::lang('warnings')) . '</p><ul>' . $items . '</ul></div>';
     }
 
     private static function alert(string $kind, string $text): string

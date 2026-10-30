@@ -40,6 +40,7 @@ require_once __DIR__ . '/Admin/Html.php';
 require_once __DIR__ . '/Admin/Preview.php';
 require_once __DIR__ . '/AgencyStatus.php';
 require_once __DIR__ . '/LogEntry.php';
+require_once __DIR__ . '/Admin/ConfigWarnings.php';
 require_once __DIR__ . '/Admin/SettingsForm.php';
 require_once __DIR__ . '/Admin/SettingsTab.php';
 require_once __DIR__ . '/Admin/OverviewTab.php';

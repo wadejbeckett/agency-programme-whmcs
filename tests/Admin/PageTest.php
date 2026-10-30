@@ -104,16 +104,14 @@ final class PageTest extends TestCase
         self::assertStringContainsString('&lt;script&gt;10', $page2);
     }
 
-    public function testConfigurationCheckNamesIdsAndFlagsMissing(): void
+    public function testThreeTabsAndAnOldCheckLinkOpensTheOverview(): void
     {
-        $html = $this->page(['products' => '113,777'])->render('m', ['action' => 'check'], [], 'admin:1', '');
-        self::assertStringContainsString('Premium Shared', $html);
-        self::assertStringContainsString('sPremium-1', $html);
-        self::assertStringContainsString('777', $html);
-        self::assertStringContainsString('not found', $html);
-        self::assertStringContainsString('Edge Security (WAF, CDN &amp; DDoS)', $html);
-        self::assertStringNotContainsString('&amp;amp;', $html);
-        self::assertStringContainsString('EUR', $html);
+        $html = $this->page()->render('m', ['action' => 'check'], [], 'admin:1', '');
+        self::assertStringStartsWith('<ul class="nav nav-tabs"><li class="active"><a href="m">Overview</a></li><li><a href="m&amp;action=settings">Settings</a></li><li><a href="m&amp;action=log">Change log</a></li></ul>', $html);
+        self::assertStringNotContainsString('Configuration check', $html);
+        self::assertStringNotContainsString('action=check', $html);
+        self::assertStringContainsString('Agency One', $html);
+        self::assertStringContainsString('Needs attention', $html);
     }
 
     public function testCatalogueNamesAreEscapedExactlyOnce(): void
@@ -160,7 +158,7 @@ final class PageTest extends TestCase
         $page = $this->repairPage(['tiers' => '{"ZAR":[', 'product_groups' => '23,premium'] + Fixtures::settings());
         $this->repo->log(['clientId' => 131, 'invoiceId' => null, 'event' => 'note_changed', 'detail' => ['to' => 'hello'], 'actor' => 'admin:1', 'createdAt' => '2026-10-12 08:00:00']);
 
-        // Overview, agency detail and the configuration check: the banner alone, linking to Settings; nothing is computed
+        // Overview, agency detail and an old check link: the banner alone, linking to Settings; nothing is computed
         foreach ([[], ['action' => 'agency', 'id' => '131'], ['action' => 'check']] as $get) {
             $html = $page->render('m', $get, [], 'admin:1', $token);
             self::assertStringStartsWith('<ul class="nav nav-tabs"><li', $html);

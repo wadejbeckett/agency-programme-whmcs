@@ -2,6 +2,8 @@
 
 ## Unreleased (0.3.0)
 
+- The Configuration check tab is gone; the addon page has three tabs (Overview, Settings, Change log) and an old `action=check` link opens the Overview. What it showed lives where it is acted on: the Overview's "Needs attention" panel lists product group, product and add-on ids not found in WHMCS and tiers configured for a currency WHMCS does not have (each linking to Settings), a Settings save lists the same as warnings under its notice (the discount runs without them), the Settings form already flags such ids as "not found in WHMCS" and such a currency's pane as "not a WHMCS currency", a currency without tiers is flagged on its pane and (when an approved agency is in it) in the attention panel, and the tier table is the band preview on each pane (#8).
+
 - Stored settings that do not parse (a tiers value or an id left malformed by SQL or an import) no longer lock the addon page behind a message pointing at the Configure form. The page becomes a repair page: a banner lists the problems on every tab, the Settings tab is filled from the stored values with each problem beside its section (a bad tier cell in its row; a tiers value that is not a JSON object shown as stored), the Change log tab works, and the Overview, agency detail and configuration check show the banner alone. A Settings save that validates repairs the configuration (logged as a `settings_changed` entry with a `repaired` list) and the same request renders the normal page. Hooks are unchanged: with an invalid configuration no discount is applied and the problem is logged once per request. The preview harness renders the repair page as `-overview-broken-` and `-settings-broken-` (#7).
 
 ## 0.2.2 — 2026-10-30

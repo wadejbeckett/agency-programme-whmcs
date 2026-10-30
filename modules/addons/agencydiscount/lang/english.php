@@ -6,7 +6,6 @@ $_ADDONLANG['title'] = 'Agency Programme';
 $_ADDONLANG['overview'] = 'Overview';
 $_ADDONLANG['settings'] = 'Settings';
 $_ADDONLANG['log'] = 'Change log';
-$_ADDONLANG['check'] = 'Configuration check';
 $_ADDONLANG['dry_run_banner'] = 'Dry-run mode is on: discounts are calculated and logged but no invoice is changed.';
 
 // Repair page: the stored settings do not parse
@@ -96,6 +95,11 @@ $_ADDONLANG['save'] = 'Save settings';
 $_ADDONLANG['saved'] = 'Settings saved. Changed: %s.';
 $_ADDONLANG['saved_nothing'] = 'No changes to save.';
 $_ADDONLANG['saved_repaired'] = 'Settings saved: the stored values are valid again.';
+$_ADDONLANG['warnings'] = 'Worth a look (the discount runs without these):';
+$_ADDONLANG['warn_missing_product_groups'] = 'Product group ids not found in WHMCS: %s.';
+$_ADDONLANG['warn_missing_products'] = 'Product ids not found in WHMCS: %s.';
+$_ADDONLANG['warn_missing_addons'] = 'Add-on ids not found in WHMCS: %s.';
+$_ADDONLANG['warn_unknown_currency'] = 'Tiers are configured for %s, which is not a WHMCS currency.';
 $_ADDONLANG['problems'] = 'The settings were not saved. Fix these and try again:';
 $_ADDONLANG['advanced_json'] = 'Advanced: edit as JSON';
 $_ADDONLANG['advanced_json_help'] = 'The raw settings form under System Settings > Addon Modules stores the same keys.';
