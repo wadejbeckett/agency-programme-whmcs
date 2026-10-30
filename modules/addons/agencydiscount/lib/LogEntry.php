@@ -16,6 +16,9 @@ use AgencyDiscount\Admin\Html;
  */
 final class LogEntry
 {
+    /** Every event the module writes, in the order the Change log's event filter offers them. */
+    public const EVENTS = ['approved', 'revoked', 'note_changed', 'effective_from_changed', 'effective_from_invalid', 'tier_changed', 'no_tier', 'applied', 'dry_run', 'already_processed', 'not_yet_effective', 'no_qualifying_lines', 'zero_amount', 'invoice_not_found', 'client_missing', 'recalculate_failed', 'settings_changed', 'mode_changed'];
+
     /**
      * @param Entry $entry
      * @param array<int, array{name:string, currency:string}> $clients known client names and currencies by id; an unknown client is "client N"

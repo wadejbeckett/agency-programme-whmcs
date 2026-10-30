@@ -412,6 +412,12 @@ final class SandboxTest extends TestCase
         $dry = $this->insertTaggedInvoice($other, 'Paid');
         $record($dry, 0, $this->insertDiscountLine($dry, $other, '-99.00', 0), '99.00', 0, true);
         self::assertSame('22.00', $repo->appliedDiscountTotal($other, date('Y') . '-01-01'));
+        $logged = $other + 1; // its own client id, removed again below so the prune check later sees only its own rows
+        $repo->log(['clientId' => $logged, 'invoiceId' => null, 'event' => 'note_changed', 'detail' => ['to' => 'x'], 'actor' => 'admin:1', 'createdAt' => date('Y-m-d H:i:s')]);
+        $repo->log(['clientId' => $logged, 'invoiceId' => null, 'event' => 'revoked', 'detail' => ['note' => ''], 'actor' => 'admin:1', 'createdAt' => date('Y-m-d H:i:s')]);
+        self::assertSame(['note_changed'], array_column($repo->logEntries($logged, 10, 0, 'note_changed'), 'event'), 'the event filter on the real table');
+        self::assertSame(['revoked', 'note_changed'], array_column($repo->logEntries($logged, 10), 'event'));
+        Manager::table('mod_agencydiscount_log')->where('client_id', $logged)->delete();
         // i4a'. the detail page's records query sees the same rows with the invoice status and whether the line is
         //       still there, newest first, and its per-record state agrees with the total: the counted rows sum to it
         $records = $repo->clientInvoiceRecords($other);

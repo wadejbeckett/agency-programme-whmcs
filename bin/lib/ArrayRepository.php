@@ -220,11 +220,11 @@ class ArrayRepository implements Repository
         return $pruned;
     }
 
-    public function logEntries(?int $clientId, int $limit, int $offset = 0): array
+    public function logEntries(?int $clientId, int $limit, int $offset = 0, ?string $event = null): array
     {
         $rows = array_filter(
             $this->logs,
-            static fn (array $row): bool => $clientId === null || $row['clientId'] === $clientId,
+            static fn (array $row): bool => ($clientId === null || $row['clientId'] === $clientId) && ($event === null || $row['event'] === $event),
         );
         usort($rows, static fn (array $a, array $b): int => $b['id'] <=> $a['id']);
         return array_slice($rows, $offset, $limit);

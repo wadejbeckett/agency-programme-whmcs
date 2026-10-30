@@ -98,6 +98,14 @@ final class RecalculatorTest extends TestCase
         $reports = $this->recalc->recalculateAll('cron:daily');
         self::assertSame([131, 404, 500], array_map(static fn ($r) => $r->clientId, $reports));
         self::assertSame('client_missing', $this->repo->logEntries(77, 1)[0]['event']);
+        // three runs, one entry: logged once per state change, not twice a day for ever
+        $this->recalc->recalculateAll('cron:daily');
+        $this->recalc->recalculateAll('cron:pre-invoicing');
+        self::assertCount(1, $this->repo->logEntries(77, 10));
+        // the client comes back (a note is changed), then goes missing again: logged again
+        $this->repo->log(['clientId' => 77, 'invoiceId' => null, 'event' => 'note_changed', 'detail' => ['to' => 'back'], 'actor' => 'admin:1', 'createdAt' => '2026-10-13 09:00:00']);
+        $this->recalc->recalculateAll('cron:daily');
+        self::assertSame(['client_missing', 'note_changed', 'client_missing'], array_column($this->repo->logEntries(77, 10), 'event'));
     }
 
     public function testRecalculateAllContinuesPastAFailingAgency(): void

@@ -61,8 +61,11 @@ interface Repository
     /** Deletes the change log entries created before $before ('Y-m-d H:i:s'); returns how many went. */
     public function pruneLog(string $before): int;
 
-    /** @return list<array{id:int, clientId:?int, invoiceId:?int, event:string, detail:array<string,mixed>, actor:string, createdAt:string}> newest first */
-    public function logEntries(?int $clientId, int $limit, int $offset = 0): array;
+    /**
+     * @param string|null $event only entries of this event when given
+     * @return list<array{id:int, clientId:?int, invoiceId:?int, event:string, detail:array<string,mixed>, actor:string, createdAt:string}> newest first
+     */
+    public function logEntries(?int $clientId, int $limit, int $offset = 0, ?string $event = null): array;
 
     /** @return InvoiceRecordRow|null line 0 of the invoice, null when the module never recorded it; any record means the invoice was handled */
     public function invoiceRecord(int $invoiceId): ?array;

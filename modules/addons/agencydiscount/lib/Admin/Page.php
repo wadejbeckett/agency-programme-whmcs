@@ -187,17 +187,35 @@ final class Page
     private function logView(string $moduleLink, array $get): string
     {
         $clientId = self::intParam($get['client'] ?? null);
+        $event = is_string($get['event'] ?? null) && in_array($get['event'], LogEntry::EVENTS, true) ? $get['event'] : null;
         $page = max(1, self::intParam($get['page'] ?? null) ?? 1);
-        $entries = $this->repo->logEntries($clientId, self::LOG_PAGE_SIZE + 1, ($page - 1) * self::LOG_PAGE_SIZE);
+        $entries = $this->repo->logEntries($clientId, self::LOG_PAGE_SIZE + 1, ($page - 1) * self::LOG_PAGE_SIZE, $event);
         $hasOlder = count($entries) > self::LOG_PAGE_SIZE;
         $entries = array_slice($entries, 0, self::LOG_PAGE_SIZE);
+        $query = ['action' => 'log', 'client' => $clientId, 'event' => $event];
 
-        $html = '<h3>Change log' . ($clientId === null ? '' : ' for client ' . $clientId) . '</h3>';
-        if ($clientId !== null) {
-            $html .= '<p><a href="' . Html::link($moduleLink, ['action' => 'log']) . '">All clients</a></p>';
+        $html = '<h3>' . Html::e(self::lang('log')) . ($clientId === null ? '' : ' ' . Html::e(sprintf(self::lang('log_for_client'), $clientId))) . '</h3>';
+        // The event filter is a GET form (works without scripts); the client filter travels with it as a hidden field.
+        $options = '<option value="">' . Html::e(self::lang('log_all_events')) . '</option>';
+        foreach (LogEntry::EVENTS as $name) {
+            $options .= '<option value="' . Html::e($name) . '"' . ($name === $event ? ' selected' : '') . '>' . Html::e($name) . '</option>';
         }
+        [$script, $params] = explode('?', $moduleLink . '?', 2);
+        parse_str(rtrim($params, '?'), $hidden);
+        unset($hidden['event'], $hidden['page']);
+        $hiddenFields = '';
+        foreach (['action' => 'log'] + ($clientId === null ? [] : ['client' => $clientId]) + $hidden as $name => $value) {
+            $hiddenFields .= '<input type="hidden" name="' . Html::e((string) $name) . '" value="' . Html::e(is_scalar($value) ? (string) $value : '') . '">';
+        }
+        $html .= '<form method="get" action="' . Html::e($script) . '" class="form-inline agencydiscount-log-filter">' . $hiddenFields
+            . '<label for="agencydiscount-log-event">' . Html::e(self::lang('log_event')) . '</label> '
+            . '<select id="agencydiscount-log-event" name="event" class="form-control">' . $options . '</select> '
+            . '<button type="submit" class="btn btn-default">' . Html::e(self::lang('filter_apply')) . '</button>'
+            . ($clientId === null ? '' : ' <a href="' . Html::link($moduleLink, ['action' => 'log', 'event' => $event]) . '">' . Html::e(self::lang('log_all_clients')) . '</a>')
+            . ($event === null ? '' : ' <a href="' . Html::link($moduleLink, ['action' => 'log', 'client' => $clientId]) . '">' . Html::e(self::lang('log_all_events')) . '</a>')
+            . '</form>';
         if ($entries === []) {
-            return $html . '<p>No log entries.</p>';
+            return $html . '<p>' . Html::e(self::lang('log_none')) . '</p>';
         }
 
         $clients = OverviewTab::clientsFor($this->repo, $entries);
@@ -214,14 +232,14 @@ final class Page
                 '<code>' . Html::e($detail === false ? '{}' : $detail) . '</code>',
             ]);
         }
-        $html .= self::table(['Time', 'Client', 'Invoice', 'Event', 'Actor', self::lang('log_summary'), 'Detail'], $rows);
+        $html .= self::table([self::lang('log_col_time'), self::lang('log_col_client'), self::lang('log_col_invoice'), self::lang('log_col_event'), self::lang('log_col_actor'), self::lang('log_summary'), self::lang('log_col_detail')], $rows);
 
         $pager = '';
         if ($hasOlder) {
-            $pager .= '<a class="btn btn-default" href="' . Html::link($moduleLink, ['action' => 'log', 'client' => $clientId, 'page' => $page + 1]) . '">Older</a> ';
+            $pager .= '<a class="btn btn-default" href="' . Html::link($moduleLink, $query + ['page' => $page + 1]) . '">' . Html::e(self::lang('log_older')) . '</a> ';
         }
         if ($page > 1) {
-            $pager .= '<a class="btn btn-default" href="' . Html::link($moduleLink, ['action' => 'log', 'client' => $clientId, 'page' => $page - 1]) . '">Newer</a>';
+            $pager .= '<a class="btn btn-default" href="' . Html::link($moduleLink, $query + ['page' => $page - 1]) . '">' . Html::e(self::lang('log_newer')) . '</a>';
         }
         return $html . ($pager === '' ? '' : '<p>' . $pager . '</p>');
     }
