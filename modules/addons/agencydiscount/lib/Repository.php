@@ -43,7 +43,13 @@ interface Repository
     /** @return list<AgencyRow> approved rows only, ascending clientId */
     public function approvedAgencies(): array;
 
-    /** @param AgencyRow $row  upsert by clientId */
+    /**
+     * Writes the whole row (an upsert by clientId). Development and rehearsal only (the CLI and the
+     * tests build rows with it): production code writes the approval columns with saveApproval()
+     * and the figures with saveCalculation(), so neither write can undo the other.
+     *
+     * @param AgencyRow $row
+     */
     public function saveAgency(array $row): void;
 
     /**

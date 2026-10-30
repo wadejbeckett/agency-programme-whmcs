@@ -46,6 +46,23 @@ final class UpgradeTest extends TestCase
         self::assertSame($expected, $repo->settings, 'every other value is kept');
     }
 
+    public function testFromBelow030ALoneZeroIsDroppedFromTheIdLists(): void
+    {
+        $stored = ['product_groups' => '0', 'products' => ' 0, 113 ,00', 'addons' => '12,15'] + self::stored();
+        $repo = new ArrayRepository(['settings' => $stored]);
+        $changes = Upgrade::run($repo, '0.2.2');
+        self::assertContains('a "0" removed from product_groups, products (it matched nothing; 0.3.0 would reject it)', $changes);
+        self::assertSame(['', '113', '12,15'], [$repo->settings['product_groups'], $repo->settings['products'], $repo->settings['addons']]);
+        self::assertSame([], Config::fromSettings($repo->settings)->missingKeys, 'the cleaned rows still exist');
+        self::assertSame([113], Config::fromSettings($repo->settings)->productIds, 'the cleaned settings parse');
+        // a second run changes nothing
+        self::assertStringNotContainsString('a "0" removed', implode(' ', Upgrade::run($repo, '0.2.2')));
+        // lists without a zero are untouched
+        $clean = new ArrayRepository(['settings' => self::stored()]);
+        Upgrade::run($clean, '0.2.2');
+        self::assertSame(self::stored()['products'], $clean->settings['products']);
+    }
+
     public function testFrom021And022AddTheIndexAndDeleteTheRetiredRow(): void
     {
         foreach (['0.2.1', '0.2.2'] as $from) {

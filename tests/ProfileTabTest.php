@@ -91,6 +91,8 @@ final class ProfileTabTest extends TestCase
         self::assertSame('2026-10-12 09:00:00', $row['updatedAt']);
 
         // a first approval of a client without a row inserts one, and the approval's own recalculation then fills the figures
+        // (the subclass injects on every agency() read, so it fires once more inside that recalculation, between
+        // saveApproval and saveCalculation; the calculatedAt assertion shows the recalculation wrote last)
         (new ProfileTab($module))->save(404, ['agencydiscount_present' => '1', 'agencydiscount_approved' => '1', 'agencydiscount_note' => ''], 'admin:2');
         self::assertSame(['admin:2', true, '2026-10-12 09:00:00'], [$racing->agencies[404]['approvedBy'], $racing->agencies[404]['approved'], $racing->agencies[404]['calculatedAt']]);
         self::assertNotSame('0.00', $racing->agencies[404]['spend']);
