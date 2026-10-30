@@ -26,7 +26,7 @@ final class InvoiceDiscounter
     }
 
     /**
-     * @param bool $forceDryRun true from the CLI rehearsal and the admin preview: never writes to tblinvoiceitems even when the setting is off
+     * @param bool $forceDryRun true from the CLI rehearsal: never writes to tblinvoiceitems even when the setting is off
      * @throws ClientNotFound
      */
     public function apply(int $invoiceId, string $source, string $actor, bool $forceDryRun = false): DiscountOutcome
