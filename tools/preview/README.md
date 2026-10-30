@@ -1,14 +1,16 @@
 # Offline render preview
 
-Renders the admin surfaces of the addon into complete HTML pages wrapped in a WHMCS admin theme, so they can be looked at and screenshotted without a WHMCS install, a session or a database. The figures come from fixture data in `Scenarios.php` (generic agency names, `ArrayRepository`, a frozen clock).
+Renders the admin surfaces of the addon and its client-area page into complete HTML pages wrapped in a WHMCS theme, so they can be looked at and screenshotted without a WHMCS install, a session or a database. The figures come from fixture data in `Scenarios.php` (generic agency names, round invented figures, `ArrayRepository`, a frozen clock); the `demo` scenario (the same six agencies as `live`) is the screenshot set.
 
 What it renders, for each theme found:
 
 - `<prefix>-dashboard-<theme>.html`: the home widget with live-shaped data (six ZAR agencies), between stand-ins built from the markup of WHMCS's own Billing and Support widgets (`modules/widgets/` in a WHMCS install, shipped unencoded; the module's widget follows the Support widget's pattern), inside the dashboard's widget frame from `homepage.tpl`.
 - `<prefix>-states-<theme>.html`: the widget in every state: `live`, `edge` (dry-run, an agency with a start date, a currency without tiers), `long` (twenty agencies), `empty`, `denied` and `unavailable`.
 - `<prefix>-overview-<theme>.html` and `<prefix>-settings-<theme>.html`: the addon page's Overview and Settings tabs, from the `edge` scenario plus a product id and a tier currency WHMCS does not have, so the attention panel and the Settings flags show them.
+- `<prefix>-agency-<theme>.html`: the agency detail view for Agency One, and `<prefix>-log-<theme>.html`: the Change log tab with the demo history (approvals, a settings save, the switch to live, applied discounts, a tier change).
 - `<prefix>-overview-broken-<theme>.html` and `<prefix>-settings-broken-<theme>.html`: the repair page, when the stored settings do not parse (a tier threshold and a product group id that are not numbers): the banner alone on the Overview, and the Settings tab filled from the stored values with the problems beside their sections.
 - `<prefix>-clientsummary-<theme>.html`: the client summary card, for an agency at a tier and one waiting for its start date.
+- `<prefix>-clientarea-twenty-one.html` and `<prefix>-clientarea-notmember-twenty-one.html` (when the theme directory has a `twenty-one/` folder): the client-area module page in the Twenty-One client theme, for Agency One and for a client outside the programme. The template is rendered by Smarty 4 (`smarty/smarty` in `require-dev`, the major version WHMCS 9 bundles) through `bin/lib/ClientAreaTemplate.php`, whose security policy allows only the `escape` modifier and the `if` and `foreach` tags, narrower than WHMCS's own; the page frame is the theme's body class and main-body container, without the header bar and sidebars.
 
 ## Theme files
 
@@ -21,6 +23,7 @@ The theme stylesheets belong to WHMCS and are not in this repository. Copy them 
 <dir>/blend/fonts/             from <whmcs>/admin/templates/blend/fonts/ (Pe-icon-7-stroke)
 <dir>/blend/css/all.css        from <whmcs>/admin/templates/blend/css/all.min.css (or all.css)
 <dir>/blend/css/theme.min.css  from <whmcs>/admin/templates/blend/css/theme.min.css
+<dir>/twenty-one/css/          from <whmcs>/templates/twenty-one/css/ (all.min.css, theme.min.css, custom.css)
 ```
 
 A missing theme folder is skipped. The pages link the stylesheets by `file://` path, so keep the directory where it is after rendering. Font Awesome is not loaded, so the widget tool icons and the title glyph render as empty boxes.
@@ -32,7 +35,7 @@ php tools/preview/render.php --theme-dir=<dir> --out=<output dir> [--prefix=afte
 tools/preview/screenshot.sh <output dir> '<prefix>-*.html' [height]
 ```
 
-`--theme-dir` can also be given as the `WHMCS_ADMIN_THEMES` environment variable. `screenshot.sh` runs headless Chromium (`/usr/bin/chromium`, or `$CHROMIUM`) at 1440 and 1920 pixels wide and writes a PNG beside each page. For one other width:
+`--theme-dir` can also be given as the `WHMCS_ADMIN_THEMES` environment variable. A missing theme folder (admin or client) is skipped. `screenshot.sh` runs headless Chromium (`/usr/bin/chromium`, or `$CHROMIUM`) at 1440 and 1920 pixels wide and writes a PNG beside each page. For one other width:
 
 ```
 chromium --headless=new --no-sandbox --disable-gpu --screenshot=out.png --window-size=1280,1100 file:///path/to/page.html
