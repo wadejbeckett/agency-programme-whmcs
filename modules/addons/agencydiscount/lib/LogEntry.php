@@ -17,7 +17,7 @@ use AgencyDiscount\Admin\Html;
 final class LogEntry
 {
     /** Every event the module writes, in the order the Change log's event filter offers them. */
-    public const EVENTS = ['approved', 'revoked', 'note_changed', 'effective_from_changed', 'effective_from_invalid', 'tier_changed', 'no_tier', 'applied', 'dry_run', 'already_processed', 'not_yet_effective', 'no_qualifying_lines', 'zero_amount', 'invoice_not_found', 'client_missing', 'recalculate_failed', 'settings_changed', 'mode_changed'];
+    public const EVENTS = ['approved', 'revoked', 'note_changed', 'effective_from_changed', 'effective_from_invalid', 'tier_changed', 'no_tier', 'applied', 'dry_run', 'already_processed', 'not_yet_effective', 'no_qualifying_lines', 'zero_amount', 'invoice_not_found', 'client_missing', 'recalculate_failed', 'settings_changed', 'mode_changed', 'log_pruned'];
 
     /**
      * @param Entry $entry
@@ -53,6 +53,7 @@ final class LogEntry
             'recalculate_failed' => 'Recalculating ' . $client . ' failed: ' . self::str($d['message'] ?? '') . '.',
             'settings_changed' => 'Settings changed by ' . $actor . ': ' . implode(', ', array_map('strval', array_keys(is_array($d['changed'] ?? null) ? $d['changed'] : []))) . '.',
             'mode_changed' => 'Switched to ' . self::str($d['to'] ?? '') . ' mode by ' . $actor . '.',
+            'log_pruned' => self::plural((int) ($d['count'] ?? 0), 'change log entry', 'change log entries') . ' older than ' . substr(self::str($d['before'] ?? ''), 0, 10) . ' removed (retention ' . self::plural((int) ($d['months'] ?? 0), 'month', 'months') . ').',
             default => $entry['event'] . ' for ' . $client . ' by ' . $actor . ': ' . self::json($d),
         };
     }
@@ -94,6 +95,11 @@ final class LogEntry
     private static function money(string $currency, string $amount): string
     {
         return Html::money($currency, is_numeric($amount) ? $amount : '0');
+    }
+
+    private static function plural(int $n, string $one, string $many): string
+    {
+        return $n . ' ' . ($n === 1 ? $one : $many);
     }
 
     private static function str(mixed $value): string
