@@ -28,6 +28,8 @@ final class Sql
     public const SETTINGS = 'SELECT setting, value FROM tbladdonmodules WHERE module = ?';
     /** One row when the current database's table has an index of that name. */
     public const INDEX_EXISTS = 'SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1';
+    /** One row when the current database's table has a column of that name. */
+    public const COLUMN_EXISTS = 'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1';
     public const ADMIN_ROLE = 'SELECT roleid FROM tbladmins WHERE id = ?';
     /** Only records whose discount line is still on the invoice, on an invoice that is not cancelled or refunded. */
     public const APPLIED_DISCOUNT_TOTAL = 'SELECT COALESCE(SUM(r.amount), 0) AS total FROM mod_agencydiscount_invoices r JOIN tblinvoiceitems ii ON ii.id = r.item_id AND ii.invoiceid = r.invoice_id JOIN tblinvoices i ON i.id = r.invoice_id WHERE r.client_id = ? AND r.dry_run = 0 AND r.created_at >= ? AND i.status NOT IN (\'Cancelled\', \'Refunded\')';
@@ -70,6 +72,7 @@ final class Sql
             'ADDON_CATALOG' => ['id', 'name'],
             'SETTINGS' => ['setting', 'value'],
             'INDEX_EXISTS' => ['1'],
+            'COLUMN_EXISTS' => ['1'],
             'ADMIN_ROLE' => ['roleid'],
             'APPLIED_DISCOUNT_TOTAL' => ['total'],
             'CLAIM_INVOICE' => [],

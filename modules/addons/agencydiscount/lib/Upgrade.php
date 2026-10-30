@@ -13,10 +13,24 @@ final class Upgrade
     public const RETIRED_SETTING = 'keep_data';
 
     /**
+     * What the administrator should know about an upgrade from $from that changes nothing stored:
+     * 0.3.0 moves nine settings off the Configure form and their rows stay as they are. Logged by
+     * agencydiscount_upgrade() beside the changes, not counted as one.
+     *
+     * @return list<string>
+     */
+    public static function notes(string $from): array
+    {
+        if (preg_match('/^\d+\.\d+\.\d+$/', $from) === 1 && version_compare($from, '0.3.0', '<')) {
+            return ['tiers, qualifying items, statuses, mode, behaviour and invoice line text are now edited on the Settings tab only (the Configure form keeps the access list and the housekeeping settings); every stored value is kept'];
+        }
+        return [];
+    }
+
+    /**
      * Runs the schema steps for $from, then the settings changes (a retired row deleted, a default
      * that changed rewritten), and returns one sentence per change for the activity log. Stored
-     * values are never rewritten by a move: 0.3.0 moves nine settings off the Configure form and
-     * their rows stay as they are.
+     * values are never rewritten by a move (see notes()).
      *
      * @param string $from the installed version WHMCS reports, for example "0.2.0"
      * @return list<string>
@@ -29,7 +43,7 @@ final class Upgrade
         }
         $changes = [];
         foreach (Schema::upgradeSteps($from) as $step) {
-            if (isset($step['index']) && $repo->hasIndex(...$step['index'])) {
+            if (isset($step['unless']) && self::exists($repo, ...$step['unless'])) {
                 continue; // already there: a repeated upgrade from the same version, or a fresh table
             }
             foreach ($step['statements'] as $sql) {
@@ -42,7 +56,6 @@ final class Upgrade
                 $repo->deleteSettings([self::RETIRED_SETTING]);
                 $changes[] = 'the unread ' . self::RETIRED_SETTING . ' setting row deleted (replaced by delete_data in 0.2.1)';
             }
-            $changes[] = 'tiers, qualifying items, statuses, mode, behaviour and invoice line text are now edited on the Settings tab only (the Configure form keeps the access list and the housekeeping settings); every stored value is kept';
         }
         if (version_compare($from, '0.2.1', '<')
             && ($repo->settings()['description'] ?? null) === Config::OLD_DEFAULT_DESCRIPTION) {
@@ -50,5 +63,11 @@ final class Upgrade
             $changes[] = 'invoice line text changed from the old default "' . Config::OLD_DEFAULT_DESCRIPTION . '" to "' . Config::DEFAULT_DESCRIPTION . '"';
         }
         return $changes;
+    }
+
+    /** @param 'column'|'index' $kind */
+    private static function exists(Repository $repo, string $kind, string $table, string $name): bool
+    {
+        return $kind === 'column' ? $repo->hasColumn($table, $name) : $repo->hasIndex($table, $name);
     }
 }

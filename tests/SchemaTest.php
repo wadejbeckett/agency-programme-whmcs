@@ -54,10 +54,10 @@ final class SchemaTest extends TestCase
         self::assertSame(['ALTER TABLE mod_agencydiscount_invoices ADD KEY idx_client (client_id)'], Schema::upgradeStatements('0.2.1'));
         self::assertSame(Schema::upgradeStatements('0.2.1'), Schema::upgradeStatements('0.2.2'));
         self::assertSame([], Schema::upgradeStatements('0.3.0'));
-        // the index step is the only one with an index check, so a repeated upgrade can skip it
+        // every step that adds a column or an index names it, so a repeated upgrade can skip it; the backfill UPDATE has no guard and is safe to repeat
         $steps = Schema::upgradeSteps('0.2.0');
-        self::assertSame([null, ['mod_agencydiscount_invoices', 'idx_client']], array_map(static fn (array $step): ?array => $step['index'] ?? null, $steps));
-        self::assertSame(['mod_agencydiscount_invoices now holds one row per discount line (columns id, line and taxed added)', 'index idx_client (client_id) added to mod_agencydiscount_invoices'], array_column($steps, 'sentence'));
+        self::assertSame([['column', 'mod_agencydiscount_invoices', 'line'], null, ['index', 'mod_agencydiscount_invoices', 'idx_client']], array_map(static fn (array $step): ?array => $step['unless'] ?? null, $steps));
+        self::assertSame(['mod_agencydiscount_invoices now holds one row per discount line (columns id, line and taxed added)', 'records written before 0.2.1 took the taxed flag of their invoice line', 'index idx_client (client_id) added to mod_agencydiscount_invoices'], array_column($steps, 'sentence'));
     }
 
     /** Every column and key the fresh table has, the upgraded table gets, so both installs end with the same shape. */

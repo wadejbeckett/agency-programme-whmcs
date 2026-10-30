@@ -105,10 +105,12 @@ SQL;
     /**
      * The steps that bring the tables of an install at version $from up to date, in order, each
      * with its statements and the sentence the activity log gets when it runs; empty when nothing
-     * changes. A step with an "index" runs only when the table lacks that index (Upgrade checks),
-     * so a repeated upgrade from the same version adds nothing and raises nothing.
+     * changes. A step with "unless" runs only while the table lacks that column or index (Upgrade
+     * checks), so a repeated upgrade from the same version, as WHMCS makes after a failure before
+     * the version row is written, adds nothing twice and raises nothing; the one statement without
+     * a guard (the taxed-flag backfill) is an UPDATE that is safe to run again.
      *
-     * @return list<array{sentence: string, statements: list<string>, index?: array{string, string}}>
+     * @return list<array{sentence: string, statements: list<string>, unless?: array{'column'|'index', string, string}}>
      */
     public static function upgradeSteps(string $from): array
     {
@@ -116,21 +118,26 @@ SQL;
         if (version_compare($from, '0.2.1', '<')) {
             $steps[] = [
                 'sentence' => 'mod_agencydiscount_invoices now holds one row per discount line (columns id, line and taxed added)',
-                'statements' => [self::INVOICES_0_2_1, self::INVOICES_0_2_1_TAXED],
+                'statements' => [self::INVOICES_0_2_1],
+                'unless' => ['column', self::INVOICES_TABLE, 'line'],
+            ];
+            $steps[] = [
+                'sentence' => 'records written before 0.2.1 took the taxed flag of their invoice line',
+                'statements' => [self::INVOICES_0_2_1_TAXED],
             ];
         }
         if (version_compare($from, '0.3.0', '<')) {
             $steps[] = [
                 'sentence' => 'index idx_client (client_id) added to mod_agencydiscount_invoices',
                 'statements' => [self::INVOICES_0_3_0_INDEX],
-                'index' => [self::INVOICES_TABLE, self::CLIENT_INDEX],
+                'unless' => ['index', self::INVOICES_TABLE, self::CLIENT_INDEX],
             ];
         }
         return $steps;
     }
 
     /**
-     * Every statement of upgradeSteps($from) in order, before any index check.
+     * Every statement of upgradeSteps($from) in order, before any guard (a test helper).
      *
      * @return list<string>
      */

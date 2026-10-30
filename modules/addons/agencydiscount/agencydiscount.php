@@ -85,7 +85,9 @@ function agencydiscount_deactivate(): array
 /**
  * Called by WHMCS when the installed version ($vars['version']) is older than Module::VERSION.
  * Upgrade::run branches on that version: from below 0.2.1 it reshapes the invoice records table and
- * replaces the old default invoice line text. Each change goes to the activity log.
+ * replaces the old default invoice line text; from below 0.3.0 it adds the client index and deletes
+ * the retired keep_data row. Each change goes to the activity log, as does each note (what moved
+ * without a stored value changing); a step already applied is skipped, so a re-run is safe.
  *
  * @param array<string, mixed> $vars
  * @return array{status: string, description: string}
@@ -95,12 +97,16 @@ function agencydiscount_upgrade(array $vars): array
     $from = is_scalar($vars['version'] ?? null) ? (string) $vars['version'] : 'unknown';
     try {
         $changes = Upgrade::run(new CapsuleRepository(), $from);
+        $notes = Upgrade::notes($from);
         foreach ($changes as $change) {
             \logActivity('Agency Programme upgrade to ' . Module::VERSION . ': ' . $change);
         }
+        foreach ($notes as $note) {
+            \logActivity('Agency Programme upgrade to ' . Module::VERSION . ', note: ' . $note);
+        }
         $summary = $changes === [] ? 'no schema change' : count($changes) . ' change' . (count($changes) === 1 ? '' : 's');
         \logActivity('Agency Programme upgraded from ' . $from . ' to ' . Module::VERSION . ' (' . $summary . ')');
-        return ['status' => 'success', 'description' => 'Agency Programme upgraded from ' . $from . ' to ' . Module::VERSION . '. ' . ($changes === [] ? 'No tables changed.' : implode('; ', $changes) . '.')];
+        return ['status' => 'success', 'description' => 'Agency Programme upgraded from ' . $from . ' to ' . Module::VERSION . '. ' . ($changes === [] ? 'No tables changed.' : implode('; ', $changes) . '.') . ($notes === [] ? '' : ' ' . implode('; ', $notes) . '.')];
     } catch (\Throwable $e) {
         return ['status' => 'error', 'description' => 'Agency Programme upgrade problem: ' . $e->getMessage()];
     }

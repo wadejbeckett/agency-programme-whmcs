@@ -124,6 +124,9 @@ interface Repository
     /** Whether the table has an index of that name (the upgrade adds an index only once; MySQL has no ADD INDEX IF NOT EXISTS). */
     public function hasIndex(string $table, string $index): bool;
 
+    /** Whether the table has a column of that name (an upgrade step that adds columns runs only once). */
+    public function hasColumn(string $table, string $column): bool;
+
     /** @return int how many distinct invoices the module log has an entry for */
     public function invoicesChecked(): int;
 

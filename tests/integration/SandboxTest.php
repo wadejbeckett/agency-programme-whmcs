@@ -14,6 +14,7 @@ use AgencyDiscount\Module;
 use AgencyDiscount\Money;
 use AgencyDiscount\Schema;
 use AgencyDiscount\Tests\Support\WhmcsCalls;
+use AgencyDiscount\Upgrade;
 use Illuminate\Database\Capsule\Manager;
 use PHPUnit\Framework\TestCase;
 
@@ -361,6 +362,15 @@ final class SandboxTest extends TestCase
         self::assertSame([0, false, (int) $line->id], [$record['line'], $record['taxed'], $record['itemId']]);
         self::assertSame(Config::DEFAULT_DESCRIPTION, $repo->settings()['description']);
         self::assertContains('Agency Programme upgraded from 0.2.0 to ' . Module::VERSION . ' (5 changes)', array_column(WhmcsCalls::$activity, 'message'));
+        self::assertContains('Agency Programme upgrade to ' . Module::VERSION . ', note: ' . Upgrade::notes('0.2.0')[0], array_column(WhmcsCalls::$activity, 'message'));
+        // a repeat from 0.2.0 (WHMCS re-running after a failure before the version row is written): the reshape and the
+        // index are skipped, only the taxed backfill runs again, nothing raises
+        $retry = \agencydiscount_upgrade(['version' => '0.2.0']);
+        self::assertSame('success', $retry['status'], $retry['description']);
+        self::assertSame($fresh, $ddl());
+        self::assertStringNotContainsString('columns id, line', $retry['description']);
+        self::assertStringNotContainsString('idx_client', $retry['description']);
+        self::assertStringContainsString('taxed flag', $retry['description']);
         // from 0.2.2 on a table without the index: the index is added and nothing else changes
         Manager::connection()->statement('ALTER TABLE mod_agencydiscount_invoices DROP KEY idx_client');
         self::assertNotSame($fresh, $ddl());
@@ -374,6 +384,7 @@ final class SandboxTest extends TestCase
         self::assertStringNotContainsString('idx_client', $again['description']);
         self::assertSame($fresh, $ddl());
         self::assertContains('Agency Programme upgraded from 0.2.2 to ' . Module::VERSION . ' (1 change)', array_column(WhmcsCalls::$activity, 'message'));
+        self::assertContains('Agency Programme upgraded from 0.2.2 to ' . Module::VERSION . ' (no schema change)', array_column(WhmcsCalls::$activity, 'message'));
 
         // i4. after the upgrade (the 0.2.0 table above has a primary key on invoice_id, so a line-1 record must not
         //     exist before it): the repository's writes and the "Saved in <year>" query on the real tables

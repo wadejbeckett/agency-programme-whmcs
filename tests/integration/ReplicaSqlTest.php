@@ -56,6 +56,7 @@ final class ReplicaSqlTest extends TestCase
             'ADDON_CATALOG' => [],
             'SETTINGS' => [$this->scalar('SELECT module FROM tbladdonmodules ORDER BY id LIMIT 1')],
             'INDEX_EXISTS' => ['tbladdonmodules', 'PRIMARY'],
+            'COLUMN_EXISTS' => ['tbladdonmodules', 'setting'],
             'ADMIN_ROLE' => [$this->scalar('SELECT MIN(id) FROM tbladmins')],
         ];
 
