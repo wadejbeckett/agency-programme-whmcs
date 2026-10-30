@@ -58,7 +58,8 @@ CREATE TABLE IF NOT EXISTS mod_agencydiscount_invoices (
   amount DECIMAL(16,2) NOT NULL,
   dry_run TINYINT(1) NOT NULL,
   created_at DATETIME NOT NULL,
-  UNIQUE KEY idx_invoice_line (invoice_id, line)
+  UNIQUE KEY idx_invoice_line (invoice_id, line),
+  KEY idx_client (client_id)
 ) DEFAULT CHARSET=utf8mb4
 SQL;
 
@@ -75,6 +76,11 @@ SQL;
 
     /** Records written before 0.2.1 take the taxed flag of the line they describe, so the stored history matches the invoices. */
     private const INVOICES_0_2_1_TAXED = 'UPDATE mod_agencydiscount_invoices r JOIN tblinvoiceitems i ON i.id = r.item_id SET r.taxed = i.taxed';
+
+    /** 0.3.0 indexes the records by client: the client area's "Saved in <year>" and the invoice preview filter on client_id. */
+    public const INVOICES_0_3_0_INDEX = 'ALTER TABLE mod_agencydiscount_invoices ADD KEY idx_client (client_id)';
+    public const INVOICES_TABLE = 'mod_agencydiscount_invoices';
+    public const CLIENT_INDEX = 'idx_client';
 
     public static function install(Repository $repo): void
     {
@@ -97,19 +103,47 @@ SQL;
     }
 
     /**
-     * The statements that bring the tables of an install at version $from up to date, in order; empty
-     * when nothing changes.
+     * The steps that bring the tables of an install at version $from up to date, in order, each
+     * with its statements and the sentence the activity log gets when it runs; empty when nothing
+     * changes. A step with "unless" runs only while the table lacks that column or index (Upgrade
+     * checks), so a repeated upgrade from the same version, as WHMCS makes after a failure before
+     * the version row is written, adds nothing twice and raises nothing; the one statement without
+     * a guard (the taxed-flag backfill) is an UPDATE that is safe to run again.
+     *
+     * @return list<array{sentence: string, statements: list<string>, unless?: array{'column'|'index', string, string}}>
+     */
+    public static function upgradeSteps(string $from): array
+    {
+        $steps = [];
+        if (version_compare($from, '0.2.1', '<')) {
+            $steps[] = [
+                'sentence' => 'mod_agencydiscount_invoices now holds one row per discount line (columns id, line and taxed added)',
+                'statements' => [self::INVOICES_0_2_1],
+                'unless' => ['column', self::INVOICES_TABLE, 'line'],
+            ];
+            $steps[] = [
+                'sentence' => 'records written before 0.2.1 took the taxed flag of their invoice line',
+                'statements' => [self::INVOICES_0_2_1_TAXED],
+            ];
+        }
+        if (version_compare($from, '0.3.0', '<')) {
+            $steps[] = [
+                'sentence' => 'index idx_client (client_id) added to mod_agencydiscount_invoices',
+                'statements' => [self::INVOICES_0_3_0_INDEX],
+                'unless' => ['index', self::INVOICES_TABLE, self::CLIENT_INDEX],
+            ];
+        }
+        return $steps;
+    }
+
+    /**
+     * Every statement of upgradeSteps($from) in order, before any guard (a test helper).
      *
      * @return list<string>
      */
     public static function upgradeStatements(string $from): array
     {
-        $statements = [];
-        if (version_compare($from, '0.2.1', '<')) {
-            $statements[] = self::INVOICES_0_2_1;
-            $statements[] = self::INVOICES_0_2_1_TAXED;
-        }
-        return $statements;
+        return array_merge([], ...array_column(self::upgradeSteps($from), 'statements'));
     }
 
     /** @return list<string> */

@@ -35,6 +35,10 @@ class ArrayRepository implements Repository
     public array $invoiceRecords = [];
     /** @var list<string> */
     public array $executed = [];
+    /** @var list<string> indexes that exist before any statement runs, as "table.index" */
+    public array $indexes = [];
+    /** @var list<string> columns that exist before any statement runs, as "table.column" */
+    public array $columns = [];
     /** @var array<int, string> item id => payment method, for lines added through addInvoiceItem */
     public array $itemPaymentMethods = [];
     /** @var array<string, string> setting => value, as written by saveSettings */
@@ -335,6 +339,41 @@ class ArrayRepository implements Repository
     public function settings(): array
     {
         return $this->settings;
+    }
+
+    public function deleteSettings(array $keys): void
+    {
+        foreach ($keys as $key) {
+            unset($this->settings[$key]);
+        }
+    }
+
+    /** True for an index named in $indexes ("table.index") or added by an executed ALTER TABLE statement. */
+    public function hasIndex(string $table, string $index): bool
+    {
+        if (in_array($table . '.' . $index, $this->indexes, true)) {
+            return true;
+        }
+        foreach ($this->executed as $sql) {
+            if (str_starts_with($sql, 'ALTER TABLE ' . $table . ' ') && preg_match('/ADD (?:INDEX|KEY|UNIQUE KEY) ' . preg_quote($index, '/') . '\b/', $sql) === 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True for a column named in $columns ("table.column") or added by an executed ALTER TABLE statement. */
+    public function hasColumn(string $table, string $column): bool
+    {
+        if (in_array($table . '.' . $column, $this->columns, true)) {
+            return true;
+        }
+        foreach ($this->executed as $sql) {
+            if (str_starts_with($sql, 'ALTER TABLE ' . $table . ' ') && preg_match('/ADD COLUMN ' . preg_quote($column, '/') . '\b/', $sql) === 1) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public function saveSettings(array $settings): void

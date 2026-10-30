@@ -48,6 +48,23 @@ final class CapsuleRepository implements Repository
         }
     }
 
+    public function deleteSettings(array $keys): void
+    {
+        if ($keys !== []) {
+            Capsule::table(self::SETTINGS)->where('module', Module::NAME)->whereIn('setting', $keys)->delete();
+        }
+    }
+
+    public function hasIndex(string $table, string $index): bool
+    {
+        return self::select(Sql::INDEX_EXISTS, [$table, $index]) !== [];
+    }
+
+    public function hasColumn(string $table, string $column): bool
+    {
+        return self::select(Sql::COLUMN_EXISTS, [$table, $column]) !== [];
+    }
+
     /**
      * WHMCS HTML-encodes request input, so saved settings (notably the tiers JSON)
      * arrive entity-encoded ("&quot;"). Decoding is idempotent for plain values.

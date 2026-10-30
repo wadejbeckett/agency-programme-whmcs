@@ -10,9 +10,11 @@ use AgencyDiscount\Admin\Html;
 use AgencyDiscount\CapsuleRepository;
 use AgencyDiscount\Config;
 use AgencyDiscount\Hooks;
+use AgencyDiscount\Module;
 use AgencyDiscount\Money;
 use AgencyDiscount\Schema;
 use AgencyDiscount\Tests\Support\WhmcsCalls;
+use AgencyDiscount\Upgrade;
 use Illuminate\Database\Capsule\Manager;
 use PHPUnit\Framework\TestCase;
 
@@ -336,8 +338,9 @@ final class SandboxTest extends TestCase
         self::assertSame('{"' . $currency . '":[{"above":1,"percent":10}]}', $settings['tiers']);
         self::assertSame(2, $repo->invoicesChecked());
 
-        // i3. the 0.2.0 → 0.2.1 upgrade turns a 0.2.0 invoices table into the 0.2.1 shape, keeps its rows, and
-        //     replaces the old default invoice line text; from 0.2.1 nothing changes
+        // i3. the upgrade from 0.2.0 turns a 0.2.0 invoices table into the current shape (the 0.2.1 reshape, then the
+        //     0.3.0 client index), keeps its rows, replaces the old default invoice line text and deletes the retired
+        //     keep_data row; from 0.2.2 only the index is added; a repeated upgrade adds nothing and raises nothing
         $ddl = static fn (): string => (string) preg_replace('/ AUTO_INCREMENT=\d+/', '', (string) ((object) Manager::connection()->select('SHOW CREATE TABLE mod_agencydiscount_invoices')[0])->{'Create Table'});
         $fresh = $ddl();
         $columns = ['invoice_id', 'client_id', 'item_id', 'tier_index', 'percent', 'base', 'amount', 'dry_run', 'created_at'];
@@ -346,18 +349,42 @@ final class SandboxTest extends TestCase
         Manager::connection()->statement(self::INVOICES_0_2_0);
         Manager::table('mod_agencydiscount_invoices')->insert($rows);
         Manager::table('tbladdonmodules')->where('module', self::MODULE)->where('setting', 'description')->update(['value' => htmlspecialchars(Config::OLD_DEFAULT_DESCRIPTION, ENT_QUOTES, 'UTF-8')]);
+        Manager::table('tbladdonmodules')->insert(['module' => self::MODULE, 'setting' => 'keep_data', 'value' => '']);
         $result = \agencydiscount_upgrade(['version' => '0.2.0']);
         self::assertSame('success', $result['status'], $result['description']);
-        self::assertSame($fresh, $ddl());
+        self::assertSame($fresh, $ddl(), 'an upgraded table equals a fresh one, client index included');
+        self::assertStringContainsString('KEY `idx_client` (`client_id`)', $fresh);
+        self::assertSame(0, Manager::table('tbladdonmodules')->where('module', self::MODULE)->where('setting', 'keep_data')->count(), 'the retired row is gone');
+        self::assertSame(1, Manager::table('tbladdonmodules')->where('module', self::MODULE)->where('setting', 'tiers')->count(), 'the moved rows stay');
         self::assertSame($rows, array_map(static fn (object $row): array => (array) $row, Manager::table('mod_agencydiscount_invoices')->orderBy('invoice_id')->get($columns)->all()));
         $record = $repo->invoiceRecord($second);
         self::assertNotNull($record);
         self::assertSame([0, false, (int) $line->id], [$record['line'], $record['taxed'], $record['itemId']]);
         self::assertSame(Config::DEFAULT_DESCRIPTION, $repo->settings()['description']);
-        self::assertContains('Agency Programme upgraded from 0.2.0 to 0.2.1 (2 changes)', array_column(WhmcsCalls::$activity, 'message'));
-        self::assertSame('success', \agencydiscount_upgrade(['version' => '0.2.1'])['status']);
+        self::assertContains('Agency Programme upgraded from 0.2.0 to ' . Module::VERSION . ' (5 changes)', array_column(WhmcsCalls::$activity, 'message'));
+        self::assertContains('Agency Programme upgrade to ' . Module::VERSION . ', note: ' . Upgrade::notes('0.2.0')[0], array_column(WhmcsCalls::$activity, 'message'));
+        // a repeat from 0.2.0 (WHMCS re-running after a failure before the version row is written): the reshape and the
+        // index are skipped, only the taxed backfill runs again, nothing raises
+        $retry = \agencydiscount_upgrade(['version' => '0.2.0']);
+        self::assertSame('success', $retry['status'], $retry['description']);
         self::assertSame($fresh, $ddl());
-        self::assertContains('Agency Programme upgraded from 0.2.1 to 0.2.1 (no schema change)', array_column(WhmcsCalls::$activity, 'message'));
+        self::assertStringNotContainsString('columns id, line', $retry['description']);
+        self::assertStringNotContainsString('idx_client', $retry['description']);
+        self::assertStringContainsString('taxed flag', $retry['description']);
+        // from 0.2.2 on a table without the index: the index is added and nothing else changes
+        Manager::connection()->statement('ALTER TABLE mod_agencydiscount_invoices DROP KEY idx_client');
+        self::assertNotSame($fresh, $ddl());
+        $result = \agencydiscount_upgrade(['version' => '0.2.2']);
+        self::assertSame('success', $result['status'], $result['description']);
+        self::assertSame($fresh, $ddl());
+        self::assertStringContainsString('index idx_client (client_id) added', $result['description']);
+        // a repeated upgrade from the same version (WHMCS re-running before the version row is written) adds no index and raises nothing
+        $again = \agencydiscount_upgrade(['version' => '0.2.2']);
+        self::assertSame('success', $again['status'], $again['description']);
+        self::assertStringNotContainsString('idx_client', $again['description']);
+        self::assertSame($fresh, $ddl());
+        self::assertContains('Agency Programme upgraded from 0.2.2 to ' . Module::VERSION . ' (1 change)', array_column(WhmcsCalls::$activity, 'message'));
+        self::assertContains('Agency Programme upgraded from 0.2.2 to ' . Module::VERSION . ' (no schema change)', array_column(WhmcsCalls::$activity, 'message'));
 
         // i4. after the upgrade (the 0.2.0 table above has a primary key on invoice_id, so a line-1 record must not
         //     exist before it): the repository's writes and the "Saved in <year>" query on the real tables
