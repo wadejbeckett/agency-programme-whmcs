@@ -195,10 +195,25 @@ class ArrayRepository implements Repository
         $this->agencies[$normalised['clientId']] = $normalised;
     }
 
+    public function saveCalculation(int $clientId, array $calculation): void
+    {
+        if (isset($this->agencies[$clientId])) {
+            $this->agencies[$clientId] = $calculation + $this->agencies[$clientId];
+        }
+    }
+
     public function log(array $event): void
     {
         $id = $this->logs === [] ? 1 : $this->logs[array_key_last($this->logs)]['id'] + 1;
         $this->logs[] = ['id' => $id] + $event;
+    }
+
+    public function pruneLog(string $before): int
+    {
+        $kept = array_values(array_filter($this->logs, static fn (array $row): bool => $row['createdAt'] >= $before));
+        $pruned = count($this->logs) - count($kept);
+        $this->logs = $kept;
+        return $pruned;
     }
 
     public function logEntries(?int $clientId, int $limit, int $offset = 0): array
@@ -350,12 +365,43 @@ class ArrayRepository implements Repository
         $total = '0.00';
         foreach ($this->invoiceRecords as $lines) {
             foreach ($lines as $record) {
-                if ($record['clientId'] === $clientId && !$record['dryRun'] && $record['createdAt'] >= $fromDate) {
+                if ($record['clientId'] === $clientId && !$record['dryRun'] && $record['createdAt'] >= $fromDate
+                    && $this->lineStillOnInvoice($record['invoiceId'], $record['itemId'])) {
                     $total = bcadd($total, $record['amount'], 2);
                 }
             }
         }
         return $total;
+    }
+
+    private function lineStillOnInvoice(int $invoiceId, ?int $itemId): bool
+    {
+        $status = $this->invoices[$invoiceId]['status'] ?? null;
+        if ($itemId === null || $status === null || in_array($status, ['Cancelled', 'Refunded'], true)) {
+            return false;
+        }
+        foreach ($this->invoiceItems[$invoiceId] ?? [] as $item) {
+            if ($item['id'] === $itemId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** On a throw, invoice items, invoice records and item payment methods go back to their state before $work. */
+    public function transaction(callable $work): mixed
+    {
+        $items = $this->invoiceItems;
+        $records = $this->invoiceRecords;
+        $methods = $this->itemPaymentMethods;
+        try {
+            return $work();
+        } catch (\Throwable $e) {
+            $this->invoiceItems = $items;
+            $this->invoiceRecords = $records;
+            $this->itemPaymentMethods = $methods;
+            throw $e;
+        }
     }
 
     public function execute(string $sql): void

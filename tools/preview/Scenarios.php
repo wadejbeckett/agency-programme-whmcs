@@ -13,9 +13,9 @@ use AgencyDiscount\Module;
 use AgencyDiscount\RecordingActivityLog;
 
 /**
- * Fixture data for the offline render harness: generic agency names with the shapes and
- * magnitudes of a real install (six ZAR agencies, one well above the top tier, one with no
- * qualifying services yet). Nothing here touches WHMCS or a database.
+ * Fixture data for the offline render harness: demo agencies with round figures (six ZAR
+ * agencies, one well above the top tier, one with no qualifying services yet). Invented
+ * values only; nothing here comes from or touches a WHMCS install or a database.
  */
 final class Scenarios
 {
@@ -23,7 +23,7 @@ final class Scenarios
     public const RECALCULATED = '2026-10-27 12:45:41';
 
     /** Monthly qualifying spend per agency, in the order the widget lists them. */
-    private const SPENDS = ['10820.00', '4873.31', '340.00', '255.00', '85.00', '0.00'];
+    private const SPENDS = ['12000.00', '6000.00', '2500.00', '1000.00', '500.00', '0.00'];
     private const NAMES = ['Agency One', 'Agency Two Digital Studio', 'Agency Three', 'Agency Four', 'Agency Five', 'Agency Six'];
 
     /** @return list<string> scenario names for the widget */
@@ -65,7 +65,7 @@ final class Scenarios
         ]);
         $spends = match ($scenario) {
             'empty' => [],
-            'long' => array_merge(self::SPENDS, ['1200.00', '980.00', '760.00', '640.00', '510.00', '425.00', '340.00', '255.00', '170.00', '170.00', '85.00', '85.00', '85.00', '0.00']),
+            'long' => array_merge(self::SPENDS, ['4000.00', '3500.00', '3000.00', '2000.00', '1500.00', '1200.00', '800.00', '750.00', '600.00', '400.00', '300.00', '250.00', '100.00', '0.00']),
             default => self::SPENDS,
         };
         foreach ($spends as $i => $spend) {

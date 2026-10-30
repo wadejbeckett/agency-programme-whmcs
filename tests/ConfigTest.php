@@ -8,6 +8,7 @@ namespace AgencyDiscount\Tests;
 
 use AgencyDiscount\Config;
 use AgencyDiscount\ConfigException;
+use AgencyDiscount\Tests\Support\Fixtures;
 use PHPUnit\Framework\TestCase;
 
 final class ConfigTest extends TestCase
@@ -119,6 +120,16 @@ final class ConfigTest extends TestCase
                 'description: must not be empty',
             ], $e->problems());
             self::assertStringContainsString('tiers: invalid JSON', $e->getMessage());
+        }
+    }
+
+    public function testLogRetentionDefaultsToTwentyFourMonthsAndMistypedValuesKeepEverything(): void
+    {
+        self::assertSame(24, Config::fromSettings(Fixtures::settings())->logRetentionMonths);
+        self::assertSame(6, Config::fromSettings(['log_retention_months' => ' 6 '] + Fixtures::settings())->logRetentionMonths);
+        self::assertSame(0, Config::fromSettings(['log_retention_months' => '0'] + Fixtures::settings())->logRetentionMonths);
+        foreach (['', 'abc', '-3', '2.5', '601', '1000'] as $bad) {
+            self::assertSame(0, Config::retentionMonths($bad), var_export($bad, true));
         }
     }
 }

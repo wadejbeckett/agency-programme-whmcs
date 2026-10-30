@@ -117,4 +117,20 @@ final class Fixtures
             'access' => '1,2',
         ];
     }
+
+    /**
+     * Gives every invoice record that names a line an invoice (status $status, kept when the invoice
+     * exists) and its AgencyDiscount line, as WHMCS holds them after a real run.
+     */
+    public static function withDiscountLines(ArrayRepository $repo, string $status = 'Paid'): void
+    {
+        foreach ($repo->invoiceRecords as $invoiceId => $lines) {
+            foreach ($lines as $record) {
+                $repo->invoices[$invoiceId] ??= ['id' => $invoiceId, 'clientId' => $record['clientId'], 'status' => $status, 'dueDate' => null];
+                if ($record['itemId'] !== null) {
+                    $repo->invoiceItems[$invoiceId][] = ['id' => $record['itemId'], 'type' => 'AgencyDiscount', 'relId' => $record['clientId'], 'description' => 'Agency discount', 'amount' => '-' . $record['amount'], 'taxed' => $record['taxed'] ? 1 : 0];
+                }
+            }
+        }
+    }
 }

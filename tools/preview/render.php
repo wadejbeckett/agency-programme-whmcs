@@ -22,7 +22,7 @@ use AgencyDiscount\Admin\WidgetData;
 use AgencyDiscount\PreviewHarness\Scenarios;
 
 $root = dirname(__DIR__, 2);
-require_once $root . '/modules/addons/agencydiscount/lib/Bootstrap.php';
+require_once $root . '/bin/lib/bootstrap.php';
 require_once __DIR__ . '/Scenarios.php';
 
 $options = getopt('', ['theme-dir:', 'out:', 'prefix::']);

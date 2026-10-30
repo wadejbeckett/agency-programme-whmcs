@@ -73,6 +73,7 @@ Defaults are those in `Config::defaults()`. Yes/no settings are stored as `on` w
 | Discount new orders | `new_orders` | on | Also discount an approved agency's new-order invoice, whose items are still Pending. The tier for that invoice is chosen on the counted spend plus the ordered items' monthly equivalent. |
 | Invoice line text | `description` | `Agency discount {percent}% on {count} qualifying {items}` | Text of the discount line. Placeholders: `{percent}`, `{count}`, and `{items}`, which reads "item" for a count of 1 and "items" otherwise. Must not be empty. |
 | Write to activity log | `activity_log` | on | Also record applied discounts and tier changes in the WHMCS activity log. Settings and mode changes are always recorded there. |
+| Change log retention (months) | `log_retention_months` | 24 | The daily cron removes change log entries older than this. 0 keeps the log forever, and so does any value that is not a whole number from 0 to 600. Approvals and invoice records are never removed by it. Set under System Settings > Addon Modules > Agency Programme > Configure. |
 | Delete module data on deactivate | `delete_data` | off | The tables with the agency approvals, the change log and the invoice records are removed on deactivate only when this is on. Off, a missing setting or an unrecognised value keeps them. |
 
 An invalid configuration (bad JSON, a non-numeric id, no statuses) is reported at the top of the addon page and, once per request, in the WHMCS activity log. While it is invalid, no discount is applied and invoicing carries on as normal.
@@ -91,7 +92,7 @@ With this setting a client in USD with qualifying monthly spend of 500.00 gets n
 
 Addons > Agency Programme has four tabs (Overview, Settings, Change log, Configuration check) plus a Detail link per agency.
 
-- **Overview.** Four tiles: approved agencies (how many sit at a tier and how many wait for a start date), qualifying spend per month and the discount expected in the next 35 days, each summed per currency, and the mode. Below them one row per approved agency: client, currency, qualifying monthly spend, a tier badge, a progress bar through the current tier band with the amount still needed for the next tier, the next invoice with its discount, whether the discount is active or starts on a date, when it was last recalculated, and a link to the detail. Rows waiting for a start date are highlighted in yellow and rows in a currency without tiers in red. The table can be filtered (all, at a tier, not yet started, no tiers for currency) and searched by client name; both are plain links and a GET form, so they work without scripts. A side column lists what needs attention (how long dry-run has been on, currencies with approved agencies but no tiers, agencies within 5% of the next threshold, each linking to where it is fixed) and the six most recent change-log entries as sentences. "Recalculate now" refreshes every agency. Viewing the page changes nothing.
+- **Overview.** Four tiles: approved agencies (how many sit at a tier and how many wait for a start date), qualifying spend per month and the discount expected in the next 35 days, each summed per currency, and the mode. Below them one row per approved agency in five columns: client; qualifying monthly spend (the time it was last recalculated shows on hover); a tier badge with, under it, whether the discount is active or starts on a date and a link to the detail; a progress bar through the current tier band with the amount still needed for the next tier; and the next invoice's date with its discount under it. A line under the table gives when the figures were recalculated. Rows waiting for a start date are highlighted in yellow and rows in a currency without tiers in red. The table can be filtered (all, at a tier, not yet started, no tiers for currency) and searched by client name; both are plain links and a GET form, so they work without scripts. A side column lists what needs attention (how long dry-run has been on, currencies with approved agencies but no tiers, agencies within 5% of the next threshold, each linking to where it is fixed) and the six most recent change-log entries as sentences. "Recalculate now" refreshes every agency. Viewing the page changes nothing.
 - **Agency detail.** The counted services and add-ons with their cycle, amount, monthly equivalent, next invoice date and promotion flag, the upcoming invoices in the next 35 days with the base and the discount each would receive, and a link to that client's change log. The upcoming invoices are an estimate from the next invoice dates: they include services on a promotion, because whether a promotion still reduces an invoice is only known from that invoice's lines, and dates before the agency's start date show no discount. Pending new-order items are not listed and not estimated; they are only discounted on the order invoice itself.
 - **Settings.** The configuration, described under [Configuration](#configuration).
 - **Change log.** Every event, newest first, filterable by client, with its actor, a one-sentence summary and the raw detail.
@@ -199,21 +200,27 @@ vendor/bin/phpunit --testsuite integration
 
 ### What has and has not been verified
 
-The hooks were exercised against a MariaDB copy of a WHMCS 9.0.8 database through Illuminate's Capsule. On a licensed WHMCS installation, this has been verified:
+The hooks were exercised against a MariaDB copy of a WHMCS 9.0.8 database through Illuminate's Capsule. On licensed WHMCS installations (9.0.9 from 12 October 2026, 9.1.0 from 25 October 2026), this has been verified:
 
-- WHMCS recalculates invoice totals after the `InvoiceCreation` hook returns. Verified on WHMCS 9.1.0 in production on 25 October 2026: on each of five invoices from the automatic invoice run, the subtotal and total equalled the sum of the lines, including the discount line.
+- WHMCS recalculates invoice totals after the `InvoiceCreation` hook returns. On each of five invoices from the automatic invoice run of 25 October 2026, the subtotal and total equalled the sum of the lines, including the discount line.
+- The `InvoiceCreation` hook runs on invoices from the automatic invoice run, and an invoice without qualifying lines is skipped and logged.
+- The addon settings saved through WHMCS's Configure form, notably the tiers JSON, are decoded correctly: a changed tier table gave the expected tiers on recalculation.
+- `generate_token()` output: the overview's "Recalculate now" form and the Settings tab's mode switch were accepted.
+- Approving an agency on the client's Profile tab (a note without a start date) stores the approval.
+- The admin pages (Overview, Settings, Change log, Configuration check, agency detail, client summary card) render inside the WHMCS admin template, and the admin home widget renders on the real dashboard in the Iris admin theme (in Blend it has been seen in offline renders only); the widget and the profile field honour the admin role checks.
+- `agencydiscount_upgrade()` runs on the first admin page load after new files are copied: 0.1.0 to 0.2.0, and 0.2.0 to 0.2.1 with its change to `mod_agencydiscount_invoices`, each recorded in the activity log, with existing records intact.
 
 These points remain to be confirmed on a real install:
 
-- How WHMCS's input sanitiser encodes the profile fields (the note and start date), which the module decodes before storing, and the addon settings (notably the tiers JSON), which the module decodes when it reads them.
-- The output of `generate_token()`, used for the CSRF field on the overview's "Recalculate now" form and the Settings tab's forms.
+- How WHMCS's input sanitiser encodes a profile note containing quotes or ampersands, and the start date field; both are decoded before storing.
 - That the Settings tab's inline script (currency sub-tabs, add and remove tier rows, name filters) runs unchanged inside the WHMCS admin template; the server accepts any number of rows, so the page works without it.
 - How the yes/no `Default` values render in the addon settings screen.
 - That `agencydiscount_deactivate()` runs before WHMCS deletes the module's settings rows; this decides whether "Delete module data on deactivate" is honoured. If WHMCS deletes the settings first, the module finds no setting and keeps its tables.
-- That the discount line, which copies the invoice's `paymentmethod`, displays correctly in WHMCS invoice views.
-- The admin home widget on a real dashboard: its base class `\WHMCS\Module\AbstractWidget` is only stubbed here, its "View Income Totals" permission check is WHMCS's, and the tests cover the figures and markup (`Admin\WidgetData`) and a failure path against a stand-in base class.
+- That the discount line, which copies the invoice's `paymentmethod`, displays correctly in WHMCS invoice views and the invoice PDF.
 - The client-area home panel's `addChild` attributes (`label`, `icon`, `extras` with `btn-link` and `btn-text`, `bodyHtml`) against WHMCS's `\WHMCS\View\Menu\Item`, which is stubbed here, and that the module page's template passes WHMCS's Smarty security policy (it uses only `escape`, `if` and `foreach`). The template was rendered with Smarty 3.1 outside WHMCS.
-- That `\WHMCS\Session::get('adminid')` and `get('uid')` give the logged-in admin and client as expected by the role check and the client area.
+- That `\WHMCS\Session::get('uid')` gives the logged-in client as the client area expects.
+- How a new-order invoice carries a setup fee (inside the Hosting line or as a separate line), and whether WHMCS applies available credit before the discount line is added; no live invoice for an approved agency has had either.
+- The admin home widget on a real dashboard in the Blend admin theme; it has only been rendered offline.
 - Tax: every invoice observed so far carried no tax, so neither the taxed discount line nor the split into a taxed and an untaxed line has been seen on a real invoice.
 
 This is why the module ships with dry-run on. Run it in dry-run on the real installation first, then check the first live invoice.

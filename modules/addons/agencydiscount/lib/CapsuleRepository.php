@@ -212,6 +212,20 @@ final class CapsuleRepository implements Repository
         );
     }
 
+    public function saveCalculation(int $clientId, array $calculation): void
+    {
+        Capsule::table(self::CLIENTS)->where('client_id', $clientId)->update([
+            'currency' => $calculation['currency'],
+            'spend' => $calculation['spend'],
+            'tier_index' => $calculation['tierIndex'],
+            'tier_percent' => $calculation['tierPercent'],
+            'counted_services' => $calculation['countedServices'],
+            'counted_addons' => $calculation['countedAddons'],
+            'calculated_at' => $calculation['calculatedAt'],
+            'updated_at' => $calculation['updatedAt'],
+        ]);
+    }
+
     public function log(array $event): void
     {
         Capsule::table(self::LOG)->insert([
@@ -222,6 +236,11 @@ final class CapsuleRepository implements Repository
             'actor' => self::truncate($event['actor']),
             'created_at' => $event['createdAt'],
         ]);
+    }
+
+    public function pruneLog(string $before): int
+    {
+        return (int) Capsule::table(self::LOG)->where('created_at', '<', $before)->delete();
     }
 
     public function logEntries(?int $clientId, int $limit, int $offset = 0): array
@@ -384,6 +403,11 @@ final class CapsuleRepository implements Repository
     {
         $row = self::select(Sql::APPLIED_DISCOUNT_TOTAL, [$clientId, $fromDate])[0] ?? null;
         return self::money($row?->total);
+    }
+
+    public function transaction(callable $work): mixed
+    {
+        return Capsule::connection()->transaction(static fn () => $work());
     }
 
     public function execute(string $sql): void

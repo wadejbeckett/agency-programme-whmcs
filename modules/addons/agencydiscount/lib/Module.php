@@ -41,6 +41,20 @@ final class Module
         return new Recalculator($this->repo, $this->config, $this->clock, $this->activity);
     }
 
+    /**
+     * Removes change log entries older than the retention setting (none when it is 0) and returns
+     * how many went. Approvals and invoice records are not touched.
+     */
+    public function pruneLog(): int
+    {
+        $months = $this->config->logRetentionMonths;
+        if ($months <= 0) {
+            return 0;
+        }
+        $before = $this->clock->now()->modify(sprintf('-%d months', $months))->format('Y-m-d H:i:s');
+        return $this->repo->pruneLog($before);
+    }
+
     public function discounter(): InvoiceDiscounter
     {
         return new InvoiceDiscounter($this->repo, $this->config, $this->recalculator(), $this->clock, $this->activity);

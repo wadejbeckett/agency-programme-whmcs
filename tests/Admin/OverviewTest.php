@@ -82,7 +82,7 @@ final class OverviewTest extends TestCase
         self::assertStringContainsString('ZAR 1,012.92', $one);
         self::assertStringContainsString('<div class="progress-bar" role="progressbar" aria-valuenow="1" aria-valuemin="0" aria-valuemax="100" style="width: 1%">', $one);
         self::assertStringContainsString('ZAR 987.09 to tier 2 (10%)', $one);
-        self::assertStringContainsString('2026-10-25: no discount on ZAR 850.00', $one);
+        self::assertStringContainsString('<span class="agencydiscount-nowrap">2026-10-25</span><br><small class="agencydiscount-nowrap">no discount on ZAR 850.00</small>', $one);
         self::assertStringContainsString('<span class="text-warning">starts 2027-01-01</span>', $one);
         self::assertStringContainsString('<a href="addonmodules.php?module=agencydiscount&amp;action=agency&amp;id=131">Detail</a>', $one);
 
@@ -91,8 +91,8 @@ final class OverviewTest extends TestCase
         self::assertStringContainsString('<span class="label label-success">Tier 3 (15%)</span>', $two);
         self::assertStringContainsString('style="width: 100%"', $two);
         self::assertStringContainsString('top tier', $two);
-        self::assertStringContainsString('2026-10-20: ZAR 900.00 off ZAR 6,000.00', $two);
-        self::assertStringContainsString('<td>active</td>', $two);
+        self::assertStringContainsString('<span class="agencydiscount-nowrap">2026-10-20</span><br><small class="agencydiscount-nowrap">ZAR 900.00 off ZAR 6,000.00</small>', $two);
+        self::assertStringContainsString('<br><small class="agencydiscount-nowrap">active &middot; <a href="addonmodules.php?module=agencydiscount&amp;action=agency&amp;id=404">Detail</a></small></td>', $two);
 
         $euro = self::row($html, 500);
         self::assertStringStartsWith('<tr class="danger">', $euro);
@@ -100,7 +100,23 @@ final class OverviewTest extends TestCase
         self::assertStringNotContainsString('progress-bar', $euro);
 
         $this->repo->agencies[131]['effectiveFrom'] = '2026-01-01';
-        self::assertStringContainsString('<td>active since 2026-01-01</td>', self::row($this->render(), 131));
+        self::assertStringContainsString('<small class="agencydiscount-nowrap">active since 2026-01-01 &middot; ', self::row($this->render(), 131));
+    }
+
+    public function testTableHasFiveColumnsAndOneRecalculationLine(): void
+    {
+        $html = $this->render();
+        self::assertStringContainsString('<thead><tr><th>Client</th><th>Qualifying monthly spend</th><th>Tier</th><th>To next tier</th><th>Next invoice</th></tr></thead>', $html);
+        self::assertStringContainsString('<p class="text-muted"><small>Figures not recalculated yet.</small></p>', $html);
+
+        foreach ([131, 404, 500] as $id) {
+            $this->repo->agencies[$id]['calculatedAt'] = '2026-10-18 01:00:00';
+        }
+        self::assertStringContainsString('Figures recalculated 2026-10-18 01:00:00.', $this->render());
+        $this->repo->agencies[500]['calculatedAt'] = '2026-10-17 01:00:00';
+        $html = $this->render();
+        self::assertStringContainsString('Figures recalculated between 2026-10-17 01:00:00 and 2026-10-18 01:00:00.', $html);
+        self::assertStringContainsString('title="recalculated 2026-10-17 01:00:00">EUR 300.00</span>', self::row($html, 500));
     }
 
     public function testBelowTheFirstTierShowsNoTierBadge(): void
@@ -110,7 +126,7 @@ final class OverviewTest extends TestCase
         self::assertStringContainsString('<span class="label label-default">No tier</span>', $two);
         self::assertStringContainsString('style="width: 40%"', $two);
         self::assertStringContainsString('ZAR 600.01 to tier 1 (5%)', $two);
-        self::assertStringContainsString('2026-10-20: no discount on ZAR 400.00', $two);
+        self::assertStringContainsString('<span class="agencydiscount-nowrap">2026-10-20</span><br><small class="agencydiscount-nowrap">no discount on ZAR 400.00</small>', $two);
     }
 
     public function testFiltersByStateAndByName(): void

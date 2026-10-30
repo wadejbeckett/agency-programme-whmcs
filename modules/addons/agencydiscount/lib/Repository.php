@@ -45,8 +45,20 @@ interface Repository
     /** @param AgencyRow $row  upsert by clientId */
     public function saveAgency(array $row): void;
 
+    /**
+     * Writes only the computed columns of an existing agency row (currency, spend, tier, counts,
+     * calculatedAt, updatedAt); approval, note, start date and approver are left as stored, so a
+     * recalculation racing an approval change cannot undo it. Does nothing when the row is absent.
+     *
+     * @param array{currency:string, spend:string, tierIndex:?int, tierPercent:?string, countedServices:int, countedAddons:int, calculatedAt:string, updatedAt:string} $calculation
+     */
+    public function saveCalculation(int $clientId, array $calculation): void;
+
     /** @param LogEvent $event */
     public function log(array $event): void;
+
+    /** Deletes the change log entries created before $before ('Y-m-d H:i:s'); returns how many went. */
+    public function pruneLog(string $before): int;
 
     /** @return list<array{id:int, clientId:?int, invoiceId:?int, event:string, detail:array<string,mixed>, actor:string, createdAt:string}> newest first */
     public function logEntries(?int $clientId, int $limit, int $offset = 0): array;
@@ -115,9 +127,21 @@ interface Repository
     /**
      * The discount the module added to the client's invoices (applied rows, not dry runs, every line
      * of an invoice) created on or after $fromDate ('Y-m-d'), as a positive two-place amount; '0.00'
-     * when there are none.
+     * when there are none. A record counts only while its discount line is still on the invoice and
+     * the invoice is not Cancelled or Refunded.
      */
     public function appliedDiscountTotal(int $clientId, string $fromDate): string;
+
+    /**
+     * Runs $work in one database transaction and returns its result: committed when it returns,
+     * rolled back (and the exception rethrown) when it throws. Production binds this to the WHMCS
+     * connection's transaction(); ArrayRepository restores its invoice and record state on a throw.
+     *
+     * @template T
+     * @param callable(): T $work
+     * @return T
+     */
+    public function transaction(callable $work): mixed;
 
     /** Runs one DDL statement. ArrayRepository records it in $executed. */
     public function execute(string $sql): void;
