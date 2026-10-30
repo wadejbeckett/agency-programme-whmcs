@@ -359,6 +359,70 @@ final class SandboxTest extends TestCase
         self::assertSame($fresh, $ddl());
         self::assertContains('Agency Programme upgraded from 0.2.1 to 0.2.1 (no schema change)', array_column(WhmcsCalls::$activity, 'message'));
 
+        // i4. after the upgrade (the 0.2.0 table above has a primary key on invoice_id, so a line-1 record must not
+        //     exist before it): the repository's writes and the "Saved in <year>" query on the real tables
+        // i4a. the saved total counts a discount line only while it is on an invoice that is not Cancelled or
+        //      Refunded, counts both lines of a mixed-tax invoice, and leaves out dry runs
+        $other = $clientId + 1000000; // no other record belongs to this client id
+        $record = function (int $invoiceId, int $lineNo, ?int $itemId, string $amount, int $taxed, bool $dryRun = false) use ($repo, $other): void {
+            $repo->saveInvoiceRecord(['invoiceId' => $invoiceId, 'line' => $lineNo, 'clientId' => $other, 'itemId' => $itemId, 'taxed' => $taxed === 1, 'tierIndex' => 1, 'percent' => '10.00', 'base' => '100.00', 'amount' => $amount, 'dryRun' => $dryRun, 'createdAt' => date('Y-m-d H:i:s')]);
+        };
+        $paid = $this->insertTaggedInvoice($other, 'Paid');
+        $record($paid, 0, $this->insertDiscountLine($paid, $other, '-10.00', 0), '10.00', 0);
+        $cancelled = $this->insertTaggedInvoice($other, 'Cancelled');
+        $record($cancelled, 0, $this->insertDiscountLine($cancelled, $other, '-20.00', 0), '20.00', 0);
+        $refunded = $this->insertTaggedInvoice($other, 'Refunded');
+        $record($refunded, 0, $this->insertDiscountLine($refunded, $other, '-30.00', 0), '30.00', 0);
+        $removed = $this->insertTaggedInvoice($other, 'Paid');
+        $removedLine = $this->insertDiscountLine($removed, $other, '-40.00', 0);
+        $record($removed, 0, $removedLine, '40.00', 0);
+        Manager::table('tblinvoiceitems')->where('id', $removedLine)->delete();
+        $mixed = $this->insertTaggedInvoice($other, 'Paid');
+        $record($mixed, 0, $this->insertDiscountLine($mixed, $other, '-5.00', 0), '5.00', 0);
+        $record($mixed, 1, $this->insertDiscountLine($mixed, $other, '-7.00', 1), '7.00', 1);
+        $dry = $this->insertTaggedInvoice($other, 'Paid');
+        $record($dry, 0, $this->insertDiscountLine($dry, $other, '-99.00', 0), '99.00', 0, true);
+        self::assertSame('22.00', $repo->appliedDiscountTotal($other, date('Y') . '-01-01'));
+
+        // i4b. a throw inside the transaction after the claim and a discount line leaves neither behind
+        $rolledBack = $this->insertTaggedInvoice($other, 'Unpaid');
+        try {
+            $repo->transaction(function () use ($repo, $rolledBack, $other): void {
+                self::assertTrue($repo->claimInvoice($rolledBack, $other, date('Y-m-d H:i:s')));
+                $repo->addInvoiceItem($rolledBack, $other, 'AgencyDiscount', $other, 'rolled back', '-1.00', 0, date('Y-m-d'), self::PAYMENT_METHOD);
+                throw new \RuntimeException('stop');
+            });
+            self::fail('the exception must be rethrown');
+        } catch (\RuntimeException $e) {
+            self::assertSame('stop', $e->getMessage());
+        }
+        self::assertSame(0, Manager::table('mod_agencydiscount_invoices')->where('invoice_id', $rolledBack)->count());
+        self::assertSame(0, Manager::table('tblinvoiceitems')->where('invoiceid', $rolledBack)->count());
+        self::assertSame('done', $repo->transaction(static fn (): string => 'done'));
+
+        // i4c. saveCalculation writes the computed columns only
+        $before = $repo->agency($clientId);
+        self::assertNotNull($before);
+        $repo->saveCalculation($clientId, ['currency' => $currency, 'spend' => '123.45', 'tierIndex' => null, 'tierPercent' => null, 'countedServices' => 7, 'countedAddons' => 3, 'calculatedAt' => '2026-01-02 03:04:05', 'updatedAt' => '2026-01-02 03:04:05']);
+        $after = $repo->agency($clientId);
+        self::assertNotNull($after);
+        foreach (['approved', 'note', 'effectiveFrom', 'approvedBy', 'approvedAt'] as $key) {
+            self::assertSame($before[$key], $after[$key], $key . ' changed');
+        }
+        self::assertSame(['123.45', null, 7, 3, '2026-01-02 03:04:05'], [$after['spend'], $after['tierIndex'], $after['countedServices'], $after['countedAddons'], $after['calculatedAt']]);
+        $repo->saveCalculation($other, ['currency' => $currency, 'spend' => '1.00', 'tierIndex' => null, 'tierPercent' => null, 'countedServices' => 0, 'countedAddons' => 0, 'calculatedAt' => '2026-01-02 03:04:05', 'updatedAt' => '2026-01-02 03:04:05']);
+        self::assertNull($repo->agency($other), 'no row is created for an unknown client');
+
+        // i4d. pruneLog deletes only entries created before the cut-off
+        $event = ['clientId' => $other, 'invoiceId' => null, 'event' => 'tier_changed', 'detail' => [], 'actor' => 'sandbox'];
+        $repo->log($event + ['createdAt' => '2000-12-31 23:59:59']);
+        $repo->log($event + ['createdAt' => '2001-01-01 00:00:00']);
+        $total = Manager::table('mod_agencydiscount_log')->count();
+        self::assertSame(1, $repo->pruneLog('2001-01-01 00:00:00'));
+        self::assertSame($total - 1, Manager::table('mod_agencydiscount_log')->count());
+        self::assertSame(['2001-01-01 00:00:00'], array_column($repo->logEntries($other, 10), 'createdAt'));
+        self::assertSame(0, $repo->pruneLog('2001-01-01 00:00:00'));
+
         // j. deactivate keeps the tables unless "Delete module data on deactivate" is ticked; then it drops them.
         //    Clean up and prove nothing is left
         self::assertSame('success', \agencydiscount_deactivate()['status']);
@@ -406,6 +470,48 @@ final class SandboxTest extends TestCase
             $item + ['type' => 'Domain', 'relid' => 0, 'description' => 'Sandbox domain', 'amount' => '99.00'],
         ]);
         return $id;
+    }
+
+    /** Inserts an invoice tagged with TAG, dated today, with the given status and no lines. */
+    private function insertTaggedInvoice(int $clientId, string $status): int
+    {
+        $today = date('Y-m-d');
+        $now = date('Y-m-d H:i:s');
+        $id = (int) Manager::table('tblinvoices')->insertGetId([
+            'userid' => $clientId,
+            'invoicenum' => '',
+            'date' => $today,
+            'duedate' => $today,
+            'subtotal' => '100.00',
+            'credit' => '0.00',
+            'tax' => '0.00',
+            'tax2' => '0.00',
+            'total' => '100.00',
+            'status' => $status,
+            'paymentmethod' => self::PAYMENT_METHOD,
+            'notes' => self::TAG,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $this->invoiceIds[] = $id;
+        return $id;
+    }
+
+    /** Adds an AgencyDiscount line to an invoice inserted by this test and returns its id. */
+    private function insertDiscountLine(int $invoiceId, int $clientId, string $amount, int $taxed): int
+    {
+        return (int) Manager::table('tblinvoiceitems')->insertGetId([
+            'invoiceid' => $invoiceId,
+            'userid' => $clientId,
+            'type' => 'AgencyDiscount',
+            'relid' => $clientId,
+            'description' => 'Sandbox discount',
+            'amount' => $amount,
+            'taxed' => $taxed,
+            'duedate' => date('Y-m-d'),
+            'paymentmethod' => self::PAYMENT_METHOD,
+            'notes' => '',
+        ]);
     }
 
     /** No hook has reported an exception or a configuration problem through logActivity. */
