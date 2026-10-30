@@ -48,10 +48,16 @@ final class SchemaTest extends TestCase
         self::assertSame([
             'ALTER TABLE mod_agencydiscount_invoices DROP PRIMARY KEY, ADD COLUMN id INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST, ADD COLUMN line TINYINT NOT NULL DEFAULT 0 AFTER invoice_id, ADD COLUMN taxed TINYINT(1) NOT NULL DEFAULT 0 AFTER item_id, ADD UNIQUE KEY idx_invoice_line (invoice_id, line)',
             'UPDATE mod_agencydiscount_invoices r JOIN tblinvoiceitems i ON i.id = r.item_id SET r.taxed = i.taxed',
+            'ALTER TABLE mod_agencydiscount_invoices ADD KEY idx_client (client_id)',
         ], $from020);
         self::assertSame($from020, Schema::upgradeStatements('0.1.0'));
-        self::assertSame([], Schema::upgradeStatements('0.2.1'));
+        self::assertSame(['ALTER TABLE mod_agencydiscount_invoices ADD KEY idx_client (client_id)'], Schema::upgradeStatements('0.2.1'));
+        self::assertSame(Schema::upgradeStatements('0.2.1'), Schema::upgradeStatements('0.2.2'));
         self::assertSame([], Schema::upgradeStatements('0.3.0'));
+        // the index step is the only one with an index check, so a repeated upgrade can skip it
+        $steps = Schema::upgradeSteps('0.2.0');
+        self::assertSame([null, ['mod_agencydiscount_invoices', 'idx_client']], array_map(static fn (array $step): ?array => $step['index'] ?? null, $steps));
+        self::assertSame(['mod_agencydiscount_invoices now holds one row per discount line (columns id, line and taxed added)', 'index idx_client (client_id) added to mod_agencydiscount_invoices'], array_column($steps, 'sentence'));
     }
 
     /** Every column and key the fresh table has, the upgraded table gets, so both installs end with the same shape. */

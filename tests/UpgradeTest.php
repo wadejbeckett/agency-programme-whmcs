@@ -15,16 +15,69 @@ use PHPUnit\Framework\TestCase;
 
 final class UpgradeTest extends TestCase
 {
-    public function testFrom020ReshapesTheInvoicesTableAndReplacesTheOldDefaultText(): void
+    private const RESHAPED = 'mod_agencydiscount_invoices now holds one row per discount line (columns id, line and taxed added)';
+    private const INDEXED = 'index idx_client (client_id) added to mod_agencydiscount_invoices';
+    private const RETIRED = 'the unread keep_data setting row deleted (replaced by delete_data in 0.2.1)';
+    private const MOVED = 'tiers, qualifying items, statuses, mode, behaviour and invoice line text are now edited on the Settings tab only (the Configure form keeps the access list and the housekeeping settings); every stored value is kept';
+    private const RETEXTED = 'invoice line text changed from the old default "Agency discount {percent}% on {count} qualifying items" to "Agency discount {percent}% on {count} qualifying {items}"';
+
+    /** @return array<string,string> a full 0.2.x stored set with the retired row and the old default text */
+    private static function stored(): array
     {
-        $repo = new ArrayRepository(['settings' => ['description' => 'Agency discount {percent}% on {count} qualifying items', 'keep_data' => '']]);
+        return [
+            'tiers' => '{"ZAR":[{"above":0,"percent":5}]}', 'product_groups' => '1,23', 'products' => '', 'addons' => '12', 'statuses' => 'Active',
+            'dry_run' => '', 'stack_with_promotions' => 'on', 'new_orders' => 'on', 'description' => Config::OLD_DEFAULT_DESCRIPTION,
+            'activity_log' => 'on', 'log_retention_months' => '24', 'delete_data' => '', 'keep_data' => '', 'access' => '1', 'version' => '0.2.0',
+        ];
+    }
+
+    public function testFrom020ReshapesIndexesRetiresAndRetexts(): void
+    {
+        $repo = new ArrayRepository(['settings' => self::stored()]);
         $changes = Upgrade::run($repo, '0.2.0');
+        self::assertSame([self::RESHAPED, self::INDEXED, self::RETIRED, self::MOVED, self::RETEXTED], $changes);
         self::assertSame(Schema::upgradeStatements('0.2.0'), $repo->executed);
-        self::assertSame('Agency discount {percent}% on {count} qualifying {items}', $repo->settings['description']);
-        self::assertSame('', $repo->settings['keep_data'], 'the retired keep_data row is left alone');
-        self::assertCount(2, $changes);
-        self::assertStringContainsString('one row per discount line', $changes[0]);
-        self::assertStringContainsString('invoice line text changed', $changes[1]);
+        self::assertSame(Schema::INVOICES_0_3_0_INDEX, $repo->executed[2]);
+        $expected = self::stored();
+        unset($expected['keep_data']);
+        $expected['description'] = Config::DEFAULT_DESCRIPTION;
+        self::assertSame($expected, $repo->settings, 'every other value is kept');
+    }
+
+    public function testFrom021And022AddTheIndexAndDeleteTheRetiredRow(): void
+    {
+        foreach (['0.2.1', '0.2.2'] as $from) {
+            $stored = ['description' => 'Custom {percent}% text'] + self::stored();
+            $repo = new ArrayRepository(['settings' => $stored]);
+            self::assertSame([self::INDEXED, self::RETIRED, self::MOVED], Upgrade::run($repo, $from), $from);
+            self::assertSame([Schema::INVOICES_0_3_0_INDEX], $repo->executed, $from);
+            unset($stored['keep_data']);
+            self::assertSame($stored, $repo->settings, $from . ': the custom text and every moved value are kept');
+        }
+    }
+
+    public function testWithoutTheRetiredRowOnlyTheIndexAndTheNoteAreReported(): void
+    {
+        $stored = self::stored();
+        unset($stored['keep_data']);
+        $repo = new ArrayRepository(['settings' => $stored]);
+        self::assertSame([self::INDEXED, self::MOVED], Upgrade::run($repo, '0.2.2'));
+    }
+
+    public function testARepeatedUpgradeFromTheSameVersionAddsNoIndexAndRaisesNothing(): void
+    {
+        $repo = new ArrayRepository(['settings' => self::stored()]);
+        Upgrade::run($repo, '0.2.2');
+        self::assertTrue($repo->hasIndex('mod_agencydiscount_invoices', 'idx_client'));
+        $again = Upgrade::run($repo, '0.2.2');
+        self::assertSame([self::MOVED], $again, 'no index change and no retired row the second time');
+        self::assertCount(1, $repo->executed, 'the ALTER TABLE ran once');
+
+        // a table that already has the index (a fresh 0.3.0 table reported as 0.2.2 by a stale version row) gets no statement
+        $fresh = new ArrayRepository(['settings' => self::stored()]);
+        $fresh->indexes = ['mod_agencydiscount_invoices.idx_client'];
+        self::assertSame([self::RETIRED, self::MOVED], Upgrade::run($fresh, '0.2.2'));
+        self::assertSame([], $fresh->executed);
     }
 
     public function testACustomisedTextIsKept(): void
@@ -32,7 +85,7 @@ final class UpgradeTest extends TestCase
         $repo = new ArrayRepository(['settings' => ['description' => 'Partner rebate {percent}% ({count} items)']]);
         $changes = Upgrade::run($repo, '0.2.0');
         self::assertSame('Partner rebate {percent}% ({count} items)', $repo->settings['description']);
-        self::assertCount(1, $changes);
+        self::assertSame([self::RESHAPED, self::INDEXED, self::MOVED], $changes);
     }
 
     public function testNoStoredTextIsLeftToTheDefault(): void
@@ -45,20 +98,16 @@ final class UpgradeTest extends TestCase
 
     public function testFromTheCurrentVersionNothingChanges(): void
     {
-        $repo = new ArrayRepository(['settings' => ['description' => Config::OLD_DEFAULT_DESCRIPTION]]);
+        $repo = new ArrayRepository(['settings' => ['description' => Config::OLD_DEFAULT_DESCRIPTION, 'keep_data' => '']]);
+        self::assertSame([], Schema::upgradeSteps(Module::VERSION));
         self::assertSame([], Upgrade::run($repo, Module::VERSION));
         self::assertSame([], $repo->executed);
-        self::assertSame(Config::OLD_DEFAULT_DESCRIPTION, $repo->settings['description']);
+        self::assertSame(['description' => Config::OLD_DEFAULT_DESCRIPTION, 'keep_data' => ''], $repo->settings);
     }
 
-    public function testFrom021RunsNoStatementAndChangesNoSetting(): void
+    public function testTheFreshTableCarriesTheClientIndex(): void
     {
-        $settings = ['description' => 'Custom {percent}% text', 'tiers' => '{"USD":[{"above":0,"percent":5}]}', 'dry_run' => ''];
-        $repo = new ArrayRepository(['settings' => $settings]);
-        self::assertSame([], Schema::upgradeStatements('0.2.1'));
-        self::assertSame([], Upgrade::run($repo, '0.2.1'));
-        self::assertSame([], $repo->executed);
-        self::assertSame($settings, $repo->settings);
+        self::assertStringContainsString('KEY idx_client (client_id)', Schema::createStatements()[2]);
     }
 
     public function testAnUnknownVersionChangesNothing(): void

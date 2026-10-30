@@ -118,6 +118,12 @@ interface Repository
     /** @param array<string,string> $settings setting => value; each key is updated or inserted, other keys are untouched */
     public function saveSettings(array $settings): void;
 
+    /** @param list<string> $keys setting rows to remove; a key with no row is ignored */
+    public function deleteSettings(array $keys): void;
+
+    /** Whether the table has an index of that name (the upgrade adds an index only once; MySQL has no ADD INDEX IF NOT EXISTS). */
+    public function hasIndex(string $table, string $index): bool;
+
     /** @return int how many distinct invoices the module log has an entry for */
     public function invoicesChecked(): int;
 

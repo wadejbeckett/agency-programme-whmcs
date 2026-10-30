@@ -10,7 +10,7 @@ namespace AgencyDiscount;
 final class Module
 {
     public const NAME = 'agencydiscount';
-    public const VERSION = '0.2.2';
+    public const VERSION = '0.3.0';
 
     public function __construct(
         public readonly Repository $repo,
