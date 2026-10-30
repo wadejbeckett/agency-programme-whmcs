@@ -32,14 +32,17 @@ final class AgencyTabTest extends TestCase
         $this->repo->agencies[131]['note'] = 'Partner <since> 2024';
         $this->repo->agencies[131]['calculatedAt'] = '2026-10-12 03:00:00';
         // records: applied this year, a dry run, a cancelled invoice, a line removed by hand, a deleted invoice, last year's
-        $record = ['line' => 0, 'taxed' => false, 'clientId' => 131, 'itemId' => 1, 'tierIndex' => 1, 'percent' => '5.00', 'base' => '850.00', 'amount' => '42.50', 'dryRun' => false, 'createdAt' => '2026-03-25 10:00:00'];
-        $this->repo->saveInvoiceRecord(['invoiceId' => 1] + $record);
-        $this->repo->saveInvoiceRecord(['invoiceId' => 2, 'amount' => '10.00', 'dryRun' => true, 'itemId' => null, 'createdAt' => '2026-04-01 10:00:00'] + $record);
-        $this->repo->saveInvoiceRecord(['invoiceId' => 3, 'amount' => '20.00', 'createdAt' => '2026-05-01 10:00:00'] + $record);
-        $this->repo->saveInvoiceRecord(['invoiceId' => 4, 'amount' => '30.00', 'createdAt' => '2026-06-01 10:00:00'] + $record);
-        $this->repo->saveInvoiceRecord(['invoiceId' => 5, 'amount' => '40.00', 'createdAt' => '2026-07-01 10:00:00'] + $record);
-        $this->repo->saveInvoiceRecord(['invoiceId' => 6, 'amount' => '99.00', 'taxed' => true, 'tierIndex' => 2, 'percent' => '10.00', 'createdAt' => '2025-12-25 10:00:00'] + $record);
-        $this->repo->saveInvoiceRecord(['invoiceId' => 6, 'line' => 1, 'amount' => '1.00', 'createdAt' => '2025-12-25 10:00:00'] + $record);
+        // two lines, an old placeholder without a line, and one dated next year (the total has no upper bound, so it counts)
+        $record = ['line' => 0, 'taxed' => false, 'clientId' => 131, 'tierIndex' => 1, 'percent' => '5.00', 'base' => '850.00', 'amount' => '42.50', 'dryRun' => false, 'createdAt' => '2026-03-25 10:00:00'];
+        $this->repo->saveInvoiceRecord(['invoiceId' => 1, 'itemId' => 11] + $record);
+        $this->repo->saveInvoiceRecord(['invoiceId' => 2, 'itemId' => null, 'amount' => '10.00', 'dryRun' => true, 'createdAt' => '2026-04-01 10:00:00'] + $record);
+        $this->repo->saveInvoiceRecord(['invoiceId' => 3, 'itemId' => 31, 'amount' => '20.00', 'createdAt' => '2026-05-01 10:00:00'] + $record);
+        $this->repo->saveInvoiceRecord(['invoiceId' => 4, 'itemId' => 41, 'amount' => '30.00', 'createdAt' => '2026-06-01 10:00:00'] + $record);
+        $this->repo->saveInvoiceRecord(['invoiceId' => 5, 'itemId' => 51, 'amount' => '40.00', 'createdAt' => '2026-07-01 10:00:00'] + $record);
+        $this->repo->saveInvoiceRecord(['invoiceId' => 6, 'itemId' => 61, 'amount' => '99.00', 'taxed' => true, 'tierIndex' => 2, 'percent' => '10.00', 'createdAt' => '2025-12-25 10:00:00'] + $record);
+        $this->repo->saveInvoiceRecord(['invoiceId' => 6, 'line' => 1, 'itemId' => 62, 'amount' => '1.00', 'createdAt' => '2025-12-25 10:00:00'] + $record);
+        $this->repo->saveInvoiceRecord(['invoiceId' => 7, 'itemId' => null, 'amount' => '0.00', 'createdAt' => '2026-08-01 10:00:00'] + $record);
+        $this->repo->saveInvoiceRecord(['invoiceId' => 8, 'itemId' => 81, 'amount' => '7.00', 'createdAt' => '2027-01-01 10:00:00'] + $record);
         Fixtures::withDiscountLines($this->repo);
         $this->repo->invoices[3]['status'] = 'Cancelled';
         $this->repo->invoiceItems[4] = [];
@@ -80,11 +83,14 @@ final class AgencyTabTest extends TestCase
         self::assertStringNotContainsString('e.example', $html, 'a service outside the counted groups is not listed');
         self::assertStringContainsString('<h4>Upcoming invoices (next 35 days)</h4>', $html);
         self::assertStringContainsString('<td>2026-10-25</td><td>5</td><td>ZAR 850.00</td><td>ZAR 42.50</td>', $html);
-        // records, newest first, with their state, and the year total from the client area's query
-        self::assertStringContainsString('Saved in 2026: ZAR 42.50.', $html);
+        // records, newest first, with their state, and the year total from the client area's query (42.50 + the 2027 record's 7.00)
+        self::assertStringContainsString('Saved in 2026: ZAR 49.50.', $html);
         self::assertSame(1, preg_match('#<h4>Discounts applied</h4>.*?<tbody>(.*?)</tbody>#s', $html, $m));
         preg_match_all('#<tr><td><a href="invoices.php\?action=edit&amp;id=(\d+)">#', $m[1], $ids);
-        self::assertSame(['5', '4', '3', '2', '1', '6', '6'], $ids[1]);
+        self::assertSame(['8', '7', '5', '4', '3', '2', '1', '6', '6'], $ids[1]);
+        self::assertStringContainsString('id=8">8</a></td><td>2027-01-01</td><td>1</td><td>5%</td><td>ZAR 850.00</td><td>ZAR 7.00</td><td>no</td><td><span class="label label-success">counted</span></td>', $html, 'a future-dated record counts, as it does in the total');
+        self::assertStringContainsString('id=7">7</a></td><td>2026-08-01</td><td>1</td><td>5%</td><td>ZAR 850.00</td><td>ZAR 0.00</td><td>no</td><td><span class="label label-default">no discount line</span></td>', $html);
+        self::assertSame(2, substr_count($m[1], '>counted</span>'), 'the marks and the total agree: 42.50 + 7.00');
         self::assertStringContainsString('id=5">5</a></td><td>2026-07-01</td><td>1</td><td>5%</td><td>ZAR 850.00</td><td>ZAR 40.00</td><td>no</td><td><span class="label label-default">invoice deleted</span></td>', $html);
         self::assertStringContainsString('id=4">4</a></td><td>2026-06-01</td><td>1</td><td>5%</td><td>ZAR 850.00</td><td>ZAR 30.00</td><td>no</td><td><span class="label label-default">line removed</span></td>', $html);
         self::assertStringContainsString('id=3">3</a></td><td>2026-05-01</td><td>1</td><td>5%</td><td>ZAR 850.00</td><td>ZAR 20.00</td><td>no</td><td><span class="label label-default">invoice Cancelled</span></td>', $html);
@@ -114,8 +120,21 @@ final class AgencyTabTest extends TestCase
         self::assertStringContainsString('<td><span class="text-muted">no note</span></td>', $html);
         self::assertStringContainsString('<th class="agencydiscount-detail-label">Figures recalculated</th><td>never</td>', $html);
         self::assertStringContainsString('Saved in 2026: EUR 0.00.', $html);
-        self::assertStringContainsString('No invoice has been checked for this agency yet.', $html);
+        self::assertStringContainsString('No discount has been recorded for this agency yet.', $html);
+        self::assertStringContainsString('<td>2026-10-20</td><td>1</td><td>EUR 300.00</td><td><span class="text-muted">no tiers for EUR</span></td>', $html, 'no discount because of the tiers, not the start date');
         self::assertStringContainsString('<h4>Counted add-ons</h4><p class="text-muted">None.</p>', $html);
+    }
+
+    public function testApprovalWithoutARecordedAdminOrTime(): void
+    {
+        $this->repo->agencies[131]['approvedAt'] = null;
+        $this->repo->agencies[131]['approvedBy'] = '';
+        self::assertStringContainsString('<th class="agencydiscount-detail-label">Approved</th><td><span class="text-muted">not recorded</span></td>', $this->render(131));
+        $this->repo->agencies[131]['approvedBy'] = 'import';
+        self::assertStringContainsString('<th class="agencydiscount-detail-label">Approved</th><td>import</td>', $this->render(131));
+        $this->repo->agencies[131]['approvedAt'] = '2026-10-01 00:00:00';
+        $this->repo->agencies[131]['approvedBy'] = '';
+        self::assertStringContainsString('<td>Approved by admin on 2026-10-01</td>', $this->render(131));
     }
 
     public function testUnknownClientAndNotAnAgency(): void
@@ -144,7 +163,8 @@ final class AgencyTabTest extends TestCase
         self::assertGreaterThan(40, count($keys));
         $source = (string) file_get_contents(dirname(__DIR__, 2) . '/modules/addons/agencydiscount/lib/Admin/AgencyTab.php');
         preg_match_all("/Page::lang\\('([a-z_]+)'\\)/", $source, $m);
-        self::assertSame([], array_diff(array_unique($m[1]), array_merge($keys, ['col_tier', 'col_spend', 'col_to_next', 'profile_approved_by', 'profile_note', 'never', 'next_invoice_none'])), 'every key the view uses exists');
+        self::assertSame([], array_diff(array_unique($m[1]), array_merge($keys, ['col_tier', 'col_spend', 'col_to_next', 'profile_approved_by', 'profile_note', 'never', 'next_invoice_none', 'no_tiers_for'])), 'every key the view uses exists');
+        self::assertSame([], array_diff(['agency_no_date', 'agency_approved_unknown', 'agency_state_no_line'], $keys));
         self::assertDoesNotMatchRegularExpression("/'<h4>[A-Z]/", $source, 'no hard-coded heading');
     }
 }

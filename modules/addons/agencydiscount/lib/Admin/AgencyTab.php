@@ -51,9 +51,11 @@ final class AgencyTab
         $report = $status->report;
         $agency = $status->agency;
         $currency = $report->currency;
-        $approved = $agency['approvedAt'] === null
-            ? Html::e($agency['approvedBy'])
-            : Html::e(sprintf(Page::lang('profile_approved_by'), $agency['approvedBy'], substr($agency['approvedAt'], 0, 10)));
+        $approved = match (true) {
+            $agency['approvedAt'] !== null => Html::e(sprintf(Page::lang('profile_approved_by'), $agency['approvedBy'] === '' ? 'admin' : $agency['approvedBy'], substr($agency['approvedAt'], 0, 10))),
+            $agency['approvedBy'] !== '' => Html::e($agency['approvedBy']),
+            default => '<span class="text-muted">' . Html::e(Page::lang('agency_approved_unknown')) . '</span>',
+        };
         $rows = [
             [Page::lang('col_tier'), OverviewTab::tierBadge($status) . ' <span class="text-muted">' . Page::startsCell($status) . '</span>'],
             [Page::lang('col_spend'), Html::e(Html::money($currency, $report->monthlySpend)) . ' <span class="text-muted">(' . Html::e($report->countedItems() === 1 ? Page::lang('agency_counted_item') : sprintf(Page::lang('agency_counted_items'), $report->countedItems())) . ')</span>'],
@@ -89,7 +91,7 @@ final class AgencyTab
                 Html::e($service['billingCycle']),
                 Html::e(Html::money($currency, $service['amount'])),
                 Html::e(Html::money($currency, $service['monthly'])),
-                Html::e($service['nextInvoiceDate'] ?? Page::lang('never')),
+                Html::e($service['nextInvoiceDate'] ?? Page::lang('agency_no_date')),
                 Html::e(Page::lang($service['promoId'] !== 0 ? 'agency_yes' : 'agency_no')),
             ]);
         }
@@ -116,7 +118,7 @@ final class AgencyTab
                 Html::e($addon['billingCycle']),
                 Html::e(Html::money($currency, $addon['amount'])),
                 Html::e(Html::money($currency, $addon['monthly'])),
-                Html::e($addon['nextInvoiceDate'] ?? Page::lang('never')),
+                Html::e($addon['nextInvoiceDate'] ?? Page::lang('agency_no_date')),
             ]);
         }
         return $html . self::table(['agency_col_domain', 'agency_col_addon', 'agency_col_cycle', 'agency_col_amount', 'agency_col_monthly', 'agency_col_next_invoice'], $rows);
@@ -135,9 +137,11 @@ final class AgencyTab
                 Html::e($row['date']),
                 (string) $row['items'],
                 Html::e(Html::money($currency, $row['base'])),
-                $row['percent'] === null
-                    ? '<span class="text-muted">' . Html::e(Page::lang('agency_not_yet')) . '</span>'
-                    : Html::e(Html::money($currency, $row['discount'])),
+                match (true) {
+                    $row['percent'] !== null => Html::e(Html::money($currency, $row['discount'])),
+                    !$status->report->currencyHasTiers => '<span class="text-muted">' . Html::e(sprintf(Page::lang('no_tiers_for'), $currency)) . '</span>',
+                    default => '<span class="text-muted">' . Html::e(Page::lang('agency_not_yet')) . '</span>',
+                },
             ]);
         }
         return $html . self::table(['agency_col_date', 'agency_col_items', 'agency_col_base', 'agency_col_discount'], $rows)
@@ -146,8 +150,10 @@ final class AgencyTab
 
     /**
      * The discount records newest first, each marked when it is left out of the year's total: a dry
-     * run, an invoice that is Cancelled or Refunded or gone, a discount line removed by hand, or an
-     * earlier year. The total is the client area's query, so the two figures always agree.
+     * run, a record without a discount line (an old placeholder), an invoice that is Cancelled or
+     * Refunded or gone, a discount line removed by hand, or a record from before this year. The
+     * total is the client area's query (applied, line present, invoice live, created on or after
+     * 1 January), so the marks and the figure agree, a future-dated record included.
      */
     private function records(AgencyStatus $status): string
     {
@@ -177,25 +183,38 @@ final class AgencyTab
         return $html . self::table(['agency_col_invoice', 'agency_col_date', 'agency_col_tier', 'agency_col_percent', 'agency_col_base', 'agency_col_discount', 'agency_col_taxed', 'agency_col_state'], $rows);
     }
 
+    /**
+     * Why a record is in or out of the year's total, mirroring Sql::APPLIED_DISCOUNT_TOTAL clause by
+     * clause: "counted", or the first reason it is left out ("dry_run", "no_line", "invoice_gone",
+     * "invoice_status", "line_removed", "earlier_year"). Public so the sandbox test can check it
+     * against the real query.
+     *
+     * @param ClientRecordRow $record
+     */
+    public static function state(array $record, int $year): string
+    {
+        return match (true) {
+            $record['dryRun'] => 'dry_run',
+            $record['itemId'] === null => 'no_line',
+            $record['invoiceStatus'] === null => 'invoice_gone',
+            in_array($record['invoiceStatus'], ['Cancelled', 'Refunded'], true) => 'invoice_status',
+            !$record['lineOnInvoice'] => 'line_removed',
+            (int) substr($record['createdAt'], 0, 4) < $year => 'earlier_year',
+            default => 'counted',
+        };
+    }
+
     /** @param ClientRecordRow $record */
     private static function recordState(array $record, int $year): string
     {
-        if ($record['dryRun']) {
-            return '<span class="label label-warning">' . Html::e(Page::lang('agency_state_dry_run')) . '</span>';
-        }
-        if ($record['invoiceStatus'] === null) {
-            return '<span class="label label-default">' . Html::e(Page::lang('agency_state_invoice_gone')) . '</span>';
-        }
-        if (in_array($record['invoiceStatus'], ['Cancelled', 'Refunded'], true)) {
-            return '<span class="label label-default">' . Html::e(sprintf(Page::lang('agency_state_invoice_status'), $record['invoiceStatus'])) . '</span>';
-        }
-        if (!$record['lineOnInvoice']) {
-            return '<span class="label label-default">' . Html::e(Page::lang('agency_state_line_removed')) . '</span>';
-        }
-        if ((int) substr($record['createdAt'], 0, 4) !== $year) {
-            return '<span class="text-muted">' . Html::e(sprintf(Page::lang('agency_state_earlier_year'), substr($record['createdAt'], 0, 4))) . '</span>';
-        }
-        return '<span class="label label-success">' . Html::e(Page::lang('agency_state_counted')) . '</span>';
+        $state = self::state($record, $year);
+        return match ($state) {
+            'counted' => '<span class="label label-success">' . Html::e(Page::lang('agency_state_counted')) . '</span>',
+            'dry_run' => '<span class="label label-warning">' . Html::e(Page::lang('agency_state_dry_run')) . '</span>',
+            'invoice_status' => '<span class="label label-default">' . Html::e(sprintf(Page::lang('agency_state_invoice_status'), (string) $record['invoiceStatus'])) . '</span>',
+            'earlier_year' => '<span class="text-muted">' . Html::e(sprintf(Page::lang('agency_state_earlier_year'), substr($record['createdAt'], 0, 4))) . '</span>',
+            default => '<span class="label label-default">' . Html::e(Page::lang('agency_state_' . $state)) . '</span>',
+        };
     }
 
     private function footer(string $moduleLink, AgencyStatus $status): string
