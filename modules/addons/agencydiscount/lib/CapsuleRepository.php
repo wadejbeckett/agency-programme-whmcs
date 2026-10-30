@@ -468,9 +468,38 @@ final class CapsuleRepository implements Repository
         return self::money($row?->total);
     }
 
+    /** The savepoint the work runs under inside a transaction WHMCS opened outside Laravel's counter; a name Laravel's own "trans<n>" savepoints cannot clash with. */
+    private const SAVEPOINT = 'agencydiscount_work';
+
+    /**
+     * Runs $work in a transaction on WHMCS's connection. When the hook is called while WHMCS already
+     * holds a transaction, Laravel's counter normally knows it and nests the work as a savepoint;
+     * but a transaction opened straight on the PDO handle (outside Laravel's counter) would make
+     * beginTransaction() fail with "There is already an active transaction" and the invoice would
+     * go undiscounted. In that case the work runs under its own savepoint inside the outer
+     * transaction: released on success, rolled back to on a throw, so the module's writes are all
+     * or nothing either way; the outer transaction stays WHMCS's to commit or roll back.
+     */
     public function transaction(callable $work): mixed
     {
-        return Capsule::connection()->transaction(static fn () => $work());
+        $connection = Capsule::connection();
+        if ($connection->transactionLevel() > 0 || !$connection->getPdo()->inTransaction()) {
+            return $connection->transaction(static fn () => $work());
+        }
+        $pdo = $connection->getPdo();
+        $pdo->exec('SAVEPOINT ' . self::SAVEPOINT);
+        try {
+            $result = $work();
+        } catch (\Throwable $e) {
+            try {
+                $pdo->exec('ROLLBACK TO SAVEPOINT ' . self::SAVEPOINT);
+            } catch (\Throwable) {
+                // The outer transaction may already be gone (a deadlock discards it): the original error is what matters.
+            }
+            throw $e;
+        }
+        $pdo->exec('RELEASE SAVEPOINT ' . self::SAVEPOINT);
+        return $result;
     }
 
     public function execute(string $sql): void

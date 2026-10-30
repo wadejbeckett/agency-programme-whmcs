@@ -460,6 +460,43 @@ final class SandboxTest extends TestCase
         self::assertSame(0, Manager::table('tblinvoiceitems')->where('invoiceid', $rolledBack)->count());
         self::assertSame('done', $repo->transaction(static fn (): string => 'done'));
 
+        // i4b'. a transaction WHMCS opened straight on the PDO handle (outside Laravel's counter): the module's work
+        //       runs under its own savepoint inside it instead of failing with "There is already an active transaction";
+        //       it commits with the outer transaction, and a throw rolls back only the module's writes
+        $pdo = Manager::connection()->getPdo();
+        self::assertSame(0, Manager::connection()->transactionLevel());
+        $pdo->beginTransaction();
+        $result = null;
+        try {
+            $result = $repo->transaction(static function () use ($repo, $other): string {
+                $repo->log(['clientId' => $other, 'invoiceId' => null, 'event' => 'note_changed', 'detail' => ['to' => 'inside an outer PDO transaction'], 'actor' => 'sandbox-outer', 'createdAt' => date('Y-m-d H:i:s')]);
+                return 'ran';
+            });
+        } finally {
+            $pdo->commit();
+        }
+        self::assertSame('ran', $result);
+        self::assertSame('inside an outer PDO transaction', $repo->logEntries($other, 1)[0]['detail']['to'] ?? null);
+        Manager::table('mod_agencydiscount_log')->where('client_id', $other)->where('actor', 'sandbox-outer')->delete();
+        self::assertFalse($pdo->inTransaction());
+        // the failure path: the throw inside the outer transaction leaves none of the module's writes behind, even though WHMCS commits
+        $pdo->beginTransaction();
+        try {
+            try {
+                $repo->transaction(static function () use ($repo, $other): void {
+                    $repo->log(['clientId' => $other, 'invoiceId' => null, 'event' => 'note_changed', 'detail' => ['to' => 'half done'], 'actor' => 'sandbox-outer', 'createdAt' => date('Y-m-d H:i:s')]);
+                    throw new \RuntimeException('second write failed');
+                });
+                self::fail('expected the throw to propagate');
+            } catch (\RuntimeException $e) {
+                self::assertSame('second write failed', $e->getMessage());
+            }
+        } finally {
+            $pdo->commit();
+        }
+        self::assertSame(0, Manager::table('mod_agencydiscount_log')->where('client_id', $other)->where('actor', 'sandbox-outer')->count(), 'rolled back to the savepoint before WHMCS committed');
+        self::assertFalse($pdo->inTransaction());
+
         // i4c. saveCalculation writes the computed columns only
         $before = $repo->agency($clientId);
         self::assertNotNull($before);
