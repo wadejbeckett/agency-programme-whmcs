@@ -221,8 +221,8 @@ final class SettingsTabTest extends TestCase
             'delete_data' => '',
             'activity_log' => 'on',
             'stack_with_promotions' => '',
-            'access' => '1,2', // WHMCS's own access list is not the tab's to write
             'new_orders' => 'on',
+            'access' => '1,2', // WHMCS's own access list is not the tab's to write
         ], $this->repo->settings);
 
         $log = $this->repo->logEntries(null, 1)[0];
@@ -263,6 +263,39 @@ final class SettingsTabTest extends TestCase
         $post['products'] = ['777'];
         $html = $this->render(['action' => 'settings_save'] + $post, $this->page());
         self::assertStringContainsString('No changes to save.</div><div class="alert alert-warning"><p>Worth a look (the discount runs without these):</p><ul><li>Product ids not found in WHMCS: 777.</li></ul></div>', $html);
+    }
+
+    public function testOneSaveStoresEveryEngineRowOnAFreshInstall(): void
+    {
+        // what a fresh install stores: the Configure form's housekeeping rows only (dry_run is written by activation, but not here)
+        $this->repo->settings = ['activity_log' => '', 'log_retention_months' => '24', 'delete_data' => 'on', 'access' => '1'];
+        $page = $this->page();
+        $html = $this->render(['action' => 'settings_save'] + self::validPost(), $page);
+        self::assertStringContainsString('Settings saved. Changed: tiers, product_groups, products, addons, statuses, new_orders, stack_with_promotions, description, dry_run.', $html);
+        self::assertSame('on', $this->repo->settings['dry_run'], 'the mode row is stored with its current value (dry-run, the default)');
+        self::assertSame([], Config::fromSettings($this->repo->settings)->missingKeys);
+        self::assertSame('on', $this->repo->settings['delete_data'], 'housekeeping rows are untouched');
+        self::assertSame(['from' => null, 'to' => 'on'], $this->repo->logEntries(null, 1)[0]['detail']['changed']['dry_run']);
+        self::assertStringContainsString('<span class="label label-warning">Dry-run</span>', $html);
+
+        // the Config the rest of the request runs on carries the stored housekeeping flags
+        $this->repo->settings = ['activity_log' => '', 'delete_data' => 'on'] + Fixtures::settings();
+        $config = SettingsForm::fromPost(self::validPost())->validate(false, $this->repo->settings);
+        self::assertFalse($config->activityLog);
+        self::assertTrue($config->deleteData);
+    }
+
+    public function testASaveOfTheDefaultsStillWritesARowThatIsMissing(): void
+    {
+        $settings = Fixtures::settings();
+        unset($settings['products'], $settings['addons']);
+        $this->repo->settings = $settings;
+        $post = self::validPost();
+        $post['addons'] = [];
+        $html = $this->render(['action' => 'settings_save'] + $post, $this->page());
+        self::assertStringContainsString('Settings saved. Changed: products, addons.', $html);
+        self::assertSame(['products' => '', 'addons' => ''], array_intersect_key($this->repo->settings, ['products' => 1, 'addons' => 1]));
+        self::assertSame([], Config::fromSettings($this->repo->settings)->missingKeys);
     }
 
     public function testSavingTheSameValuesWritesAndLogsNothing(): void

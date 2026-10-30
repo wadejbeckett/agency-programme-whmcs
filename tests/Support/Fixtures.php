@@ -113,6 +113,7 @@ final class Fixtures
             'delete_data' => '',
             'activity_log' => 'on',
             'stack_with_promotions' => '',
+            'new_orders' => 'on',
             // WHMCS's own addon access list: role ids the addon is open to
             'access' => '1,2',
         ];

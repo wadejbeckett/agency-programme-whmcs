@@ -54,7 +54,12 @@ function agencydiscount_config(): array
 function agencydiscount_activate(): array
 {
     try {
-        Schema::install(new CapsuleRepository());
+        $repo = new CapsuleRepository();
+        Schema::install($repo);
+        if (!isset($repo->settings()['dry_run'])) {
+            // The mode row is the Settings tab's; stored here so a fresh install starts in dry-run by a stored value, not a default.
+            $repo->saveSettings(['dry_run' => 'on']);
+        }
         return ['status' => 'success', 'description' => 'Agency Programme activated in dry-run mode. Set the tiers and qualifying items under Addons > Agency Programme > Settings, approve agencies on their client profiles, then switch to live there.'];
     } catch (\Throwable $e) {
         return ['status' => 'error', 'description' => 'Agency Programme could not create its tables: ' . $e->getMessage()];

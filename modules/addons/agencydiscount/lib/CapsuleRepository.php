@@ -35,8 +35,8 @@ final class CapsuleRepository implements Repository
     }
 
     /**
-     * Stored HTML-encoded, exactly as WHMCS stores the values of its own Configure form, so the two
-     * routes stay interchangeable and settings() decodes both the same way.
+     * Stored HTML-encoded, exactly as WHMCS stores the values of its own Configure form, so
+     * settings() decodes the rows written here and the rows WHMCS writes the same way.
      */
     public function saveSettings(array $settings): void
     {

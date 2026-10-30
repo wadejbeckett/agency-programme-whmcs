@@ -216,13 +216,17 @@ final class SettingsForm
     }
 
     /**
-     * Validates the form as the module would read it; dry_run is the mode card's and is passed in.
+     * Validates the form as the module would read it; dry_run is the mode card's and is passed in,
+     * and the stored settings supply the housekeeping keys (the Configure form's), so the Config a
+     * save or a mode switch runs the rest of the request on carries the stored activity-log and
+     * delete-data flags.
      *
+     * @param array<string, mixed> $stored the stored settings
      * @throws ConfigException listing every problem
      */
-    public function validate(bool $dryRun): Config
+    public function validate(bool $dryRun, array $stored = []): Config
     {
-        return Config::fromSettings($this->toSettings() + ['dry_run' => $dryRun ? 'on' : '']);
+        return Config::fromSettings($this->toSettings() + ['dry_run' => $dryRun ? 'on' : ''] + $stored);
     }
 
     /**

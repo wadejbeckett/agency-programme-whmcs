@@ -103,7 +103,7 @@ final class SettingsTab
         } elseif ($action === self::ACTION_PREVIEW || $action === self::ACTION_SAVE) {
             $form = SettingsForm::fromPost($post);
             try {
-                $config = $form->validate($this->dryRun);
+                $config = $form->validate($this->dryRun, $this->repo->settings());
                 if ($action === self::ACTION_SAVE) {
                     $notice = $this->save($form, $config, $actor);
                     $form = null;
@@ -146,24 +146,31 @@ final class SettingsTab
         $this->activity->log('Agency Discount: switched to ' . ($dryRun ? 'dry-run' : 'live') . ' mode');
         $this->dryRun = $dryRun;
         if ($this->module !== null) {
-            $this->module = new Module($this->repo, SettingsForm::fromConfig($this->module->config)->validate($dryRun), $this->clock, $this->activity);
+            $this->module = new Module($this->repo, SettingsForm::fromConfig($this->module->config)->validate($dryRun, $this->repo->settings()), $this->clock, $this->activity);
         }
         return self::alert('success', sprintf(Page::lang('mode_switched'), $label));
     }
 
     /**
      * Writes the form's keys when any differs from what is stored, and logs the keys that changed.
-     * A repair (the stored settings did not parse) is always written, so the stored values are valid from here on.
+     * A key with no stored row counts as changed even when the form holds its default, and the mode
+     * row is written alongside when it is absent, so one save stores every engine row (a fresh
+     * install, a row removed by hand) and the "no stored value" notices clear. A repair (the stored
+     * settings did not parse) is always written, so the stored values are valid from here on.
      */
     private function save(SettingsForm $form, Config $config, string $actor): string
     {
         $settings = $form->toSettings();
         $settings['tiers'] = $config->tiers->toJson();
-        $current = $this->repo->settings() + Config::defaults();
+        $stored = $this->repo->settings();
+        if (!isset($stored['dry_run'])) {
+            $settings['dry_run'] = $this->dryRun ? 'on' : '';
+        }
+        $current = $stored + Config::defaults();
         $changed = [];
         foreach ($settings as $key => $value) {
-            if (($current[$key] ?? '') !== $value) {
-                $changed[$key] = ['from' => $current[$key] ?? '', 'to' => $value];
+            if (!isset($stored[$key]) || ($current[$key] ?? '') !== $value) {
+                $changed[$key] = ['from' => $stored[$key] ?? null, 'to' => $value];
             }
         }
         if ($changed === [] && $this->module !== null) {
