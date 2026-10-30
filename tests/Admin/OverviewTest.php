@@ -186,6 +186,20 @@ final class OverviewTest extends TestCase
         self::assertStringNotContainsString('Nothing needs attention', $html);
     }
 
+    public function testNeedsAttentionListsWhatWhmcsDoesNotHave(): void
+    {
+        $html = $this->render([], ['product_groups' => '23,999', 'products' => '113,777,778', 'addons' => '12,888', 'tiers' => '{"ZAR":[{"above":1000,"percent":5}],"USD":[{"above":0,"percent":5}]}']);
+        $link = 'href="addonmodules.php?module=agencydiscount&amp;action=settings"';
+        self::assertStringContainsString('<a class="list-group-item" ' . $link . '>Product group ids not found in WHMCS: 999.</a>', $html);
+        self::assertStringContainsString('<a class="list-group-item" ' . $link . '>Product ids not found in WHMCS: 777, 778.</a>', $html);
+        self::assertStringContainsString('<a class="list-group-item" ' . $link . '>Add-on ids not found in WHMCS: 888.</a>', $html);
+        self::assertStringContainsString('<a class="list-group-item" ' . $link . '>Tiers are configured for USD, which is not a WHMCS currency.</a>', $html);
+        self::assertStringContainsString('EUR has no tiers: 1 approved agency gets no discount.', $html);
+        $clean = $this->render([], ['products' => '113']);
+        self::assertStringNotContainsString('not found in WHMCS', $clean);
+        self::assertStringNotContainsString('not a WHMCS currency', $clean);
+    }
+
     public function testDryRunAgeFallsBackToTheFirstApproval(): void
     {
         $html = $this->render([], ['dry_run' => 'on']);

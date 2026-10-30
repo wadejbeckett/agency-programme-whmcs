@@ -66,8 +66,9 @@ final class Scenarios
     }
 
     /**
-     * live: the six-agency install. edge: dry-run, a start date, a currency without tiers.
-     * long: twenty agencies, to see the list scroll. empty: no agencies.
+     * live: the six-agency install. edge: dry-run, a start date, a currency without tiers, a
+     * product id and a tier currency WHMCS does not have. long: twenty agencies, to see the list
+     * scroll. empty: no agencies.
      */
     public static function module(string $scenario): Module
     {
@@ -93,7 +94,11 @@ final class Scenarios
             'groups' => [23 => 'Premium Shared'],
             'products' => [113 => ['gid' => 23, 'name' => 'sPremium-1']],
             'admins' => [1 => 1, 2 => 3],
-            'settings' => $scenario === 'broken' ? self::brokenSettings() : self::settings($scenario === 'edge'),
+            'settings' => match ($scenario) {
+                'broken' => self::brokenSettings(),
+                'edge' => ['products' => '777', 'tiers' => '{"ZAR":[{"above":0,"percent":5},{"above":5000,"percent":10}],"USD":[{"above":0,"percent":5}]}'] + self::settings(true),
+                default => self::settings(false),
+            },
         ]);
         $spends = match ($scenario) {
             'empty' => [],

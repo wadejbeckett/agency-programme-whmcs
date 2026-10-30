@@ -6,7 +6,7 @@ What it renders, for each theme found:
 
 - `<prefix>-dashboard-<theme>.html`: the home widget with live-shaped data (six ZAR agencies), between stand-ins built from the markup of WHMCS's own Billing and Support widgets (`modules/widgets/` in a WHMCS install, shipped unencoded; the module's widget follows the Support widget's pattern), inside the dashboard's widget frame from `homepage.tpl`.
 - `<prefix>-states-<theme>.html`: the widget in every state: `live`, `edge` (dry-run, an agency with a start date, a currency without tiers), `long` (twenty agencies), `empty`, `denied` and `unavailable`.
-- `<prefix>-overview-<theme>.html` and `<prefix>-settings-<theme>.html`: the addon page's Overview and Settings tabs.
+- `<prefix>-overview-<theme>.html` and `<prefix>-settings-<theme>.html`: the addon page's Overview and Settings tabs, from the `edge` scenario plus a product id and a tier currency WHMCS does not have, so the attention panel and the Settings flags show them.
 - `<prefix>-overview-broken-<theme>.html` and `<prefix>-settings-broken-<theme>.html`: the repair page, when the stored settings do not parse (a tier threshold and a product group id that are not numbers): the banner alone on the Overview, and the Settings tab filled from the stored values with the problems beside their sections.
 - `<prefix>-clientsummary-<theme>.html`: the client summary card, for an agency at a tier and one waiting for its start date.
 

@@ -70,7 +70,8 @@ final class SettingsTabTest extends TestCase
         $html = $this->render();
 
         // nav: Settings sits between Overview and Change log
-        self::assertMatchesRegularExpression('#>Overview</a>.*>Settings</a>.*>Change log</a>.*>Configuration check</a>#s', $html);
+        self::assertMatchesRegularExpression('#>Overview</a>.*>Settings</a>.*>Change log</a></li></ul>#s', $html);
+        self::assertStringNotContainsString('Configuration check', $html);
         self::assertStringContainsString('<li class="active"><a href="addonmodules.php?module=agencydiscount&amp;action=settings">Settings</a></li>', $html);
 
         // mode card: live, with the switch posting action=mode
@@ -245,6 +246,26 @@ final class SettingsTabTest extends TestCase
         self::assertSame([161], $config->productIds);
         self::assertTrue($config->deleteData);
         self::assertFalse($config->activityLog);
+    }
+
+    public function testSaveWarnsAboutWhatWhmcsDoesNotHave(): void
+    {
+        $post = self::validPost();
+        $post['product_groups'] = ['23', '999'];
+        $post['addons'] = ['12', '888'];
+        $post['tiers']['USD'] = [['above' => '0', 'percent' => '5']];
+        $html = $this->render(['action' => 'settings_save'] + $post);
+        self::assertStringContainsString('Settings saved. Changed: tiers, product_groups, addons.</div><div class="alert alert-warning"><p>Worth a look (the discount runs without these):</p><ul><li>Product group ids not found in WHMCS: 999.</li><li>Add-on ids not found in WHMCS: 888.</li><li>Tiers are configured for USD, which is not a WHMCS currency.</li></ul></div>', $html);
+        self::assertSame('23,999', $this->repo->settings['product_groups'], 'a warning does not stop the save');
+        self::assertStringContainsString('name="product_groups[]" value="999" checked> #999 <span class="text-muted">(not found in WHMCS)</span>', $html);
+        self::assertStringContainsString('data-agencydiscount-tab="USD">USD (not a WHMCS currency)</a>', $html);
+        self::assertStringNotContainsString('alert-warning', $this->render(['action' => 'settings_save'] + self::validPost() + ['description' => 'x {percent}']));
+        // a save that changes nothing still reports them
+        $this->repo->settings['products'] = '777';
+        $post = self::validPost();
+        $post['products'] = ['777'];
+        $html = $this->render(['action' => 'settings_save'] + $post, $this->page());
+        self::assertStringContainsString('No changes to save.</div><div class="alert alert-warning"><p>Worth a look (the discount runs without these):</p><ul><li>Product ids not found in WHMCS: 777.</li></ul></div>', $html);
     }
 
     public function testSavingTheSameValuesWritesAndLogsNothing(): void

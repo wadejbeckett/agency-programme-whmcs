@@ -289,6 +289,9 @@ final class OverviewTab
             };
             $items[] = [$text, Html::link($moduleLink, ['action' => 'settings'])];
         }
+        foreach (ConfigWarnings::texts($this->module->repo, $this->module->config) as $text) {
+            $items[] = [$text, Html::link($moduleLink, ['action' => 'settings'])];
+        }
 
         $withoutTiers = [];
         foreach ($statuses as $status) {

@@ -21,7 +21,7 @@ The numeric ids are placeholders:
 | `products` | 10, 11 | Individual products outside those groups that count |
 | `addons` | 3, 4 | Product add-ons that count |
 
-Ids differ on every WHMCS installation. Before using the profile, replace every id with the ones from that installation (System Settings > Products/Services shows them), add one tiers entry per currency in use, then open the addon's Configuration check page to confirm each id resolves to the intended group, product or add-on.
+Ids differ on every WHMCS installation. Before using the profile, replace every id with the ones from that installation (System Settings > Products/Services shows them), add one tiers entry per currency in use, then open the addon's Settings tab: each configured id is shown ticked with its name, and an id WHMCS does not have is flagged "not found in WHMCS" there and on the Overview's "Needs attention" panel.
 
 `statuses` is `Active`: suspended, cancelled and terminated services do not count. `new_orders` is on, so an approved agency's new-order invoice is discounted too, at the tier its counted spend plus the order earns.
 
