@@ -145,6 +145,17 @@ final class CapsuleRepository implements Repository
         return $addons;
     }
 
+    public function refreshInvoiceTotals(int $invoiceId): bool
+    {
+        // The documented API call with no change recomputes the totals from the lines, as the admin's
+        // invoice save does; the function exists only inside WHMCS.
+        if (!function_exists('localAPI')) {
+            return false;
+        }
+        $result = localAPI('UpdateInvoice', ['invoiceid' => $invoiceId]);
+        return is_array($result) && ($result['result'] ?? null) === 'success';
+    }
+
     public function invoice(int $invoiceId): ?array
     {
         $row = self::select(Sql::INVOICE, [$invoiceId])[0] ?? null;

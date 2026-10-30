@@ -44,6 +44,13 @@ interface Repository
     /** @return int the new tblinvoiceitems id */
     public function addInvoiceItem(int $invoiceId, int $clientId, string $type, int $relId, string $description, string $amount, int $taxed, ?string $dueDate, string $paymentMethod): int;
 
+    /**
+     * Has WHMCS recompute an invoice's subtotal, tax and total from its lines (it does this itself
+     * after the InvoiceCreation hook; a line added outside that hook needs this call). False when
+     * WHMCS could not do it, so the caller can say so.
+     */
+    public function refreshInvoiceTotals(int $invoiceId): bool;
+
     /** @return AgencyRow|null */
     public function agency(int $clientId): ?array;
 

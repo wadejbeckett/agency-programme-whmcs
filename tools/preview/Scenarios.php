@@ -150,6 +150,7 @@ final class Scenarios
         $log('2026-10-25 03:00:00', 104, 90004, 'applied', ['amount' => '50.00', 'percent' => '5.00'], 'system');
         $log('2026-10-26 03:00:00', 101, 90005, 'applied', ['amount' => '1200.00', 'percent' => '10.00'], 'system');
         $log('2026-10-27 03:00:00', 101, 90006, 'applied', ['amount' => '1200.00', 'percent' => '10.00'], 'system');
+        $log('2026-10-27 03:00:01', 105, 90007, 'apply_failed', ['amount' => '25.00', 'percent' => '5.00', 'message' => 'SQLSTATE[HY000]: General error: 1205 Lock wait timeout exceeded', 'lineCount' => 1], 'system');
         // The records behind those entries, with the paid invoices and the discount lines still on them (so "Saved in <year>" counts them).
         // 90005 was cancelled afterwards and 90006 had its discount line removed by hand: shown on the detail page, left out of the total.
         foreach ([[90001, 101, 2, '10.00', '12000.00', '1200.00', true, '2026-10-03 03:00:00'], [90002, 102, 1, '5.00', '4000.00', '200.00', false, '2026-10-07 03:00:00'], [90003, 101, 2, '10.00', '12000.00', '1200.00', false, '2026-10-20 03:00:00'], [90004, 104, 1, '5.00', '1000.00', '50.00', false, '2026-10-25 03:00:00'], [90005, 101, 2, '10.00', '12000.00', '1200.00', false, '2026-10-26 03:00:00'], [90006, 101, 2, '10.00', '12000.00', '1200.00', false, '2026-10-27 03:00:00']] as [$invoice, $client, $tier, $percent, $base, $amount, $dryRun, $at]) {
@@ -162,6 +163,9 @@ final class Scenarios
             }
         }
         $repo->invoices[90005]['status'] = 'Cancelled';
+        // 90007: the discount failed (apply_failed above) and the invoice is still unpaid without a line: the Overview offers a Retry.
+        $repo->invoices[90007] = ['id' => 90007, 'clientId' => 105, 'status' => 'Unpaid', 'dueDate' => '2026-11-03', 'paymentMethod' => 'banktransfer'];
+        $repo->invoiceItems[90007] = [['id' => 900069, 'type' => 'Hosting', 'relId' => 1050, 'description' => 'sPremium-1 - site105.example', 'amount' => '500.00', 'taxed' => 0]];
     }
 
     private static function agency(ArrayRepository $repo, int $id, string $name, string $currency, int $currencyId, string $spend, string $nextInvoice): void

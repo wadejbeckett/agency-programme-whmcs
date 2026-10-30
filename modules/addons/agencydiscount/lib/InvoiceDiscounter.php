@@ -195,27 +195,20 @@ final class InvoiceDiscounter
             }
         }
         // Claim, discount lines and their records commit together: a failed insert rolls the claim back,
-        // so the invoice is not left with a placeholder record that blocks a later attempt.
-        $lines = $this->repo->transaction(function () use ($invoiceId, $clientId, $lines, $tier, $invoice, $now): ?array {
-            if (!$this->repo->claimInvoice($invoiceId, $clientId, $now)) {
-                return null;
+        // so the invoice is not left with a placeholder record that blocks a later attempt. The failure
+        // is then written to the change log as apply_failed, after the module's own transaction (or
+        // savepoint) has rolled back, so the Overview can list the invoice with a Retry button; the
+        // exception still reaches the caller, and a failing log write never replaces it.
+        try {
+            $lines = $this->applyLines($invoiceId, $clientId, $lines, $tier, $invoice, $now);
+        } catch (\Throwable $e) {
+            try {
+                $this->log($clientId, $invoiceId, 'apply_failed', $detail + ['message' => $e->getMessage(), 'error' => get_class($e), 'lineCount' => count($lines)], $actor);
+            } catch (\Throwable) {
+                // The connection may be gone: the original failure is the one to report.
             }
-            foreach ($lines as $n => $line) {
-                $lines[$n]['itemId'] = $this->repo->addInvoiceItem(
-                    $invoiceId,
-                    $clientId,
-                    self::ITEM_TYPE,
-                    $clientId,
-                    $line['description'],
-                    Money::negate($line['amount']),
-                    $line['taxed'],
-                    $invoice['dueDate'],
-                    $invoice['paymentMethod'],
-                );
-                $this->saveRecord($invoiceId, $n, $clientId, $lines[$n], $tier, false, $now);
-            }
-            return $lines;
-        });
+            throw $e;
+        }
         if ($lines === null) {
             $this->log($clientId, $invoiceId, 'already_processed', ['claimed' => false], $actor);
             return DiscountOutcome::skipped('already_processed');
@@ -238,6 +231,38 @@ final class InvoiceDiscounter
             ), $clientId);
         }
         return new DiscountOutcome(DiscountOutcome::APPLIED, 'applied', $base, $amount, $tier->percent, $counted, $itemIds[0], $lines);
+    }
+
+    /**
+     * The transaction: claim the invoice, add the discount lines, record them; null when another
+     * request claimed the invoice first.
+     *
+     * @param list<array{taxed:int, base:string, amount:string, countedLines:int, description:string, itemId:?int}> $lines
+     * @param array{id:int, clientId:int, status:string, dueDate:?string, paymentMethod:string} $invoice
+     * @return list<array{taxed:int, base:string, amount:string, countedLines:int, description:string, itemId:?int}>|null
+     */
+    private function applyLines(int $invoiceId, int $clientId, array $lines, Tier $tier, array $invoice, string $now): ?array
+    {
+        return $this->repo->transaction(function () use ($invoiceId, $clientId, $lines, $tier, $invoice, $now): ?array {
+            if (!$this->repo->claimInvoice($invoiceId, $clientId, $now)) {
+                return null;
+            }
+            foreach ($lines as $n => $line) {
+                $lines[$n]['itemId'] = $this->repo->addInvoiceItem(
+                    $invoiceId,
+                    $clientId,
+                    self::ITEM_TYPE,
+                    $clientId,
+                    $line['description'],
+                    Money::negate($line['amount']),
+                    $line['taxed'],
+                    $invoice['dueDate'],
+                    $invoice['paymentMethod'],
+                );
+                $this->saveRecord($invoiceId, $n, $clientId, $lines[$n], $tier, false, $now);
+            }
+            return $lines;
+        });
     }
 
     /**

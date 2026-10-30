@@ -168,6 +168,7 @@ foreach (['iris', 'blend'] as $theme) {
     $put($prefix . '-overview-' . $theme . '.html', frame($themeDir, $theme, $title, $page->render(WidgetData::MODULE_LINK, [], [], 'admin:1', $token)));
     $put($prefix . '-settings-' . $theme . '.html', frame($themeDir, $theme, $title, $page->render(WidgetData::MODULE_LINK, ['action' => 'settings'], [], 'admin:1', $token)));
     $demo = Scenarios::page(Scenarios::DEMO);
+    $put($prefix . '-overview-demo-' . $theme . '.html', frame($themeDir, $theme, $title, $demo->render(WidgetData::MODULE_LINK, [], [], 'admin:1', $token)));
     $put($prefix . '-agency-' . $theme . '.html', frame($themeDir, $theme, $title, $demo->render(WidgetData::MODULE_LINK, ['action' => 'agency', 'id' => (string) Scenarios::DETAIL_CLIENT], [], 'admin:1', $token)));
     $put($prefix . '-log-' . $theme . '.html', frame($themeDir, $theme, $title, $demo->render(WidgetData::MODULE_LINK, ['action' => 'log'], [], 'admin:1', $token)));
 
