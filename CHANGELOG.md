@@ -2,6 +2,8 @@
 
 ## Unreleased (0.3.0)
 
+- README: "What has and has not been verified" is a section of its own; the rehearsal CLI and the real-database sandbox sit under "Development and operations" after Limitations, with a one-line pointer from Install; the opening paragraph no longer lists the CLI among the product's features (#17).
+
 - Change log: `client_missing` is logged once per state change (while the client's newest entry is already `client_missing`, a recalculation adds nothing), not twice a day for ever; and the Change log tab has an event filter (a select and a Filter button, a plain GET form) that combines with the client filter and the pager. Its strings moved to the language file (#15).
 - Tier thresholds and percentages with more than two decimals (1000.009, 7.555) are rejected with a problem naming the currency, the tier and the value, shown inline on the Settings tab, instead of being truncated silently, whether typed on the form or already stored; a stored value like that opens the repair page, where it is shown as stored and can be corrected. Values whose extra decimals are zeros (3000.100, 1000.000) and large thresholds (10000000.01) are accepted (#16).
 

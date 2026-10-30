@@ -1,6 +1,6 @@
 # Agency Programme for WHMCS
 
-Agency Programme is a WHMCS addon that runs a programme for approved agency clients. An administrator marks a client as an approved agency on the client profile, the module measures the client's qualifying monthly spend and places the client in a tier, and each tier carries a benefit. Today that benefit is a percentage discount on the client's qualifying hosting services and add-ons, applied automatically as a named negative line on each new invoice. No service price is ever changed. The module has a dry-run mode, an admin overview with a home widget and a card on each agency's client summary, a read-only client-area page for agencies, a full change log and a command-line rehearsal, so the numbers can be checked before a single invoice is touched.
+Agency Programme is a WHMCS addon that runs a programme for approved agency clients. An administrator marks a client as an approved agency on the client profile, the module measures the client's qualifying monthly spend and places the client in a tier, and each tier carries a benefit. Today that benefit is a percentage discount on the client's qualifying hosting services and add-ons, applied automatically as a named negative line on each new invoice. No service price is ever changed. The module has a dry-run mode, an admin overview with a home widget and a card on each agency's client summary, a read-only client-area page for agencies and a full change log, so the numbers can be checked before a single invoice is touched.
 
 Licensed under the AGPL-3.0-or-later. Project home: https://github.com/wadejbeckett/agency-programme-whmcs
 
@@ -41,8 +41,10 @@ All amounts are handled as decimal strings with `bcmath`, never as floats. Month
 3. Grant the admin role groups that should see the module access to it (Configure on the same page). The same access list decides which roles see the admin home widget, the card on the client summary page and the "Agency discount" field on the client's Profile tab, and so which roles can approve an agency.
 4. Open Addons > Agency Programme > Settings and set the tiers, the qualifying groups, products and add-ons, and the statuses (see below). `profiles/example.json` shows one complete configuration.
 5. Approve agencies: open a client, go to the Profile tab and tick "Approved agency" under "Agency discount". Add a note and a start date if wanted.
-6. Check the Overview and Configuration check pages while dry-run is on. The overview shows each agency's spend, tier, next invoice and discount.
+6. Check the Overview while dry-run is on: each agency's spend, tier, next invoice and discount, and the "Needs attention" panel for anything the configuration refers to that WHMCS does not have.
 7. When the numbers are right, press "Switch to live" on the Settings tab.
+
+To rehearse tiers and qualifying items against a copy of the data before activating, see the rehearsal CLI under [Development and operations](#development-and-operations).
 
 Upgrading: replace the whole `modules/addons/agencydiscount` directory with the new one (move the old directory aside, then put the new one in place; do not copy the new folder over the old one, which leaves files that later versions removed). WHMCS then calls `agencydiscount_upgrade`, which records each change in the activity log and skips a step whose column or index is already there, so a re-run after a failure is safe. To 0.3.0 it adds the `idx_client` index to `mod_agencydiscount_invoices`, deletes the unread `keep_data` row and notes that nine settings are now edited on the Settings tab (their stored rows are kept). From 0.2.1 to 0.2.2 nothing changes in the database. From 0.1.0 or 0.2.0 to 0.2.1 it changes `mod_agencydiscount_invoices` so an invoice can hold one record per discount line (columns `id`, `line` and `taxed`; existing records keep their data and take the taxed flag of their invoice line), and replaces the invoice line text with the new default when the old default (`Agency discount {percent}% on {count} qualifying items`) is still stored unchanged. A customised text is left as it is. Back up `mod_agencydiscount_invoices` before upgrading.
 
@@ -157,49 +159,7 @@ The template uses the client theme's Bootstrap 4 classes (WHMCS's "twenty-one" t
 
 None of the hooks throws: a failure is written to the WHMCS activity log and the hook returns, so invoicing, the admin pages and the client area keep working.
 
-## Rehearsal CLI
-
-The command-line tool replays the module against a copy of the data without writing anything, so tiers and qualifying items can be tuned before activation.
-
-1. Export a snapshot from a copy of the WHMCS database (read-only `SELECT`s, needs the `mariadb` client):
-
-   ```bash
-   tools/snapshot.sh OUTDIR DATABASE [mariadb client options...]
-   ```
-
-   A snapshot contains client data. Keep it outside the repository and never commit it.
-
-2. Rehearse with a settings file such as `profiles/example.json`:
-
-   ```bash
-   bin/agency-discount rehearse --snapshot DIR --settings FILE [--approve ID,ID] [--days N] [--invoice N] [--today YYYY-MM-DD]
-   ```
-
-   `--approve` lists the client ids to treat as approved agencies, `--days` how far ahead to list upcoming invoices (default 35), `--invoice` also runs the discount on one invoice (always as a dry run) and `--today` sets the day. `bin/agency-discount help` prints the usage. The rehearsal does not model the per-agency start date.
-
-### Real-database sandbox
-
-For a stronger check than the in-memory rehearsal, `tools/sandbox.sh` copies the WHMCS tables the module touches into a throwaway database and the integration tests run the real module entry points against it (activate, profile save, `InvoiceCreation`, daily recalculation, deactivate):
-
-```bash
-tools/sandbox.sh SOURCE_DB SANDBOX_DB [mariadb client options...]
-```
-
-`SANDBOX_DB` is dropped and recreated; it must differ from `SOURCE_DB` and contain the word `sandbox`. The source is only read. The integration suite is opt-in and skipped unless its variables are set:
-
-| Variable | Used by | Meaning |
-| --- | --- | --- |
-| `AGENCYDISCOUNT_SANDBOX_DSN` | sandbox test | PDO DSN of the sandbox, for example `mysql:host=127.0.0.1;dbname=whmcs_sandbox`. The database name must contain `sandbox`. Needs PHP's `pdo_mysql`. |
-| `AGENCYDISCOUNT_SANDBOX_USER` | sandbox test | Database user (default `root`). |
-| `AGENCYDISCOUNT_SANDBOX_PASS` | sandbox test | Database password (default empty). |
-| `AGENCYDISCOUNT_MARIADB_ARGS` | SQL check | `mariadb` client options, for example `--defaults-file=/path/to/my.cnf -u root`. |
-| `AGENCYDISCOUNT_MARIADB_DB` | SQL check | Name of a WHMCS database copy to check every SQL statement against (read-only, plus a scratch schema round trip). |
-
-```bash
-vendor/bin/phpunit --testsuite integration
-```
-
-### What has and has not been verified
+## What has and has not been verified
 
 The hooks were exercised against a MariaDB copy of a WHMCS 9.0.8 database through Illuminate's Capsule. On licensed WHMCS installations (9.0.9 from 12 October 2026, 9.1.0 from 25 October 2026), this has been verified:
 
@@ -244,7 +204,7 @@ Deactivating the module under System Settings > Addon Modules keeps its three ta
 - The client area shows undiscounted recurring prices on services; the discount appears on the invoice and the programme page.
 - Tax-inclusive pricing, compound (second-level) tax and EU-style tax setups are untested; the tax handling has only been checked in the unit tests with tax-exclusive line flags.
 
-## Development
+## Development and operations
 
 ```bash
 composer install
@@ -252,7 +212,49 @@ composer test    # PHPUnit (the integration tests skip without their variables)
 composer stan    # PHPStan, analysing at the PHP 8.1 floor
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the toolchain requirements and conventions. The integration environment variables are listed above.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the toolchain requirements and conventions. The integration environment variables are listed under the sandbox below.
+
+### Rehearsal CLI
+
+The command-line tool replays the module against a copy of the data without writing anything, so tiers and qualifying items can be tuned before activation.
+
+1. Export a snapshot from a copy of the WHMCS database (read-only `SELECT`s, needs the `mariadb` client):
+
+   ```bash
+   tools/snapshot.sh OUTDIR DATABASE [mariadb client options...]
+   ```
+
+   A snapshot contains client data. Keep it outside the repository and never commit it.
+
+2. Rehearse with a settings file such as `profiles/example.json`:
+
+   ```bash
+   bin/agency-discount rehearse --snapshot DIR --settings FILE [--approve ID,ID] [--days N] [--invoice N] [--today YYYY-MM-DD]
+   ```
+
+   `--approve` lists the client ids to treat as approved agencies, `--days` how far ahead to list upcoming invoices (default 35), `--invoice` also runs the discount on one invoice (always as a dry run) and `--today` sets the day. `bin/agency-discount help` prints the usage. The rehearsal does not model the per-agency start date.
+
+#### Real-database sandbox
+
+For a stronger check than the in-memory rehearsal, `tools/sandbox.sh` copies the WHMCS tables the module touches into a throwaway database and the integration tests run the real module entry points against it (activate, profile save, `InvoiceCreation`, daily recalculation, deactivate):
+
+```bash
+tools/sandbox.sh SOURCE_DB SANDBOX_DB [mariadb client options...]
+```
+
+`SANDBOX_DB` is dropped and recreated; it must differ from `SOURCE_DB` and contain the word `sandbox`. The source is only read. The integration suite is opt-in and skipped unless its variables are set:
+
+| Variable | Used by | Meaning |
+| --- | --- | --- |
+| `AGENCYDISCOUNT_SANDBOX_DSN` | sandbox test | PDO DSN of the sandbox, for example `mysql:host=127.0.0.1;dbname=whmcs_sandbox`. The database name must contain `sandbox`. Needs PHP's `pdo_mysql`. |
+| `AGENCYDISCOUNT_SANDBOX_USER` | sandbox test | Database user (default `root`). |
+| `AGENCYDISCOUNT_SANDBOX_PASS` | sandbox test | Database password (default empty). |
+| `AGENCYDISCOUNT_MARIADB_ARGS` | SQL check | `mariadb` client options, for example `--defaults-file=/path/to/my.cnf -u root`. |
+| `AGENCYDISCOUNT_MARIADB_DB` | SQL check | Name of a WHMCS database copy to check every SQL statement against (read-only, plus a scratch schema round trip). |
+
+```bash
+vendor/bin/phpunit --testsuite integration
+```
 
 ### Release archive
 
