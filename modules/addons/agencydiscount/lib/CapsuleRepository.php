@@ -468,9 +468,21 @@ final class CapsuleRepository implements Repository
         return self::money($row?->total);
     }
 
+    /**
+     * Runs $work in a transaction on WHMCS's connection. When the hook is called while WHMCS already
+     * holds a transaction, Laravel's counter normally knows it and nests the work as a savepoint;
+     * but a transaction opened straight on the PDO handle (outside Laravel's counter) would make
+     * beginTransaction() fail with "There is already an active transaction" and the invoice would
+     * go undiscounted. In that case the work runs inside the outer transaction as it is, which
+     * already gives it atomicity: the caller commits or rolls back the whole request.
+     */
     public function transaction(callable $work): mixed
     {
-        return Capsule::connection()->transaction(static fn () => $work());
+        $connection = Capsule::connection();
+        if ($connection->transactionLevel() === 0 && $connection->getPdo()->inTransaction()) {
+            return $work();
+        }
+        return $connection->transaction(static fn () => $work());
     }
 
     public function execute(string $sql): void

@@ -460,6 +460,24 @@ final class SandboxTest extends TestCase
         self::assertSame(0, Manager::table('tblinvoiceitems')->where('invoiceid', $rolledBack)->count());
         self::assertSame('done', $repo->transaction(static fn (): string => 'done'));
 
+        // i4b'. a transaction WHMCS opened straight on the PDO handle (outside Laravel's counter): the module's work
+        //       runs inside it instead of failing with "There is already an active transaction", and commits with it
+        $pdo = Manager::connection()->getPdo();
+        self::assertSame(0, Manager::connection()->transactionLevel());
+        $pdo->beginTransaction();
+        try {
+            $result = $repo->transaction(static function () use ($repo, $other): string {
+                $repo->log(['clientId' => $other, 'invoiceId' => null, 'event' => 'note_changed', 'detail' => ['to' => 'inside an outer PDO transaction'], 'actor' => 'sandbox', 'createdAt' => date('Y-m-d H:i:s')]);
+                return 'ran';
+            });
+        } finally {
+            $pdo->commit();
+        }
+        self::assertSame('ran', $result);
+        self::assertSame('inside an outer PDO transaction', $repo->logEntries($other, 1)[0]['detail']['to'] ?? null);
+        Manager::table('mod_agencydiscount_log')->where('client_id', $other)->where('event', 'note_changed')->delete();
+        self::assertFalse($pdo->inTransaction());
+
         // i4c. saveCalculation writes the computed columns only
         $before = $repo->agency($clientId);
         self::assertNotNull($before);
