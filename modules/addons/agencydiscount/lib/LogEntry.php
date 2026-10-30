@@ -17,7 +17,7 @@ use AgencyDiscount\Admin\Html;
 final class LogEntry
 {
     /** Every event the module writes, in the order the Change log's event filter offers them. */
-    public const EVENTS = ['approved', 'revoked', 'note_changed', 'effective_from_changed', 'effective_from_invalid', 'tier_changed', 'no_tier', 'applied', 'dry_run', 'already_processed', 'not_yet_effective', 'no_qualifying_lines', 'zero_amount', 'invoice_not_found', 'client_missing', 'recalculate_failed', 'settings_changed', 'mode_changed', 'log_pruned'];
+    public const EVENTS = ['approved', 'revoked', 'note_changed', 'effective_from_changed', 'effective_from_invalid', 'tier_changed', 'no_tier', 'applied', 'dry_run', 'already_processed', 'not_yet_effective', 'no_qualifying_lines', 'zero_amount', 'invoice_not_found', 'client_missing', 'recalculate_failed', 'settings_changed', 'mode_changed', 'log_pruned', 'apply_failed'];
 
     /**
      * @param Entry $entry
@@ -53,6 +53,7 @@ final class LogEntry
             'recalculate_failed' => 'Recalculating ' . $client . ' failed: ' . self::str($d['message'] ?? '') . '.',
             'settings_changed' => 'Settings changed by ' . $actor . ': ' . implode(', ', array_map('strval', array_keys(is_array($d['changed'] ?? null) ? $d['changed'] : []))) . '.',
             'mode_changed' => 'Switched to ' . self::str($d['to'] ?? '') . ' mode by ' . $actor . '.',
+            'apply_failed' => 'The discount on ' . $invoice . ' for ' . $client . ' failed and was rolled back: ' . rtrim(self::str($d['message'] ?? ''), '.') . '.',
             'log_pruned' => self::plural((int) ($d['count'] ?? 0), 'change log entry', 'change log entries') . ' older than ' . substr(self::str($d['before'] ?? ''), 0, 10) . ' removed (retention ' . self::plural((int) ($d['months'] ?? 0), 'month', 'months') . ').',
             default => $entry['event'] . ' for ' . $client . ' by ' . $actor . ': ' . self::json($d),
         };

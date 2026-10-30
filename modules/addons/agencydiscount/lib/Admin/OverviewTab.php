@@ -8,6 +8,8 @@ namespace AgencyDiscount\Admin;
 
 use AgencyDiscount\AgencyStatus;
 use AgencyDiscount\Config;
+use AgencyDiscount\DiscountOutcome;
+use AgencyDiscount\InvoiceDiscounter;
 use AgencyDiscount\LogEntry;
 use AgencyDiscount\Module;
 use AgencyDiscount\Money;
@@ -23,6 +25,10 @@ use AgencyDiscount\Repository;
 final class OverviewTab
 {
     public const ACTION_RECALCULATE = 'recalculate';
+    /** POST action=retry&invoice=N: apply the discount again to an invoice whose first attempt failed (apply_failed). */
+    public const ACTION_RETRY = 'retry';
+    /** How many days back a failed apply stays under "Needs attention". */
+    public const FAILED_DAYS = 35;
     public const FILTERS = ['all', 'tier', 'waiting', 'no_tiers'];
     /** How many change-log entries the side column shows. */
     public const RECENT_ENTRIES = 6;
@@ -43,6 +49,9 @@ final class OverviewTab
         if (($post['action'] ?? null) === self::ACTION_RECALCULATE) {
             $reports = $this->module->recalculator()->recalculateAll($actor);
             $html .= '<div class="alert alert-success">' . Html::e(sprintf(Page::lang('recalculated'), count($reports))) . '</div>';
+        }
+        if (($post['action'] ?? null) === self::ACTION_RETRY) {
+            $html .= $this->retry($post['invoice'] ?? null, $actor);
         }
 
         $missing = [];
@@ -280,10 +289,113 @@ final class OverviewTab
         return sprintf(Page::lang('to_next_tier'), Html::money($status->report->currency, $shortfall), $next->index, Money::formatPercent($next->percent));
     }
 
+    /** The invoice statuses a Retry may add a line to: an issued invoice that is not yet paid, or a draft. */
+    public const RETRY_STATUSES = ['Unpaid', 'Draft'];
+    /** How many characters of the failure message the attention item shows (the change log keeps all of it). */
+    private const MESSAGE_SHOWN = 120;
+    /** Log entries read per page while collecting failed applies, and the most pages read. */
+    private const FAILED_PAGE = 100;
+    private const FAILED_PAGES = 10;
+
+    /** Applies the discount again to an invoice whose first attempt failed; the outcome as an alert. */
+    private function retry(mixed $invoice, string $actor): string
+    {
+        $invoiceId = is_string($invoice) && preg_match('/^\d{1,9}$/', $invoice) === 1 ? (int) $invoice : 0;
+        if ($invoiceId === 0) {
+            return self::alert('danger', Page::lang('retry_no_invoice'));
+        }
+        if ($this->module->config->dryRun) {
+            return self::alert('warning', sprintf(Page::lang('retry_dry_run'), $invoiceId));
+        }
+        $row = $this->module->repo->invoice($invoiceId);
+        if ($row === null) {
+            return self::alert('warning', sprintf(Page::lang('retry_gone'), $invoiceId));
+        }
+        if (!in_array($row['status'], self::RETRY_STATUSES, true)) {
+            return self::alert('warning', sprintf(Page::lang('retry_status'), $invoiceId, $row['status']));
+        }
+        try {
+            $outcome = $this->module->discounter()->apply($invoiceId, 'retry', $actor);
+        } catch (\Throwable $e) {
+            return self::alert('danger', sprintf(Page::lang('retry_failed'), $invoiceId, $e->getMessage()));
+        }
+        if ($outcome->status === DiscountOutcome::APPLIED) {
+            if (!$this->module->repo->refreshInvoiceTotals($invoiceId)) {
+                return self::alert('warning', sprintf(Page::lang('retry_applied_no_totals'), $invoiceId));
+            }
+            return self::alert('success', sprintf(Page::lang('retry_applied'), $invoiceId));
+        }
+        $reason = Page::lang('retry_reason_' . $outcome->reason);
+        return self::alert('info', sprintf(Page::lang('retry_skipped'), $invoiceId, $reason === 'retry_reason_' . $outcome->reason ? $outcome->reason : $reason));
+    }
+
+    private static function alert(string $kind, string $text): string
+    {
+        return '<div class="alert alert-' . $kind . '">' . Html::e($text) . '</div>';
+    }
+
+    /**
+     * The apply_failed entries of the last FAILED_DAYS days whose invoice still has no discount (no
+     * record and no AgencyDiscount line) and can still take one (it exists, in a RETRY_STATUSES
+     * status): one per invoice, newest first. Entries are read in pages until a whole page is older
+     * than the window, so resolved or repeated failures never push an open one out of the list.
+     *
+     * @return list<array{invoiceId:int, clientId:?int, createdAt:string, message:string}>
+     */
+    private function failedApplies(): array
+    {
+        $since = $this->module->clock->now()->modify('-' . self::FAILED_DAYS . ' days')->format('Y-m-d H:i:s');
+        $failed = [];
+        for ($page = 0; $page < self::FAILED_PAGES; $page++) {
+            $entries = $this->module->repo->logEntries(null, self::FAILED_PAGE, $page * self::FAILED_PAGE, 'apply_failed');
+            foreach ($entries as $entry) {
+                $invoiceId = $entry['invoiceId'];
+                if ($entry['createdAt'] < $since || $invoiceId === null || isset($failed[$invoiceId]) || !$this->stillWithoutDiscount($invoiceId)) {
+                    continue;
+                }
+                $message = $entry['detail']['message'] ?? '';
+                $failed[$invoiceId] = ['invoiceId' => $invoiceId, 'clientId' => $entry['clientId'], 'createdAt' => $entry['createdAt'], 'message' => is_scalar($message) ? (string) $message : ''];
+            }
+            // entries come newest first; once a whole page is older than the window the rest is too
+            if (count($entries) < self::FAILED_PAGE || $entries[array_key_last($entries)]['createdAt'] < $since) {
+                break;
+            }
+        }
+        return array_values($failed);
+    }
+
+    /** True while the invoice exists in a status a Retry may touch and has neither a record nor a discount line. */
+    private function stillWithoutDiscount(int $invoiceId): bool
+    {
+        $row = $this->module->repo->invoice($invoiceId);
+        if ($row === null || !in_array($row['status'], self::RETRY_STATUSES, true) || $this->module->repo->invoiceRecord($invoiceId) !== null) {
+            return false;
+        }
+        foreach ($this->module->repo->invoiceItems($invoiceId) as $item) {
+            if ($item['type'] === InvoiceDiscounter::ITEM_TYPE) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** @param list<AgencyStatus> $statuses */
     private function attention(string $moduleLink, array $statuses): string
     {
         $items = [];
+        $forms = '';
+        $dryRun = $this->module->config->dryRun;
+        foreach ($this->failedApplies() as $failure) {
+            $message = (string) preg_replace('/^(.{' . (self::MESSAGE_SHOWN - 1) . '}).+$/su', '$1…', $failure['message']);
+            $action = $dryRun
+                ? '<span class="text-muted">' . Html::e(Page::lang('retry_when_live')) . '</span>'
+                : '<button type="submit" class="btn btn-default btn-xs">' . Html::e(Page::lang('retry')) . '</button>';
+            $forms .= '<div class="list-group-item"><form method="post" class="form-inline">' . $this->tokenField
+                . '<input type="hidden" name="action" value="' . self::ACTION_RETRY . '"><input type="hidden" name="invoice" value="' . $failure['invoiceId'] . '">'
+                . '<a href="invoices.php?action=edit&amp;id=' . $failure['invoiceId'] . '">' . Html::e(sprintf(Page::lang('attention_apply_failed'), $failure['invoiceId'])) . '</a> '
+                . Html::e(sprintf(Page::lang('attention_apply_failed_detail'), substr($failure['createdAt'], 0, 10), $message)) . ' '
+                . $action . '</form></div>';
+        }
         if ($this->module->config->dryRun) {
             $days = $this->dryRunDays($statuses);
             $text = match (true) {
@@ -324,7 +436,7 @@ final class OverviewTab
             ];
         }
 
-        $list = '';
+        $list = $forms;
         foreach ($items as [$text, $href]) {
             $list .= '<a class="list-group-item" href="' . $href . '">' . Html::e($text) . '</a>';
         }

@@ -127,6 +127,17 @@ class ArrayRepository implements Repository
         return $rows;
     }
 
+    /** @var list<int> the invoices whose totals were refreshed, in order */
+    public array $refreshedInvoices = [];
+    /** What refreshInvoiceTotals() answers (false rehearses an install where the API call fails). */
+    public bool $refreshSucceeds = true;
+
+    public function refreshInvoiceTotals(int $invoiceId): bool
+    {
+        $this->refreshedInvoices[] = $invoiceId;
+        return $this->refreshSucceeds;
+    }
+
     public function invoice(int $invoiceId): ?array
     {
         $invoice = $this->invoices[$invoiceId] ?? null;

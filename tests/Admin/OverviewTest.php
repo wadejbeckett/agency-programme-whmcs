@@ -196,6 +196,83 @@ final class OverviewTest extends TestCase
         self::assertStringContainsString('Figures recalculated 2026-10-12 03:00:00.', $this->render(['q' => 'Agency One']));
     }
 
+    public function testAFailedApplyIsListedWithARetryThatAppliesTheDiscount(): void
+    {
+        $this->repo->log(['clientId' => 131, 'invoiceId' => 9001, 'event' => 'apply_failed', 'detail' => ['message' => 'insert failed', 'amount' => '42.50'], 'actor' => 'system', 'createdAt' => '2026-10-10 03:00:00']);
+        $this->repo->log(['clientId' => 131, 'invoiceId' => 8000, 'event' => 'apply_failed', 'detail' => ['message' => 'old'], 'actor' => 'system', 'createdAt' => '2026-08-01 03:00:00']);
+        $html = $this->render();
+        self::assertStringContainsString('<div class="list-group-item"><form method="post" class="form-inline">' . self::TOKEN . '<input type="hidden" name="action" value="retry"><input type="hidden" name="invoice" value="9001"><a href="invoices.php?action=edit&amp;id=9001">Invoice #9001 got no discount</a> (failed on 2026-10-10: insert failed). <button type="submit" class="btn btn-default btn-xs">Retry</button></form></div>', $html);
+        self::assertStringNotContainsString('value="8000"', $html, 'older than 35 days');
+
+        // a second failure of the same invoice, a failure with no invoice, a deleted invoice and a paid one add no items
+        $this->repo->log(['clientId' => 131, 'invoiceId' => 9001, 'event' => 'apply_failed', 'detail' => ['message' => 'again'], 'actor' => 'system', 'createdAt' => '2026-10-11 03:00:00']);
+        $this->repo->log(['clientId' => 131, 'invoiceId' => null, 'event' => 'apply_failed', 'detail' => ['message' => 'no invoice'], 'actor' => 'system', 'createdAt' => '2026-10-11 03:00:01']);
+        $this->repo->log(['clientId' => 131, 'invoiceId' => 7777, 'event' => 'apply_failed', 'detail' => ['message' => 'deleted since'], 'actor' => 'system', 'createdAt' => '2026-10-11 03:00:02']);
+        $this->repo->invoices[9002]['status'] = 'Paid';
+        $this->repo->log(['clientId' => 131, 'invoiceId' => 9002, 'event' => 'apply_failed', 'detail' => ['message' => 'paid since'], 'actor' => 'system', 'createdAt' => '2026-10-11 03:00:03']);
+        $html = $this->render();
+        self::assertSame(1, substr_count($html, 'name="action" value="retry"'), 'one item, for the one open failure');
+        self::assertStringContainsString('(failed on 2026-10-11: again)', $html, 'the newest failure of the invoice is shown');
+        self::assertStringNotContainsString('value="7777"', $html);
+        self::assertStringNotContainsString('value="9002"', $html);
+
+        // in dry-run the button gives way to a note and a retry is refused
+        $html = $this->render([], ['dry_run' => 'on']);
+        self::assertStringContainsString('(failed on 2026-10-11: again). <span class="text-muted">Retry when live mode is on</span></form>', $html);
+        $html = $this->page(['dry_run' => 'on'])->render(self::LINK, [], ['action' => 'retry', 'invoice' => '9001'], 'admin:1', self::TOKEN);
+        self::assertStringContainsString('<div class="alert alert-warning">Invoice #9001 was not retried: dry-run is on. Switch to live mode first.</div>', $html);
+        self::assertNull($this->repo->invoiceRecord(9001));
+
+        // a retry on a paid or deleted invoice is refused before apply() runs
+        $html = $this->page()->render(self::LINK, [], ['action' => 'retry', 'invoice' => '9002'], 'admin:1', self::TOKEN);
+        self::assertStringContainsString('<div class="alert alert-warning">Invoice #9002 is Paid; a discount can only be added to an unpaid or draft invoice.</div>', $html);
+        $html = $this->page()->render(self::LINK, [], ['action' => 'retry', 'invoice' => '7777'], 'admin:1', self::TOKEN);
+        self::assertStringContainsString('<div class="alert alert-warning">Invoice #7777 no longer exists.</div>', $html);
+        self::assertSame([], $this->repo->refreshedInvoices);
+
+        // Retry applies the discount (live mode), has WHMCS refresh the totals, and the item is gone
+        $html = $this->page()->render(self::LINK, [], ['action' => 'retry', 'invoice' => '9001'], 'admin:1', self::TOKEN);
+        self::assertStringContainsString('<div class="alert alert-success">Discount applied to invoice #9001.</div>', $html);
+        self::assertNotNull($this->repo->invoiceRecord(9001));
+        self::assertSame([9001], $this->repo->refreshedInvoices);
+        self::assertStringNotContainsString('Invoice #9001 got no discount', $html);
+        self::assertSame('applied', $this->repo->logEntries(131, 1)[0]['event']);
+        self::assertSame('retry', $this->repo->logEntries(131, 1)[0]['detail']['source']);
+
+        // a retry on an invoice that is already done, or with no id, says so in words
+        $html = $this->page()->render(self::LINK, [], ['action' => 'retry', 'invoice' => '9001'], 'admin:1', self::TOKEN);
+        self::assertStringContainsString('<div class="alert alert-info">Invoice #9001: nothing applied. The invoice already has its discount.</div>', $html);
+        $html = $this->page()->render(self::LINK, [], ['action' => 'retry', 'invoice' => 'x'], 'admin:1', self::TOKEN);
+        self::assertStringContainsString('<div class="alert alert-danger">No invoice given to retry.</div>', $html);
+    }
+
+    public function testARetryWhoseTotalsRefreshFailsSaysSoAndALongMessageIsCut(): void
+    {
+        $this->repo->log(['clientId' => 131, 'invoiceId' => 9001, 'event' => 'apply_failed', 'detail' => ['message' => str_repeat('é', 150)], 'actor' => 'system', 'createdAt' => '2026-10-10 03:00:00']);
+        self::assertStringContainsString('(failed on 2026-10-10: ' . str_repeat('é', 119) . '…).', $this->render());
+        $this->repo->refreshSucceeds = false;
+        $html = $this->page()->render(self::LINK, [], ['action' => 'retry', 'invoice' => '9001'], 'admin:1', self::TOKEN);
+        self::assertStringContainsString('<div class="alert alert-warning">Discount line added to invoice #9001, but WHMCS did not recalculate its total: open the invoice and save it.</div>', $html);
+        self::assertNotNull($this->repo->invoiceRecord(9001));
+    }
+
+    public function testARetryThatFailsAgainReportsTheErrorAndKeepsTheItem(): void
+    {
+        $failing = new class (Fixtures::data()) extends ArrayRepository {
+            public function saveInvoiceRecord(array $row): void
+            {
+                throw new \RuntimeException('still failing');
+            }
+        };
+        $failing->agencies = $this->repo->agencies;
+        $failing->log(['clientId' => 131, 'invoiceId' => 9001, 'event' => 'apply_failed', 'detail' => ['message' => 'first'], 'actor' => 'system', 'createdAt' => '2026-10-10 03:00:00']);
+        $page = Page::of(new Module($failing, Config::fromSettings(Fixtures::settings()), new FrozenClock(new \DateTimeImmutable('2026-10-12 09:00:00')), new RecordingActivityLog()));
+        $html = $page->render(self::LINK, [], ['action' => 'retry', 'invoice' => '9001'], 'admin:1', self::TOKEN);
+        self::assertStringContainsString('<div class="alert alert-danger">Invoice #9001: the retry failed (still failing). The attempt is in the change log.</div>', $html);
+        self::assertStringContainsString('(failed on 2026-10-12: still failing).', $html, 'the new failure is the one listed');
+        self::assertSame(1, substr_count($html, 'name="action" value="retry"'));
+    }
+
     public function testNeedsAttentionNamesEngineRowsWithNoStoredValue(): void
     {
         $this->repo->settings = ['statuses' => 'Active', 'description' => 'x {percent}', 'product_groups' => '23', 'activity_log' => 'on'];
