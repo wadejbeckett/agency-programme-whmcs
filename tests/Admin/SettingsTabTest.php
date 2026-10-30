@@ -13,6 +13,7 @@ use AgencyDiscount\Config;
 use AgencyDiscount\FrozenClock;
 use AgencyDiscount\Module;
 use AgencyDiscount\RecordingActivityLog;
+use AgencyDiscount\Tiers;
 use AgencyDiscount\Tests\Support\Fixtures;
 use PHPUnit\Framework\TestCase;
 
@@ -195,6 +196,41 @@ final class SettingsTabTest extends TestCase
         self::assertSame(Fixtures::settings(), $this->repo->settings);
         self::assertSame([], $this->repo->logs);
         self::assertSame([], $this->activity->entries);
+    }
+
+    public function testAThresholdWithThreeDecimalsIsRejectedOnTheFormAndOnTheRepairPage(): void
+    {
+        // typed on the form: the cell reaches the parser as typed, is rejected, and nothing is saved
+        $post = self::validPost();
+        $post['tiers']['ZAR'][1] = ['above' => '2000.009', 'percent' => '7.555'];
+        $html = $this->render(['action' => 'settings_save'] + $post);
+        self::assertStringContainsString('<li>tiers: ZAR tier 2 &quot;above&quot; must have at most two decimals (got 2000.009)</li>', $html);
+        self::assertStringContainsString('<li>tiers: ZAR tier 2 &quot;percent&quot; must have at most two decimals (got 7.555)</li>', $html);
+        self::assertStringContainsString('name="tiers[ZAR][1][above]" value="2000.009"', $html, 'kept as typed');
+        self::assertSame(Fixtures::settings(), $this->repo->settings);
+        // a trailing zero changes nothing and passes
+        $post['tiers']['ZAR'][1] = ['above' => '2000.100', 'percent' => '7.50'];
+        $html = $this->render(['action' => 'settings_save'] + $post);
+        self::assertStringContainsString('Settings saved.', $html);
+        self::assertStringContainsString('"above":2000.1,"percent":7.5', $this->repo->settings['tiers']);
+
+        // stored with three decimals: the repair page shows the value in its row, and a save that leaves it rejects it again
+        $this->repo->settings = ['tiers' => '{"ZAR":[{"above":0,"percent":5},{"above":5000.009,"percent":10}]}'] + Fixtures::settings();
+        $page = Page::forStoredSettings($this->repo, new FrozenClock(new \DateTimeImmutable('2026-10-12 09:00:00')), $this->activity);
+        $html = $page->render('addonmodules.php?module=agencydiscount', ['action' => 'settings'], [], 'admin:1', self::TOKEN);
+        self::assertStringContainsString('name="tiers[ZAR][1][above]" value="5000.009"', $html);
+        self::assertStringContainsString('must have at most two decimals (got 5000.009)', $html);
+        self::assertStringNotContainsString('above ZAR 5,000.00', $html, 'no band preview pretends the value is 5,000.00');
+        $post = self::validPost();
+        $post['tiers'] = ['ZAR' => [['above' => '0', 'percent' => '5'], ['above' => '5000.009', 'percent' => '10']]];
+        $html = $page->render('addonmodules.php?module=agencydiscount', ['action' => 'settings'], ['action' => 'settings_save'] + $post, 'admin:1', self::TOKEN);
+        self::assertStringContainsString('The settings were not saved.', $html);
+        self::assertStringContainsString('(got 5000.009)', $html);
+        self::assertStringContainsString('"above":5000.009', $this->repo->settings['tiers'], 'the stored value is untouched until it is corrected');
+        $post['tiers']['ZAR'][1]['above'] = '5000.01';
+        $html = $page->render('addonmodules.php?module=agencydiscount', ['action' => 'settings'], ['action' => 'settings_save'] + $post, 'admin:1', self::TOKEN);
+        self::assertStringContainsString('Settings saved.', $html);
+        self::assertStringContainsString('"above":5000.01', $this->repo->settings['tiers']);
     }
 
     public function testSaveWritesTheSettingKeysAndLogsTheDiff(): void
@@ -444,9 +480,12 @@ final class SettingsTabTest extends TestCase
         self::assertSame('[1,2]', $unreadable->withTiers('ZAR', [['above' => '0', 'percent' => '5']])->unreadableTiers);
         self::assertSame('not json', SettingsForm::fromSettings(['tiers' => 'not json'])->unreadableTiers);
 
-        // a valid stored set gives the same stored keys back as the form built from its Config
+        // a valid stored set gives the same stored keys back as the form built from its Config (the tiers as typed, so compared parsed)
         $fromConfig = SettingsForm::fromConfig(Config::fromSettings(Fixtures::settings()))->toSettings();
-        self::assertSame($fromConfig, SettingsForm::fromSettings(Fixtures::settings())->toSettings());
+        $fromStored = SettingsForm::fromSettings(Fixtures::settings())->toSettings();
+        self::assertSame(Tiers::fromJson($fromConfig['tiers'])->toJson(), Tiers::fromJson($fromStored['tiers'])->toJson());
+        unset($fromConfig['tiers'], $fromStored['tiers']);
+        self::assertSame($fromConfig, $fromStored);
     }
 
     public function testDecodeInputDecodesEveryStringOnce(): void

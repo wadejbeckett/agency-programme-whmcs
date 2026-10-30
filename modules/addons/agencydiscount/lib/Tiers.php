@@ -162,19 +162,26 @@ final class Tiers
     }
 
     /**
-     * A number (as decimal() accepts it) with more than two decimals: 1000.009 or 7.555 would be
-     * truncated by the two-place normalisation, so it is rejected instead of silently changed.
+     * A number (as decimal() accepts it) that the two-place normalisation would change: 1000.009 or
+     * 7.555 would be truncated, so it is rejected instead of silently changed. Trailing zeros
+     * (3000.100, "1000.000") change nothing and pass. A float is compared with its two-place
+     * rounding, so a large threshold such as 10000000.01 is not misread through binary noise.
      */
     private static function tooPrecise(mixed $value): bool
     {
-        $text = is_float($value) ? rtrim(rtrim(sprintf('%.10F', $value), '0'), '.') : (is_scalar($value) ? trim((string) $value) : '');
-        return preg_match('/\.\d{3,}$/', $text) === 1;
+        if (is_float($value)) {
+            return is_finite($value) && round($value, 2) !== $value;
+        }
+        return is_string($value) && preg_match('/\.\d{2}\d*[1-9]\d*\s*$/', $value) === 1;
     }
 
-    /** The value as the administrator typed or stored it, for a problem message. */
+    /** The value as the administrator typed or stored it, for a problem message (a float in its shortest exact form). */
     private static function shown(mixed $value): string
     {
-        return is_float($value) ? rtrim(rtrim(sprintf('%.10F', $value), '0'), '.') : (is_scalar($value) ? trim((string) $value) : '');
+        if (is_float($value)) {
+            return (string) json_encode($value);
+        }
+        return is_scalar($value) ? trim((string) $value) : '';
     }
 
     /** Normalises a JSON number or numeric string to two decimals, or null when it is not a plain number. */
