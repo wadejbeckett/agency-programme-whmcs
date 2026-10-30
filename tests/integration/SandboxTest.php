@@ -411,7 +411,14 @@ final class SandboxTest extends TestCase
         $record($mixed, 1, $this->insertDiscountLine($mixed, $other, '-7.00', 1), '7.00', 1);
         $dry = $this->insertTaggedInvoice($other, 'Paid');
         $record($dry, 0, $this->insertDiscountLine($dry, $other, '-99.00', 0), '99.00', 0, true);
-        self::assertSame('22.00', $repo->appliedDiscountTotal($other, date('Y') . '-01-01'));
+        $draft = $this->insertTaggedInvoice($other, 'Draft');
+        $record($draft, 0, $this->insertDiscountLine($draft, $other, '-11.00', 0), '11.00', 0);
+        $movedFrom = $this->insertTaggedInvoice($other, 'Paid');
+        $movedTo = $this->insertTaggedInvoice($other, 'Paid');
+        $movedLine = $this->insertDiscountLine($movedFrom, $other, '-13.00', 0);
+        $record($movedFrom, 0, $movedLine, '13.00', 0);
+        Manager::table('tblinvoiceitems')->where('id', $movedLine)->update(['invoiceid' => $movedTo]); // WHMCS merged the invoice
+        self::assertSame('35.00', $repo->appliedDiscountTotal($other, date('Y') . '-01-01'), '10 + 5 + 7 + the moved 13; not the Draft, not the dry run');
         $logged = $other + 1; // its own client id, removed again below so the prune check later sees only its own rows
         $repo->log(['clientId' => $logged, 'invoiceId' => null, 'event' => 'note_changed', 'detail' => ['to' => 'x'], 'actor' => 'admin:1', 'createdAt' => date('Y-m-d H:i:s')]);
         $repo->log(['clientId' => $logged, 'invoiceId' => null, 'event' => 'revoked', 'detail' => ['note' => ''], 'actor' => 'admin:1', 'createdAt' => date('Y-m-d H:i:s')]);
@@ -421,7 +428,7 @@ final class SandboxTest extends TestCase
         // i4a'. the detail page's records query sees the same rows with the invoice status and whether the line is
         //       still there, newest first, and its per-record state agrees with the total: the counted rows sum to it
         $records = $repo->clientInvoiceRecords($other);
-        self::assertSame([[$dry, 0], [$mixed, 0], [$mixed, 1], [$removed, 0], [$refunded, 0], [$cancelled, 0], [$paid, 0]], array_map(static fn (array $r): array => [$r['invoiceId'], $r['line']], $records), 'newest first, then by invoice id, then line');
+        self::assertSame([[$movedFrom, 0], [$draft, 0], [$dry, 0], [$mixed, 0], [$mixed, 1], [$removed, 0], [$refunded, 0], [$cancelled, 0], [$paid, 0]], array_map(static fn (array $r): array => [$r['invoiceId'], $r['line']], $records), 'newest first, then by invoice id, then line');
         $states = [];
         $counted = '0.00';
         foreach ($records as $r) {
@@ -431,6 +438,8 @@ final class SandboxTest extends TestCase
             }
         }
         self::assertSame([
+            $movedFrom . '/0' => ['Paid', true, 'counted'],
+            $draft . '/0' => ['Draft', true, 'invoice_status'],
             $dry . '/0' => ['Paid', true, 'dry_run'],
             $mixed . '/0' => ['Paid', true, 'counted'],
             $mixed . '/1' => ['Paid', true, 'counted'],
@@ -439,10 +448,11 @@ final class SandboxTest extends TestCase
             $cancelled . '/0' => ['Cancelled', true, 'invoice_status'],
             $paid . '/0' => ['Paid', true, 'counted'],
         ], $states);
-        self::assertSame('22.00', $counted, 'the rows marked counted sum to the saved total');
+        self::assertSame('35.00', $counted, 'the rows marked counted sum to the saved total');
+        self::assertSame($movedTo, $records[0]['lineInvoiceId'], 'the moved line is followed to its new invoice');
         Manager::table('tblinvoices')->where('id', $paid)->delete();
         self::assertSame([null, true, 'invoice_gone'], array_values(array_filter(array_map(static fn (array $r): array => [$r['invoiceStatus'], $r['lineOnInvoice'], AgencyTab::state($r, (int) date('Y'))], $repo->clientInvoiceRecords($other)), static fn (array $s): bool => $s[0] === null))[0]);
-        self::assertSame('12.00', $repo->appliedDiscountTotal($other, date('Y') . '-01-01'), 'a deleted invoice leaves the total too');
+        self::assertSame('25.00', $repo->appliedDiscountTotal($other, date('Y') . '-01-01'), 'a deleted invoice leaves the total too');
 
         // i4b. a throw inside the transaction after the claim and a discount line leaves neither behind
         $rolledBack = $this->insertTaggedInvoice($other, 'Unpaid');

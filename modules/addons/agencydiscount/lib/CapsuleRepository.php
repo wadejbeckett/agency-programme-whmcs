@@ -333,6 +333,7 @@ final class CapsuleRepository implements Repository
                 'createdAt' => (string) $row->created_at,
                 'invoiceStatus' => $row->invoice_status === null ? null : (string) $row->invoice_status,
                 'lineOnInvoice' => $row->item_present !== null,
+                'lineInvoiceId' => $row->line_invoice_id === null ? null : (int) $row->line_invoice_id,
             ];
         }
         return $records;

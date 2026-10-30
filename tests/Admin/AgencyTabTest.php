@@ -43,10 +43,17 @@ final class AgencyTabTest extends TestCase
         $this->repo->saveInvoiceRecord(['invoiceId' => 6, 'line' => 1, 'itemId' => 62, 'amount' => '1.00', 'createdAt' => '2025-12-25 10:00:00'] + $record);
         $this->repo->saveInvoiceRecord(['invoiceId' => 7, 'itemId' => null, 'amount' => '0.00', 'createdAt' => '2026-08-01 10:00:00'] + $record);
         $this->repo->saveInvoiceRecord(['invoiceId' => 8, 'itemId' => 81, 'amount' => '7.00', 'createdAt' => '2027-01-01 10:00:00'] + $record);
+        // a Draft invoice (does not count) and a line WHMCS moved to another, paid invoice (counts, judged by that invoice)
+        $this->repo->saveInvoiceRecord(['invoiceId' => 9, 'itemId' => 91, 'amount' => '3.00', 'createdAt' => '2026-02-01 10:00:00'] + $record);
+        $this->repo->saveInvoiceRecord(['invoiceId' => 10, 'itemId' => 101, 'amount' => '2.00', 'createdAt' => '2026-01-15 10:00:00'] + $record);
         Fixtures::withDiscountLines($this->repo);
         $this->repo->invoices[3]['status'] = 'Cancelled';
         $this->repo->invoiceItems[4] = [];
         unset($this->repo->invoices[5], $this->repo->invoiceItems[5]);
+        $this->repo->invoices[9]['status'] = 'Draft';
+        $this->repo->invoices[11] = ['id' => 11, 'clientId' => 131, 'status' => 'Paid', 'dueDate' => null];
+        $this->repo->invoiceItems[11] = $this->repo->invoiceItems[10];
+        $this->repo->invoiceItems[10] = [];
     }
 
     /** @param array<string,string> $override */
@@ -83,14 +90,16 @@ final class AgencyTabTest extends TestCase
         self::assertStringNotContainsString('e.example', $html, 'a service outside the counted groups is not listed');
         self::assertStringContainsString('<h4>Upcoming invoices (next 35 days)</h4>', $html);
         self::assertStringContainsString('<td>2026-10-25</td><td>5</td><td>ZAR 850.00</td><td>ZAR 42.50</td>', $html);
-        // records, newest first, with their state, and the year total from the client area's query (42.50 + the 2027 record's 7.00)
-        self::assertStringContainsString('Saved in 2026: ZAR 49.50.', $html);
+        // records, newest first, with their state, and the year total from the client area's query (42.50 + the 2027 record's 7.00 + the moved line's 2.00)
+        self::assertStringContainsString('Saved in 2026: ZAR 51.50.', $html);
         self::assertSame(1, preg_match('#<h4>Discounts applied</h4>.*?<tbody>(.*?)</tbody>#s', $html, $m));
         preg_match_all('#<tr><td><a href="invoices.php\?action=edit&amp;id=(\d+)">#', $m[1], $ids);
-        self::assertSame(['8', '7', '5', '4', '3', '2', '1', '6', '6'], $ids[1]);
+        self::assertSame(['8', '7', '5', '4', '3', '2', '1', '9', '10', '6', '6'], $ids[1]);
+        self::assertStringContainsString('id=9">9</a></td><td>2026-02-01</td><td>1</td><td>5%</td><td>ZAR 850.00</td><td>ZAR 3.00</td><td>no</td><td><span class="label label-default">invoice Draft</span></td>', $html, 'a Draft invoice does not count');
+        self::assertStringContainsString('id=10">10</a> <small class="text-muted"><a href="invoices.php?action=edit&amp;id=11">now on invoice 11</a></small></td><td>2026-01-15</td><td>1</td><td>5%</td><td>ZAR 850.00</td><td>ZAR 2.00</td><td>no</td><td><span class="label label-success">counted</span></td>', $html, 'a moved line counts, judged by its new invoice');
         self::assertStringContainsString('id=8">8</a></td><td>2027-01-01</td><td>1</td><td>5%</td><td>ZAR 850.00</td><td>ZAR 7.00</td><td>no</td><td><span class="label label-success">counted</span></td>', $html, 'a future-dated record counts, as it does in the total');
         self::assertStringContainsString('id=7">7</a></td><td>2026-08-01</td><td>1</td><td>5%</td><td>ZAR 850.00</td><td>ZAR 0.00</td><td>no</td><td><span class="label label-default">no discount line</span></td>', $html);
-        self::assertSame(2, substr_count($m[1], '>counted</span>'), 'the marks and the total agree: 42.50 + 7.00');
+        self::assertSame(3, substr_count($m[1], '>counted</span>'), 'the marks and the total agree: 42.50 + 7.00 + 2.00');
         self::assertStringContainsString('id=5">5</a></td><td>2026-07-01</td><td>1</td><td>5%</td><td>ZAR 850.00</td><td>ZAR 40.00</td><td>no</td><td><span class="label label-default">invoice deleted</span></td>', $html);
         self::assertStringContainsString('id=4">4</a></td><td>2026-06-01</td><td>1</td><td>5%</td><td>ZAR 850.00</td><td>ZAR 30.00</td><td>no</td><td><span class="label label-default">line removed</span></td>', $html);
         self::assertStringContainsString('id=3">3</a></td><td>2026-05-01</td><td>1</td><td>5%</td><td>ZAR 850.00</td><td>ZAR 20.00</td><td>no</td><td><span class="label label-default">invoice Cancelled</span></td>', $html);

@@ -10,6 +10,7 @@ use AgencyDiscount\AgencyStatus;
 use AgencyDiscount\ClientNotFound;
 use AgencyDiscount\Module;
 use AgencyDiscount\Money;
+use AgencyDiscount\Repository;
 
 /**
  * The agency detail view (Overview > Detail): everything about one approved agency, read-only.
@@ -170,7 +171,8 @@ final class AgencyTab
         $rows = '';
         foreach ($records as $record) {
             $rows .= self::row([
-                '<a href="invoices.php?action=edit&amp;id=' . $record['invoiceId'] . '">' . $record['invoiceId'] . '</a>' . ($record['line'] === 0 ? '' : ' <small class="text-muted">' . Html::e(sprintf(Page::lang('agency_line_n'), $record['line'] + 1)) . '</small>'),
+                '<a href="invoices.php?action=edit&amp;id=' . $record['invoiceId'] . '">' . $record['invoiceId'] . '</a>' . ($record['line'] === 0 ? '' : ' <small class="text-muted">' . Html::e(sprintf(Page::lang('agency_line_n'), $record['line'] + 1)) . '</small>')
+                    . ($record['lineInvoiceId'] === null || $record['lineInvoiceId'] === $record['invoiceId'] ? '' : ' <small class="text-muted"><a href="invoices.php?action=edit&amp;id=' . $record['lineInvoiceId'] . '">' . Html::e(sprintf(Page::lang('agency_line_moved'), $record['lineInvoiceId'])) . '</a></small>'),
                 Html::e(substr($record['createdAt'], 0, 10)),
                 (string) $record['tierIndex'],
                 Html::e(Money::formatPercent($record['percent'])) . '%',
@@ -185,9 +187,10 @@ final class AgencyTab
 
     /**
      * Why a record is in or out of the year's total, mirroring Sql::APPLIED_DISCOUNT_TOTAL clause by
-     * clause: "counted", or the first reason it is left out ("dry_run", "no_line", "invoice_gone",
-     * "invoice_status", "line_removed", "earlier_year"). Public so the sandbox test can check it
-     * against the real query.
+     * clause: "counted", or the first reason it is left out ("dry_run", "no_line", "line_removed",
+     * "invoice_gone", "invoice_status" for an invoice outside Repository::SAVED_STATUSES, "earlier_year").
+     * A line WHMCS moved to another invoice is judged by that invoice. Public so the sandbox test
+     * can check it against the real query.
      *
      * @param ClientRecordRow $record
      */
@@ -197,8 +200,8 @@ final class AgencyTab
             $record['dryRun'] => 'dry_run',
             $record['itemId'] === null => 'no_line',
             $record['invoiceStatus'] === null => 'invoice_gone',
-            in_array($record['invoiceStatus'], ['Cancelled', 'Refunded'], true) => 'invoice_status',
             !$record['lineOnInvoice'] => 'line_removed',
+            !in_array($record['invoiceStatus'], Repository::SAVED_STATUSES, true) => 'invoice_status',
             (int) substr($record['createdAt'], 0, 4) < $year => 'earlier_year',
             default => 'counted',
         };

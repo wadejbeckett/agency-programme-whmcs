@@ -32,8 +32,15 @@ final class Sql
     public const COLUMN_EXISTS = 'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1';
     public const ADMIN_ROLE = 'SELECT roleid FROM tbladmins WHERE id = ?';
     /** Only records whose discount line is still on the invoice, on an invoice that is not cancelled or refunded. */
-    public const APPLIED_DISCOUNT_TOTAL = 'SELECT COALESCE(SUM(r.amount), 0) AS total FROM mod_agencydiscount_invoices r JOIN tblinvoiceitems ii ON ii.id = r.item_id AND ii.invoiceid = r.invoice_id JOIN tblinvoices i ON i.id = r.invoice_id WHERE r.client_id = ? AND r.dry_run = 0 AND r.created_at >= ? AND i.status NOT IN (\'Cancelled\', \'Refunded\')';
-    public const CLIENT_INVOICE_RECORDS = 'SELECT r.invoice_id, r.line, r.client_id, r.item_id, r.taxed, r.tier_index, r.percent, r.base, r.amount, r.dry_run, r.created_at, i.status AS invoice_status, ii.id AS item_present FROM mod_agencydiscount_invoices r LEFT JOIN tblinvoices i ON i.id = r.invoice_id LEFT JOIN tblinvoiceitems ii ON ii.id = r.item_id AND ii.invoiceid = r.invoice_id WHERE r.client_id = ? ORDER BY r.created_at DESC, r.invoice_id DESC, r.line';
+    /**
+     * "Saved in <year>": applied (not dry-run) records written since the date, whose discount line
+     * still exists (followed by its id, so a line WHMCS moved to another invoice by merging still
+     * counts) and whose invoice stands (Repository::SAVED_STATUSES; SqlTest checks the list below is
+     * that one). The type guard keeps a reused item id of another kind from counting.
+     */
+    public const APPLIED_DISCOUNT_TOTAL = 'SELECT COALESCE(SUM(r.amount), 0) AS total FROM mod_agencydiscount_invoices r JOIN tblinvoiceitems ii ON ii.id = r.item_id AND ii.type = \'' . InvoiceDiscounter::ITEM_TYPE . '\' JOIN tblinvoices i ON i.id = ii.invoiceid WHERE r.client_id = ? AND r.dry_run = 0 AND r.created_at >= ? AND i.status IN (\'Paid\', \'Unpaid\', \'Payment Pending\', \'Collections\')';
+    /** The records with the discount line's current invoice (the line followed by its id) and that invoice's status; the record's own invoice when the line is gone. */
+    public const CLIENT_INVOICE_RECORDS = 'SELECT r.invoice_id, r.line, r.client_id, r.item_id, r.taxed, r.tier_index, r.percent, r.base, r.amount, r.dry_run, r.created_at, i.status AS invoice_status, ii.id AS item_present, ii.invoiceid AS line_invoice_id FROM mod_agencydiscount_invoices r LEFT JOIN tblinvoiceitems ii ON ii.id = r.item_id AND ii.type = \'' . InvoiceDiscounter::ITEM_TYPE . '\' LEFT JOIN tblinvoices i ON i.id = COALESCE(ii.invoiceid, r.invoice_id) WHERE r.client_id = ? ORDER BY r.created_at DESC, r.invoice_id DESC, r.line';
     public const CLAIM_INVOICE = 'INSERT IGNORE INTO mod_agencydiscount_invoices (invoice_id, line, client_id, item_id, taxed, tier_index, percent, base, amount, dry_run, created_at) VALUES (?, 0, ?, NULL, 0, 0, 0.00, 0.00, 0.00, 0, ?)';
 
     /**
@@ -76,7 +83,7 @@ final class Sql
             'COLUMN_EXISTS' => ['1'],
             'ADMIN_ROLE' => ['roleid'],
             'APPLIED_DISCOUNT_TOTAL' => ['total'],
-            'CLIENT_INVOICE_RECORDS' => ['invoice_id', 'line', 'client_id', 'item_id', 'taxed', 'tier_index', 'percent', 'base', 'amount', 'dry_run', 'created_at', 'invoice_status', 'item_present'],
+            'CLIENT_INVOICE_RECORDS' => ['invoice_id', 'line', 'client_id', 'item_id', 'taxed', 'tier_index', 'percent', 'base', 'amount', 'dry_run', 'created_at', 'invoice_status', 'item_present', 'line_invoice_id'],
             'CLAIM_INVOICE' => [],
         ];
     }
