@@ -2,7 +2,9 @@
 {* Agency Programme client-area page. Read-only. Variables come from AgencyDiscount\ClientArea\PageData::build();
    amounts arrive formatted and every value is escaped here. Bootstrap 4 classes of the client theme only. *}
 <div class="agencydiscount-clientarea">
-{if !$approved}
+{if !$permitted}
+    <div class="alert alert-info">{$text.no_permission|escape}</div>
+{elseif !$approved}
     <div class="alert alert-info">{$text.not_member|escape}</div>
 {else}
     <p>{$text.intro|escape}</p>

@@ -169,11 +169,11 @@ final class Hooks
     {
         try {
             $module = self::module();
-            $clientId = self::clientId();
-            if ($module === null || $clientId === null) {
+            $viewer = self::viewer();
+            if ($module === null || $viewer === null || !$viewer['permitted']) {
                 return;
             }
-            $vars = ClientArea\PageData::build($module, $clientId);
+            $vars = ClientArea\PageData::build($module, $viewer['clientId']);
             $body = ClientArea\PageData::panelHtml($vars);
             if ($body === '') {
                 return;
@@ -201,6 +201,50 @@ final class Hooks
     {
         $uid = class_exists(\WHMCS\Session::class) ? \WHMCS\Session::get('uid') : null;
         return is_numeric($uid) && (int) $uid > 0 ? (int) $uid : null;
+    }
+
+    /** The client-area permission a user needs to see the programme: the one that shows invoices, where the discount lines are. */
+    public const BILLING_PERMISSION = 'invoices';
+
+    /**
+     * Who is looking at the client area: the logged-in client's id and whether the current user may
+     * see that account's billing. WHMCS 8+ lets an account owner invite users with chosen
+     * permissions, and every user of the account shares the session's client id, so the id alone
+     * says nothing about the user. The owner, a user with the invoices permission and an admin
+     * logged in as the owner may see the programme; any other user may not. Decided through
+     * WHMCS's own classes (CurrentUser, Client::isOwnedBy() and Client::hasPermission()); without
+     * them, or when the authenticated client is not the session's, nothing is shown. Null when
+     * nobody is logged in.
+     *
+     * @return array{clientId:int, permitted:bool}|null
+     */
+    public static function viewer(): ?array
+    {
+        $clientId = self::clientId();
+        if ($clientId === null) {
+            return null;
+        }
+        return ['clientId' => $clientId, 'permitted' => self::mayViewBilling($clientId)];
+    }
+
+    private static function mayViewBilling(int $clientId): bool
+    {
+        if (!class_exists(\WHMCS\Authentication\CurrentUser::class)) {
+            return false;
+        }
+        $current = new \WHMCS\Authentication\CurrentUser();
+        $client = $current->client();
+        if ($client === null || (int) $client->id !== $clientId) {
+            return false;
+        }
+        if ($current->isMasqueradingAdmin()) {
+            return true;
+        }
+        $user = $current->user();
+        if ($user !== null && $client->isOwnedBy($user)) {
+            return true;
+        }
+        return (bool) $client->hasPermission(self::BILLING_PERMISSION);
     }
 
     /** The logged-in admin's id from the WHMCS session, or null when it cannot be read. */

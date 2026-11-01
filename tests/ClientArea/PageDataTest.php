@@ -143,6 +143,16 @@ final class PageDataTest extends TestCase
         }
     }
 
+    public function testAUserWithoutTheBillingPermissionGetsOnlyTheNotice(): void
+    {
+        $vars = PageData::build($this->module(), 131, false);
+        self::assertSame(['approved', 'permitted', 'text'], array_keys($vars));
+        self::assertFalse($vars['approved']);
+        self::assertFalse($vars['permitted']);
+        self::assertSame('', PageData::panelHtml($vars));
+        self::assertTrue(PageData::build($this->module(), 131)['permitted'], 'permitted by default');
+    }
+
     public function testPanelHtml(): void
     {
         $this->repo->agencies[131]['effectiveFrom'] = '2027-01-01';

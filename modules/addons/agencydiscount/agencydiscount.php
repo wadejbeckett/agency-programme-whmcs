@@ -146,14 +146,15 @@ function agencydiscount_output(array $vars): void
 function agencydiscount_clientarea(array $vars): array
 {
     try {
-        $data = PageData::build(Module::boot(), Hooks::clientId());
+        $viewer = Hooks::viewer();
+        $data = PageData::build(Module::boot(), $viewer['clientId'] ?? null, $viewer['permitted'] ?? true);
     } catch (\Throwable $e) {
         try {
             \logActivity('Agency Discount: client area: ' . get_class($e) . ': ' . $e->getMessage());
         } catch (\Throwable) {
             error_log('Agency Discount: client area: ' . $e->getMessage());
         }
-        $data = ['approved' => false, 'text' => PageData::text()];
+        $data = ['approved' => false, 'permitted' => true, 'text' => PageData::text()];
     }
     $title = $data['text']['title'];
     return [

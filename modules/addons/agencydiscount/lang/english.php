@@ -271,6 +271,7 @@ $_ADDONLANG['ca_title'] = 'Agency programme';
 $_ADDONLANG['ca_panel_title'] = 'Your agency programme';
 $_ADDONLANG['ca_panel_button'] = 'Agency programme';
 $_ADDONLANG['ca_not_member'] = 'This account is not part of the agency programme.';
+$_ADDONLANG['ca_no_permission'] = 'Your login does not have the invoices permission on this account, so the agency programme is not shown. The account owner can change this under User Management.';
 $_ADDONLANG['ca_intro'] = 'Your tier follows your qualifying monthly spend and sets the discount added to each new invoice. Nothing here can be changed from this page.';
 $_ADDONLANG['ca_dry_run'] = 'The programme is being set up: discounts are calculated but not yet added to invoices.';
 $_ADDONLANG['ca_starts_line'] = 'Your discount starts on %s: invoices due before that date are not discounted.';

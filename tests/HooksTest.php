@@ -92,6 +92,49 @@ final class HooksTest extends TestCase
         self::assertSame([], WhmcsCalls::$activity);
     }
 
+    public function testClientHomePanelOnlyForAUserWhoMaySeeTheBilling(): void
+    {
+        $this->useModule(Fixtures::settings());
+        \WHMCS\Session::$values['uid'] = 131;
+        $panel = static function (): \WHMCS\View\Menu\Item {
+            $panels = new \WHMCS\View\Menu\Item();
+            Hooks::clientHomePanels($panels);
+            return $panels;
+        };
+        self::assertArrayHasKey('agencydiscount', $panel()->children, 'the owner');
+        self::assertSame(['clientId' => 131, 'permitted' => true], Hooks::viewer());
+
+        // an invited user with the profile and tickets permissions only
+        \WHMCS\Authentication\CurrentUser::$owner = false;
+        \WHMCS\Authentication\CurrentUser::$permissions = ['profile', 'tickets'];
+        self::assertSame([], $panel()->children, 'no panel for a user without the invoices permission');
+        self::assertSame(['clientId' => 131, 'permitted' => false], Hooks::viewer());
+        self::assertSame([], WhmcsCalls::$activity, 'nothing is reported: it is not a failure');
+
+        // the same user given the invoices permission
+        \WHMCS\Authentication\CurrentUser::$permissions = ['profile', 'tickets', 'invoices'];
+        self::assertArrayHasKey('agencydiscount', $panel()->children);
+
+        // an admin logged in as the owner
+        \WHMCS\Authentication\CurrentUser::$permissions = [];
+        \WHMCS\Authentication\CurrentUser::$masquerading = true;
+        self::assertArrayHasKey('agencydiscount', $panel()->children);
+        \WHMCS\Authentication\CurrentUser::$masquerading = false;
+
+        // WHMCS's authenticated client is not the session's client: nothing is shown
+        \WHMCS\Authentication\CurrentUser::$owner = true;
+        \WHMCS\Authentication\CurrentUser::$clientId = 600;
+        self::assertSame([], $panel()->children);
+        self::assertSame(['clientId' => 131, 'permitted' => false], Hooks::viewer());
+
+        // nobody logged in
+        \WHMCS\Authentication\CurrentUser::reset();
+        \WHMCS\Authentication\CurrentUser::$loggedOut = true;
+        self::assertSame([], $panel()->children);
+        \WHMCS\Session::$values['uid'] = null;
+        self::assertNull(Hooks::viewer());
+    }
+
     public function testClientHomePanelNeverThrows(): void
     {
         \WHMCS\Session::$values['uid'] = 131;

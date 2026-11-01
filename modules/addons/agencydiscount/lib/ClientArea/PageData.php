@@ -26,11 +26,16 @@ final class PageData
     /** The module's client-area page. */
     public const MODULE_PAGE = 'index.php?m=agencydiscount';
 
-    /** @return array<string, mixed> */
-    public static function build(Module $module, ?int $clientId): array
+    /**
+     * The page's variables for the logged-in client. With $permitted false (a user of the account who
+     * may not see its billing, Hooks::viewer()) they carry only the notice: nothing of the agency is read.
+     *
+     * @return array<string, mixed>
+     */
+    public static function build(Module $module, ?int $clientId, bool $permitted = true): array
     {
-        $vars = ['approved' => false, 'text' => self::text()];
-        if ($clientId === null || $clientId <= 0) {
+        $vars = ['approved' => false, 'permitted' => $permitted, 'text' => self::text()];
+        if (!$permitted || $clientId === null || $clientId <= 0) {
             return $vars;
         }
         try {
