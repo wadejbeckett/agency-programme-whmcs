@@ -56,6 +56,12 @@ namespace WHMCS\Authentication {
             public static array $permissions = [];
             public static bool $masquerading = false;
             public static bool $loggedOut = false;
+            /** @var array<int, list<string>> other accounts the user is linked to: client id => permission list */
+            public static array $otherClients = [];
+            /** @var list<mixed>|null when set, exactly what User::getClientsByPermission() returns (row shapes) */
+            public static ?array $rows = null;
+            /** Thrown by User::getClientsByPermission() when set. */
+            public static ?\Throwable $throws = null;
 
             public static function reset(): void
             {
@@ -64,6 +70,9 @@ namespace WHMCS\Authentication {
                 self::$permissions = [];
                 self::$masquerading = false;
                 self::$loggedOut = false;
+                self::$otherClients = [];
+                self::$rows = null;
+                self::$throws = null;
             }
 
             public function client(): ?\WHMCS\User\Client
@@ -72,12 +81,15 @@ namespace WHMCS\Authentication {
                     return null;
                 }
                 $id = self::$clientId ?? (int) (\WHMCS\Session::get('uid') ?? 0);
-                return $id > 0 ? new \WHMCS\User\Client($id, self::$owner, self::$permissions) : null;
+                return $id > 0 ? new \WHMCS\User\Client($id, self::$owner) : null;
             }
 
             public function user(): ?\WHMCS\User\User
             {
-                return self::$loggedOut ? null : new \WHMCS\User\User(self::$owner ? 1 : 2);
+                if (self::$loggedOut) {
+                    return null;
+                }
+                return new \WHMCS\User\User(self::$owner ? 1 : 2, self::$owner, self::$permissions, self::$clientId ?? (int) (\WHMCS\Session::get('uid') ?? 0));
             }
 
             public function isAuthenticatedUser(): bool
@@ -97,15 +109,14 @@ namespace WHMCS\User {
     if (!class_exists('WHMCS\User\Client', false)) {
         final class Client
         {
-            /** @param list<string> $permissions */
-            public function __construct(public int $id, private bool $owner, private array $permissions)
+            public function __construct(public int $id, private bool $owner)
             {
             }
 
-            /** Only the permission list, as stored on the user's link to the client: the owner's link has none, so the owner must pass through isOwnedBy(). */
+            /** As on WHMCS 9.1, where the method exists but throws for every user (#62): any call fails the tests. */
             public function hasPermission(string $permission): bool
             {
-                return in_array($permission, $this->permissions, true);
+                throw new \RuntimeException('WHMCS\\User\\Client::hasPermission not implemented');
             }
 
             public function isOwnedBy(User $user): bool
@@ -117,8 +128,37 @@ namespace WHMCS\User {
     if (!class_exists('WHMCS\User\User', false)) {
         final class User
         {
-            public function __construct(public int $id)
+            /** @param list<string> $permissions the permission list on the user's link to $clientId */
+            public function __construct(public int $id, private bool $owner = true, private array $permissions = [], private int $clientId = 0)
             {
+            }
+
+            /**
+             * As on WHMCS 9.1: a row of client data for each client, across every account the user is
+             * linked to, that the user holds the permission on (the owner holding every permission on
+             * its own account). CurrentUser::$rows replaces the answer and CurrentUser::$throws makes
+             * it throw.
+             *
+             * @return list<mixed>
+             */
+            public function getClientsByPermission(string $permission): array
+            {
+                if (\WHMCS\Authentication\CurrentUser::$throws !== null) {
+                    throw \WHMCS\Authentication\CurrentUser::$throws;
+                }
+                if (\WHMCS\Authentication\CurrentUser::$rows !== null) {
+                    return \WHMCS\Authentication\CurrentUser::$rows;
+                }
+                $rows = [];
+                if ($this->clientId > 0 && ($this->owner || in_array($permission, $this->permissions, true))) {
+                    $rows[] = ['id' => $this->clientId, 'firstname' => 'Fake', 'status' => 'Active'];
+                }
+                foreach (\WHMCS\Authentication\CurrentUser::$otherClients as $id => $permissions) {
+                    if (in_array($permission, $permissions, true)) {
+                        $rows[] = ['id' => $id, 'firstname' => 'Other', 'status' => 'Active'];
+                    }
+                }
+                return $rows;
             }
         }
     }
