@@ -44,13 +44,13 @@ namespace WHMCS\Authentication {
 
 namespace WHMCS\User {
     /**
-     * Eloquent model of a client account; the permission and ownership checks answer for the authenticated user.
+     * Eloquent model of a client account. Its hasPermission() is left out on purpose: on WHMCS 9.1 it
+     * throws "not implemented" (#62), so a call to it should fail the analysis.
      * @property int $id
      */
     class Client
     {
         public function __get(string $name): mixed { return null; }
-        public function hasPermission(string $permission): bool { return false; }
         public function isOwnedBy(User $user): bool { return false; }
     }
     /**
@@ -60,6 +60,9 @@ namespace WHMCS\User {
     class User
     {
         public function __get(string $name): mixed { return null; }
+        /** @return array<int, mixed> the clients (rows of client data on WHMCS 9.1) the user holds the permission on; the owner holds every permission */
+        public function getClientsByPermission(string $permission): array { return []; }
+        public function isOwner(Client $client): bool { return false; }
     }
 }
 
