@@ -146,14 +146,16 @@ function agencydiscount_output(array $vars): void
 function agencydiscount_clientarea(array $vars): array
 {
     try {
-        $data = PageData::build(Module::boot(), Hooks::clientId());
+        $viewer = Hooks::viewer();
+        $data = PageData::build(Hooks::clientAreaModule(), $viewer['clientId'] ?? null, $viewer['permitted'] ?? true);
     } catch (\Throwable $e) {
         try {
             \logActivity('Agency Discount: client area: ' . get_class($e) . ': ' . $e->getMessage());
         } catch (\Throwable) {
             error_log('Agency Discount: client area: ' . $e->getMessage());
         }
-        $data = ['approved' => false, 'text' => PageData::text()];
+        // Fail closed with a neutral line: the client is not told it is outside the programme.
+        $data = ['approved' => false, 'permitted' => true, 'unavailable' => true, 'text' => PageData::text()];
     }
     $title = $data['text']['title'];
     return [

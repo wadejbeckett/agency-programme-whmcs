@@ -17,6 +17,7 @@ namespace AgencyDiscount\Tests\Support {
             self::$hooks = [];
             self::$activity = [];
             \WHMCS\Session::$values = [];
+            \WHMCS\Authentication\CurrentUser::reset();
         }
     }
 }
@@ -34,6 +35,90 @@ namespace WHMCS\View\Menu {
             {
                 $this->children[$name] = $attributes;
                 return $this;
+            }
+        }
+    }
+}
+
+namespace WHMCS\Authentication {
+    if (!class_exists('WHMCS\Authentication\CurrentUser', false)) {
+        /**
+         * Stands in for WHMCS's CurrentUser: by default the authenticated client is the session's
+         * 'uid' and the user is its owner; tests set the knobs for an invited user with chosen
+         * permissions, an admin logged in as the owner, a client that is not the session's, or
+         * nobody logged in.
+         */
+        final class CurrentUser
+        {
+            public static ?int $clientId = null;
+            public static bool $owner = true;
+            /** @var list<string> */
+            public static array $permissions = [];
+            public static bool $masquerading = false;
+            public static bool $loggedOut = false;
+
+            public static function reset(): void
+            {
+                self::$clientId = null;
+                self::$owner = true;
+                self::$permissions = [];
+                self::$masquerading = false;
+                self::$loggedOut = false;
+            }
+
+            public function client(): ?\WHMCS\User\Client
+            {
+                if (self::$loggedOut) {
+                    return null;
+                }
+                $id = self::$clientId ?? (int) (\WHMCS\Session::get('uid') ?? 0);
+                return $id > 0 ? new \WHMCS\User\Client($id, self::$owner, self::$permissions) : null;
+            }
+
+            public function user(): ?\WHMCS\User\User
+            {
+                return self::$loggedOut ? null : new \WHMCS\User\User(self::$owner ? 1 : 2);
+            }
+
+            public function isAuthenticatedUser(): bool
+            {
+                return !self::$loggedOut;
+            }
+
+            public function isMasqueradingAdmin(): bool
+            {
+                return self::$masquerading;
+            }
+        }
+    }
+}
+
+namespace WHMCS\User {
+    if (!class_exists('WHMCS\User\Client', false)) {
+        final class Client
+        {
+            /** @param list<string> $permissions */
+            public function __construct(public int $id, private bool $owner, private array $permissions)
+            {
+            }
+
+            /** Only the permission list, as stored on the user's link to the client: the owner's link has none, so the owner must pass through isOwnedBy(). */
+            public function hasPermission(string $permission): bool
+            {
+                return in_array($permission, $this->permissions, true);
+            }
+
+            public function isOwnedBy(User $user): bool
+            {
+                return $this->owner && $user->id === 1;
+            }
+        }
+    }
+    if (!class_exists('WHMCS\User\User', false)) {
+        final class User
+        {
+            public function __construct(public int $id)
+            {
             }
         }
     }

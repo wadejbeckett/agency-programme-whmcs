@@ -192,6 +192,8 @@ if (!is_dir($themeDir . '/twenty-one')) {
     $put($prefix . '-clientarea-twenty-one.html', clientFrame($themeDir, $vars['text']['title'], ClientAreaTemplate::render($vars)));
     $none = PageData::build(Scenarios::module(Scenarios::DEMO), null);
     $put($prefix . '-clientarea-notmember-twenty-one.html', clientFrame($themeDir, $none['text']['title'], ClientAreaTemplate::render($none)));
+    $denied = PageData::build(Scenarios::module(Scenarios::DEMO), Scenarios::DETAIL_CLIENT, false);
+    $put($prefix . '-clientarea-nopermission-twenty-one.html', clientFrame($themeDir, $denied['text']['title'], ClientAreaTemplate::render($denied)));
 }
 
 echo implode("\n", $written), "\n";
