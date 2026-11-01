@@ -213,9 +213,12 @@ final class Hooks
      * says nothing about the user. The owner, a user with the invoices permission ("View & Pay
      * Invoices" in WHMCS's User Management) and an admin logged in to the client area from the
      * admin area may see the programme; any other user may not. Decided through WHMCS's own
-     * classes (CurrentUser, Client::isOwnedBy() and Client::hasPermission()); without them, or
-     * when the authenticated client is not the session's, the user counts as not permitted (the
+     * classes (CurrentUser, Client::isOwnedBy() and User::getClientsByPermission()); without them,
+     * or when the authenticated client is not the session's, the user counts as not permitted (the
      * panel is skipped, the page shows the notice). Null when nobody is logged in.
+     *
+     * Client::hasPermission() is not used: on WHMCS 9.1 it exists but throws "not implemented"
+     * for every user (seen on the live install on 1 November 2026, #62).
      *
      * @return array{clientId:int, permitted:bool}|null
      */
@@ -253,10 +256,25 @@ final class Hooks
             return true;
         }
         $user = $current->user();
-        if ($user !== null && $client->isOwnedBy($user)) {
+        if ($user === null) {
+            return false;
+        }
+        if ($client->isOwnedBy($user)) {
             return true;
         }
-        return (bool) $client->hasPermission(self::BILLING_PERMISSION);
+        // The clients this user holds the permission on, across every account the user is linked to
+        // (WHMCS counts the owner as holding all of them). WHMCS 9.1 returns rows of client data; a
+        // row or model is read by its "client_id" when it has one (as a user-client link would) and
+        // by its "id" otherwise, and any other shape is skipped, so an unexpected answer fails closed.
+        // The link's own permissions (UserClient::getPermissions()) answer the same on 9.1; this call
+        // needs no relationship lookup.
+        foreach ($user->getClientsByPermission(self::BILLING_PERMISSION) as $row) {
+            $id = is_array($row) ? ($row['client_id'] ?? $row['id'] ?? null) : (is_object($row) ? ($row->client_id ?? $row->id ?? null) : null);
+            if (is_numeric($id) && (int) $id === $clientId) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The logged-in admin's id from the WHMCS session, or null when it cannot be read. */

@@ -52,6 +52,16 @@ final class ModuleFunctionsTest extends TestCase
             \WHMCS\Authentication\CurrentUser::$permissions = [];
             self::assertTrue(\agencydiscount_clientarea([])['vars']['approved']);
 
+            // WHMCS's permission lookup throws: the page fails closed with the neutral line and one activity line
+            \WHMCS\Authentication\CurrentUser::$owner = false;
+            \WHMCS\Authentication\CurrentUser::$throws = new \RuntimeException('lookup failed');
+            $page = \agencydiscount_clientarea([]);
+            self::assertSame([false, true, true], [$page['vars']['approved'], $page['vars']['permitted'], $page['vars']['unavailable']]);
+            self::assertSame(['Agency Discount: client area: RuntimeException: lookup failed'], array_column(WhmcsCalls::$activity, 'message'));
+            \WHMCS\Authentication\CurrentUser::$throws = null;
+            \WHMCS\Authentication\CurrentUser::$owner = true;
+            WhmcsCalls::$activity = [];
+
             // the module cannot be built: the page says so instead of calling the client an outsider, and the error is logged
             Hooks::reset();
             Hooks::$factory = static function (): Module {

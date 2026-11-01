@@ -136,6 +136,53 @@ final class HooksTest extends TestCase
         self::assertSame([], WhmcsCalls::$activity, 'none of the denied cases is reported as a failure');
     }
 
+    public function testTheGateMatchesThisClientAmongTheUsersAccountsAndFailsClosedOnAnythingElse(): void
+    {
+        $this->useModule(Fixtures::settings());
+        \WHMCS\Session::$values['uid'] = 131;
+        \WHMCS\Authentication\CurrentUser::$owner = false;
+        \WHMCS\Authentication\CurrentUser::$permissions = ['profile', 'tickets'];
+        $permitted = static fn (): bool => Hooks::viewer()['permitted'] ?? false;
+
+        // an agency's staff member holding the invoices permission on another account (200) only
+        \WHMCS\Authentication\CurrentUser::$otherClients = [200 => ['invoices', 'tickets'], 300 => ['tickets']];
+        self::assertFalse($permitted(), 'the permission on another account does not open this one');
+        $panels = new \WHMCS\View\Menu\Item();
+        Hooks::clientHomePanels($panels);
+        self::assertSame([], $panels->children);
+        // ...and once this account grants it too
+        \WHMCS\Authentication\CurrentUser::$permissions = ['invoices'];
+        self::assertTrue($permitted());
+        \WHMCS\Authentication\CurrentUser::$permissions = ['profile', 'tickets'];
+
+        // the shapes an answer may take: [rows, expected, why]
+        $cases = [
+            [[['id' => '200'], ['id' => '131']], true, 'several rows, ids as strings, this client among them'],
+            [[['id' => 200]], false, 'only another client'],
+            [[['id' => 131, 'client_id' => 200]], false, 'a link row: its client_id names the client, not its own id'],
+            [[['id' => 7, 'client_id' => '131']], true, 'a link row for this client'],
+            [[(object) ['id' => 131]], true, 'a model of this client'],
+            [[(object) ['id' => 131, 'client_id' => 200]], false, 'a link model for another client'],
+            [[131], false, 'a bare id is not trusted'],
+            [[['id' => 'abc']], false, 'a non-numeric id'],
+            [[], false, 'no client'],
+        ];
+        foreach ($cases as [$rows, $expected, $why]) {
+            \WHMCS\Authentication\CurrentUser::$rows = $rows;
+            self::assertSame($expected, $permitted(), $why);
+        }
+        \WHMCS\Authentication\CurrentUser::$rows = null;
+        self::assertSame([], WhmcsCalls::$activity);
+
+        // WHMCS throws: no panel, and one activity line for the one failed page view
+        \WHMCS\Authentication\CurrentUser::$throws = new \RuntimeException('boom');
+        $panels = new \WHMCS\View\Menu\Item();
+        Hooks::clientHomePanels($panels);
+        self::assertSame([], $panels->children);
+        self::assertCount(1, WhmcsCalls::$activity);
+        self::assertStringContainsString('RuntimeException: boom', WhmcsCalls::$activity[0]['message']);
+    }
+
     public function testClientHomePanelNeverThrows(): void
     {
         \WHMCS\Session::$values['uid'] = 131;
