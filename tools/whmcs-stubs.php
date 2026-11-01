@@ -30,6 +30,39 @@ namespace WHMCS {
     }
 }
 
+namespace WHMCS\Authentication {
+    /** "Authentication" in the WHMCS developer docs: the authenticated client-area user and client. */
+    class CurrentUser
+    {
+        public function user(): ?\WHMCS\User\User { return null; }
+        public function client(): ?\WHMCS\User\Client { return null; }
+        public function isAuthenticatedUser(): bool { return false; }
+        public function isAuthenticatedAdmin(): bool { return false; }
+        public function isMasqueradingAdmin(): bool { return false; }
+    }
+}
+
+namespace WHMCS\User {
+    /**
+     * Eloquent model of a client account; the permission and ownership checks answer for the authenticated user.
+     * @property int $id
+     */
+    class Client
+    {
+        public function __get(string $name): mixed { return null; }
+        public function hasPermission(string $permission): bool { return false; }
+        public function isOwnedBy(User $user): bool { return false; }
+    }
+    /**
+     * Eloquent model of a client-area user.
+     * @property int $id
+     */
+    class User
+    {
+        public function __get(string $name): mixed { return null; }
+    }
+}
+
 namespace WHMCS\Module {
     /** Base class of admin home widgets ("Admin Dashboard Widgets" in the WHMCS developer docs); properties are untyped there. */
     abstract class AbstractWidget

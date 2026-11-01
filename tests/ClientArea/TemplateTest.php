@@ -54,6 +54,23 @@ final class TemplateTest extends TestCase
         self::assertStringContainsString('Tier 1 (5% off)', $html, 'the tier is shown while the discount waits');
     }
 
+    public function testAUserWithoutTheBillingPermissionGetsOneLine(): void
+    {
+        $html = ClientAreaTemplate::render(PageData::build($this->module(), 131, false));
+        self::assertStringContainsString('<div class="alert alert-info">Your login does not have the &quot;View &amp; Pay Invoices&quot; permission on this account, so the agency programme is not shown. The account owner can grant it under User Management in the account menu.</div>', $html);
+        self::assertStringNotContainsString('<table', $html);
+        self::assertStringNotContainsString('not part of the agency programme', $html);
+        self::assertStringNotContainsString('ZAR', $html);
+    }
+
+    public function testWhenThePageCannotBeBuiltTheClientIsNotCalledAnOutsider(): void
+    {
+        $html = ClientAreaTemplate::render(['approved' => false, 'permitted' => true, 'unavailable' => true, 'text' => PageData::text()]);
+        self::assertStringContainsString('<div class="alert alert-warning">The agency programme cannot be shown right now. Please try again later.</div>', $html);
+        self::assertStringNotContainsString('not part of the agency programme', $html);
+        self::assertStringNotContainsString('<table', $html);
+    }
+
     public function testAClientOutsideTheProgrammeGetsOneLine(): void
     {
         $html = ClientAreaTemplate::render(PageData::build($this->module(), null));
