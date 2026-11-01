@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (0.3.0)
+## 0.3.0 — 2026-11-01
 
 - The client-area home panel and programme page are shown only to a user who may see the account's billing: the owner, a user invited with the "View & Pay Invoices" permission, or an admin logged in from the admin area. Before, every user of the account saw the figures, since the client was identified from the session alone (#59, found by the #14 live check). When the page cannot be built, it now says the programme cannot be shown right now instead of telling the client it is outside the programme.
 
